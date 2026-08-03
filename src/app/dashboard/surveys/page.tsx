@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
-import { publicEnv } from "@/lib/env";
+import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
 
 export const metadata = { title: "Surveys" };
@@ -17,6 +17,10 @@ export default async function SurveysPage() {
   if (!data) redirect("/login");
 
   const { surveys } = data;
+
+  // Derived from the request host, so a student always copies a link that
+  // works from wherever they actually opened the app.
+  const siteUrl = await getSiteUrl();
 
   if (surveys.length === 0) {
     return (
@@ -46,7 +50,7 @@ export default async function SurveysPage() {
       </Note>
 
       {surveys.map((s) => {
-        const url = `${publicEnv.siteUrl}/s/${s.slug}`;
+        const url = `${siteUrl}/s/${s.slug}`;
 
         return (
           <Card key={s.survey_id}>

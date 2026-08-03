@@ -33,7 +33,12 @@ export const publicEnv = {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     );
   },
-  /** Public origin, used to build shareable survey links. */
+  /**
+   * @deprecated For shareable links use `getSiteUrl()` from `lib/site-url`,
+   * which falls back to the request's own host. This getter returns whatever
+   * is configured, which on a deployment with a stale value means handing
+   * students a localhost URL.
+   */
   get siteUrl() {
     return (
       process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
