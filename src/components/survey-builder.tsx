@@ -2,7 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  GripVertical,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +18,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import { createSurvey, type SurveyQuestionInput } from "@/lib/admin/actions";
+import { draftSurvey } from "@/lib/admin/ai-actions";
 import type { Enums } from "@/lib/database.types";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +50,11 @@ const newQuestion = (): Draft => ({
   required: true,
 });
 
-export function SurveyBuilder() {
+export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+  const [topic, setTopic] = React.useState("");
+  const [drafting, startDrafting] = React.useTransition();
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -63,6 +74,40 @@ export function SurveyBuilder() {
       const next = [...qs];
       [next[index], next[target]] = [next[target], next[index]];
       return next;
+    });
+  }
+
+  function draft() {
+    startDrafting(async () => {
+      const result = await draftSurvey(topic, 5);
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      const drafted = result.data;
+      setTitle(drafted.title);
+      setDescription(drafted.description);
+      setQuestions(
+        drafted.questions.map((q) => ({
+          key: `q${nextKey++}`,
+          type: q.type,
+          prompt: q.prompt,
+          help_text: q.help_text || "",
+          // Choice types need at least two boxes to edit; everything else
+          // must carry an empty array or the insert violates the constraint.
+          options:
+            q.type === "single_choice" || q.type === "multi_choice"
+              ? q.options.length >= 2
+                ? q.options
+                : ["", ""]
+              : [],
+          required: q.required,
+        })),
+      );
+
+      toast.success("Draft ready — edit anything before saving.");
     });
   }
 
@@ -99,6 +144,60 @@ export function SurveyBuilder() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      {/* ─── AI draft ────────────────────────────────────────────────────── */}
+      {aiEnabled && (
+        <Card className="border-rank-line bg-rank-tint/40">
+          <CardBody>
+            <div className="flex items-center gap-2">
+              <span className="grid size-8 shrink-0 place-items-center rounded-xs bg-rank-tint text-rank">
+                <Sparkles className="size-4" />
+              </span>
+              <div>
+                <p className="text-[14px] font-bold text-ink">
+                  Draft it with AI
+                </p>
+                <p className="text-[12.5px] text-ink-soft">
+                  Say what you want to learn. It fills the form in — you edit
+                  and decide.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3.5 flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="How students pick which news app to use"
+                onKeyDown={(e) => {
+                  // Enter inside this field would submit the outer form.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (topic.trim()) draft();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                loading={drafting}
+                disabled={!topic.trim()}
+                onClick={draft}
+                className="shrink-0"
+              >
+                <Sparkles aria-hidden />
+                Draft
+              </Button>
+            </div>
+
+            {questions.some((q) => q.prompt) && (
+              <p className="mt-2.5 text-[12px] text-warn">
+                Drafting again replaces everything below.
+              </p>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
       {/* ─── Survey details ──────────────────────────────────────────────── */}
       <Card>
         <CardBody className="space-y-4">

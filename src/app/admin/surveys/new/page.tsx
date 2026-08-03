@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { SurveyBuilder } from "@/components/survey-builder";
 import { requireAdmin } from "@/lib/admin/queries";
+import { aiEnabled } from "@/lib/ai";
 
 export const metadata = { title: "New survey" };
 
@@ -29,7 +30,7 @@ export default async function NewSurveyPage() {
         </p>
       </div>
 
-      <SurveyBuilder />
+      <SurveyBuilder aiEnabled={aiEnabled()} />
     </div>
   );
 }

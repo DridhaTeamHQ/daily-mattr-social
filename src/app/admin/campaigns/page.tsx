@@ -8,6 +8,7 @@ import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { setCampaignStatus } from "@/lib/admin/actions";
 import { getAdminCampaigns } from "@/lib/admin/queries";
+import { aiEnabled } from "@/lib/ai";
 import { formatDate, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Campaigns" };
@@ -36,7 +37,7 @@ export default async function AdminCampaignsPage() {
           </p>
         </div>
 
-        <CreateCampaignDialog />
+        <CreateCampaignDialog aiEnabled={aiEnabled()} />
       </div>
 
       {campaigns.length === 0 ? (

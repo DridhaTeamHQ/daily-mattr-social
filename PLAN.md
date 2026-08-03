@@ -86,12 +86,20 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 - **Student UI** — rebuilt bold and playful: violet base, fat radii, pressable
   buttons, count-up hero, tier track, progress bars.
 - **Repo** — https://github.com/DridhaTeamHQ/daily-mattr-social
+- **Public survey** — `/s/[slug]`. Anonymous respondents, duplicate detection
+  through the partial unique indexes rather than a read-then-write check,
+  salted IP hashing, and the ambassador credited + notified on the first valid
+  response only.
+- **Survey builder** — `/admin/surveys/new`, all eight question types with
+  reordering and options.
+- **AI drafting** — `lib/ai.ts`. Suggests survey questions and campaign copy
+  via JSON-schema-constrained calls. Advisory only: an admin edits and accepts,
+  nothing is written or executed from model output. Hides itself with no
+  `OPENAI_API_KEY`.
 - **Deployed** — https://daily-mattr-social-mbge.vercel.app (Vercel, auto-deploys from `main`)
 
 ### Not started
 
-- The public survey route `/s/[slug]`. The "Preview" button on the surveys
-  page still 404s.
 - **Screenshot upload** — the biggest remaining gap. The Upload buttons on
   campaigns are inert, so submissions can only be created by the seed script.
   `lib/images.ts` already does sha256 + dhash + EXIF, so the pipeline has its
@@ -99,7 +107,7 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
   deterministic checks, calls `find_similar_submissions()`, and decides
   auto-approve vs. review.
 - AI adjudication. `OPENAI_API_KEY` is set but nothing calls it yet.
-- The survey builder, and CSV referral import.
+- CSV referral import.
 - Password reset / invite acceptance.
 
 ## Remaining work, in order
