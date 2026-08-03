@@ -61,6 +61,7 @@ export const demoDashboard: DashboardData = {
       description:
         "Our best-performing reel this quarter. Like it, drop a genuine comment, and put it on your story.",
       instagram_url: "https://www.instagram.com/reel/DEMO1/",
+      expected_handle: "dailymattr",
       thumbnail_path: null,
       ends_at: at(3),
       tasks: [
@@ -95,6 +96,7 @@ export const demoDashboard: DashboardData = {
       title: "Founder interview clip",
       description: "Short clip from the founder Q&A. Likes and shares only.",
       instagram_url: "https://www.instagram.com/reel/DEMO2/",
+      expected_handle: "dailymattr",
       thumbnail_path: null,
       ends_at: at(-1), // ended — the card must still render
       tasks: [

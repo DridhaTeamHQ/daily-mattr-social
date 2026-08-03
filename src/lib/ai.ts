@@ -25,6 +25,10 @@ function textModel(): string {
   return process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini";
 }
 
+function visionModel(): string {
+  return process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+}
+
 export type AiResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string };
@@ -206,4 +210,115 @@ export async function suggestCampaign(
     CAMPAIGN_SCHEMA,
     "campaign",
   );
+}
+
+// ─── Screenshot adjudication ────────────────────────────────────────────────
+
+export type ScreenshotVerdict = {
+  /** Does the image show this task done, on this account? */
+  matches: boolean;
+  /** 0-1. Only high values auto-approve; the threshold is an admin setting. */
+  confidence: number;
+  /** One line, written for an admin reading the review queue. */
+  reason: string;
+  /** What the model could actually read, for the reviewer to sanity-check. */
+  handle_seen: string;
+};
+
+const VERDICT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["matches", "confidence", "reason", "handle_seen"],
+  properties: {
+    matches: { type: "boolean" },
+    confidence: { type: "number" },
+    reason: { type: "string" },
+    handle_seen: { type: "string" },
+  },
+} as const;
+
+const TASK_EVIDENCE: Record<string, string> = {
+  like: "the like/heart control is in its filled, active state",
+  comment: "a comment written by this user is visible on the post",
+  share: "a share or send action to at least one recipient is visible",
+  story: "the post has been added to the user's own story",
+};
+
+/**
+ * Asks a vision model whether a screenshot shows a task completed.
+ *
+ * The prompt pushes hard toward `matches: false` on ambiguity, because the two
+ * errors are not symmetric: a false negative sends a genuine submission to a
+ * human who approves it in seconds, while a false positive silently pays out
+ * for a fake and teaches the cohort that fakes work.
+ */
+export async function adjudicateScreenshot(input: {
+  imageDataUrl: string;
+  taskType: string;
+  expectedHandle: string;
+  captionHint: string | null;
+}): Promise<AiResult<ScreenshotVerdict>> {
+  if (!aiEnabled()) {
+    return { ok: false, message: "AI verification isn't configured." };
+  }
+
+  const evidence =
+    TASK_EVIDENCE[input.taskType] ?? "the described action has been performed";
+
+  const system = [
+    "You verify Instagram screenshots submitted by student ambassadors.",
+    "You are shown one image and must decide whether it is genuine evidence of a specific action.",
+    "",
+    "Set matches: true ONLY if all of these hold:",
+    `- the post is from @${input.expectedHandle}`,
+    `- ${evidence}`,
+    "- the image looks like an unedited phone screenshot of the Instagram app",
+    "",
+    "Set matches: false if the handle differs, the action isn't visibly done, the image is a photo of another screen, or it shows signs of editing.",
+    "",
+    "Be strict. If you are unsure, answer false with low confidence — a human reviews everything you decline, so a wrong 'no' costs seconds while a wrong 'yes' pays out for a fake.",
+    "confidence is your certainty in the answer you gave, from 0 to 1.",
+    "handle_seen is the handle you could actually read, or an empty string if none was legible.",
+  ].join("\n");
+
+  try {
+    const completion = await client().chat.completions.create({
+      model: visionModel(),
+      temperature: 0,
+      messages: [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: input.captionHint
+                ? `The caption should mention: ${input.captionHint}`
+                : "Verify this screenshot.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: input.imageDataUrl, detail: "low" },
+            },
+          ],
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "verdict", strict: true, schema: VERDICT_SCHEMA },
+      },
+    });
+
+    const raw = completion.choices[0]?.message?.content;
+    if (!raw) return { ok: false, message: "The model returned nothing." };
+
+    const parsed = JSON.parse(raw) as ScreenshotVerdict;
+    // Clamp: a model returning 1.4 must not sail past the approval threshold.
+    parsed.confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0));
+
+    return { ok: true, data: parsed };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "AI request failed";
+    return { ok: false, message };
+  }
 }

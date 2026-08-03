@@ -6,10 +6,10 @@ import {
   MessageCircle,
   Play,
   Share2,
-  Upload,
 } from "lucide-react";
 
 import { Badge, StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
+import { UploadTask } from "@/components/upload-task";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
@@ -57,6 +57,7 @@ export default async function CampaignsPage() {
 
       {campaigns.map((c) => {
         const ended = timeRemaining(c.ends_at) === "Ended";
+        const expectedHandle = c.expected_handle;
 
         return (
           <Card key={c.id} id={c.id} className="scroll-mt-20">
@@ -117,13 +118,23 @@ export default async function CampaignsPage() {
                       </div>
 
                       <div className="shrink-0">
-                        {t.submission_status ? (
+                        {t.submission_status &&
+                        t.submission_status !== "rejected" &&
+                        t.submission_status !== "revoked" ? (
                           <StatusBadge status={t.submission_status} />
                         ) : (
-                          <Button size="sm" variant="quiet" disabled={ended}>
-                            <Upload aria-hidden />
-                            Upload
-                          </Button>
+                          <div className="flex flex-col items-end gap-1.5">
+                            {t.submission_status && (
+                              <StatusBadge status={t.submission_status} />
+                            )}
+                            <UploadTask
+                              taskId={t.id}
+                              taskLabel={meta.label}
+                              points={t.points}
+                              expectedHandle={expectedHandle}
+                              disabled={ended}
+                            />
+                          </div>
                         )}
                       </div>
                     </li>
