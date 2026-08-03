@@ -14,9 +14,11 @@
 import { randomBytes } from "node:crypto";
 
 import { config } from "dotenv";
+import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "../src/lib/database.types";
+import { readImageFacts } from "../src/lib/images";
 
 config({ path: ".env.local" });
 
@@ -346,6 +348,84 @@ async function seed() {
     if (error && !error.message.includes("duplicate key")) throw error;
   }
   console.log(`  points ${String(grants.length).padEnd(42)} ledger entries`);
+
+  // ─── Submissions ──────────────────────────────────────────────────────────
+  // Real images in the real bucket, so the review queue is genuinely
+  // exercisable. Note the last two entries deliberately share one image
+  // between two ambassadors — that is what find_similar_submissions() exists
+  // to catch, and it should be visible in the queue rather than hypothetical.
+  // Anything interpolated into an SVG must be XML-escaped — a bare "&" in a
+  // label like "Founder Q&A" makes sharp reject the whole buffer.
+  const xml = (text: string) =>
+    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const shot = (label: string, hue: number, tint: string) =>
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
+         <rect width="360" height="640" fill="#fff"/>
+         <rect width="360" height="64" fill="hsl(${hue} 70% 96%)"/>
+         <circle cx="34" cy="32" r="16" fill="hsl(${hue} 60% 75%)"/>
+         <text x="60" y="30" font-family="sans-serif" font-size="14" font-weight="600" fill="#1c1917">dailymattr</text>
+         <text x="60" y="48" font-family="sans-serif" font-size="12" fill="#78716c">Sponsored</text>
+         <rect y="64" width="360" height="420" fill="${tint}"/>
+         <text x="180" y="284" font-family="sans-serif" font-size="20" font-weight="600" fill="#fff" text-anchor="middle">${xml(label)}</text>
+         <text x="24" y="524" font-family="sans-serif" font-size="22" fill="hsl(${hue} 80% 45%)">&#9829;</text>
+         <text x="52" y="524" font-family="sans-serif" font-size="13" fill="#1c1917">2,481 likes</text>
+         <text x="24" y="556" font-family="sans-serif" font-size="12.5" fill="#57534e">Liked by you and 2,480 others</text>
+       </svg>`,
+    );
+
+  const shared = await sharp(shot("Monsoon reel", 330, "#6d28d9")).png().toBuffer();
+
+  const submissionSpecs = [
+    { who: 0, task: "Monsoon reel — share it everywhere::like",    status: "needs_review" as const, image: await sharp(shot("Monsoon reel", 330, "#7c3aed")).png().toBuffer(), checks: { handle_visible: true, like_state_visible: true, recent_capture: false } },
+    { who: 1, task: "Monsoon reel — share it everywhere::comment", status: "pending" as const,      image: await sharp(shot("Comment posted", 200, "#0d9488")).png().toBuffer(), checks: {} },
+    { who: 2, task: "Founder interview clip::like",                status: "approved" as const,     image: await sharp(shot("Founder Q&A", 30, "#c2410c")).png().toBuffer(),   checks: { handle_visible: true, like_state_visible: true, recent_capture: true } },
+    { who: 3, task: "Monsoon reel — share it everywhere::story",   status: "needs_review" as const, image: shared, checks: { handle_visible: true, like_state_visible: false, recent_capture: true } },
+    { who: 4, task: "Founder interview clip::share",               status: "needs_review" as const, image: shared, checks: { handle_visible: true, like_state_visible: false, recent_capture: true } },
+  ];
+
+  let made = 0;
+  for (const spec of submissionSpecs) {
+    const taskId = taskIds[spec.task];
+    if (!taskId) continue;
+
+    const ambassadorId = ambassadors[spec.who];
+
+    const { data: already } = await db
+      .from("submissions")
+      .select("id")
+      .eq("campaign_task_id", taskId)
+      .eq("ambassador_id", ambassadorId)
+      .maybeSingle();
+    if (already) continue;
+
+    const facts = await readImageFacts(spec.image);
+    const path = `${ambassadorId}/${taskId}/${crypto.randomUUID()}.png`;
+
+    const { error: uploadError } = await db.storage
+      .from("screenshots")
+      .upload(path, spec.image, { contentType: "image/png", upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { error } = await db.from("submissions").insert({
+      campaign_task_id: taskId,
+      ambassador_id: ambassadorId,
+      screenshot_path: path,
+      sha256: facts.sha256,
+      phash: facts.phash,
+      width: facts.width,
+      height: facts.height,
+      byte_size: facts.byteSize,
+      mime_type: facts.mimeType,
+      captured_at: facts.capturedAt,
+      checks: spec.checks,
+      status: spec.status,
+    });
+    if (error) throw error;
+    made++;
+  }
+  console.log(`  shots  ${String(made).padEnd(42)} submissions`);
 
   // ─── Referrals ────────────────────────────────────────────────────────────
   const { data: profiles } = await db
