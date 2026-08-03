@@ -26,15 +26,15 @@ export default async function ReferralsPage() {
         description="Your code, and every app download it has brought in."
       />
 
-      <Card>
+      <Card className="bg-invite-tint">
         <CardBody className="text-center">
-          <p className="text-[13px] font-medium text-ink-soft">
+          <p className="text-[12.5px] font-extrabold tracking-widest text-ink uppercase">
             Your referral code
           </p>
 
           {/* Wide tracking because students read this aloud and type it by
               hand. The alphabet already excludes 0/O/1/I/L/U. */}
-          <p className="mt-2 font-mono text-[34px] font-semibold tracking-[0.18em] text-ink">
+          <p className="brut mt-3 inline-block rounded-md bg-surface px-5 py-3 font-mono text-[32px] font-black tracking-[0.16em] text-ink sm:text-[40px]">
             {referrals.code}
           </p>
 

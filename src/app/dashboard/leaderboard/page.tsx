@@ -12,11 +12,7 @@ export const metadata = { title: "Leaderboard" };
  * Only the top three are marked, and only first place gets colour — indigo on
  * third place reads as the "you" highlight and makes the row ambiguous.
  */
-const MEDALS = [
-  "bg-warn-tint text-warn",
-  "bg-canvas-sunk text-ink-soft",
-  "bg-canvas-sunk text-ink-soft",
-];
+const MEDALS = ["bg-brand", "bg-canvas-sunk", "bg-invite-tint"];
 
 export default async function LeaderboardPage() {
   const rows = await getLeaderboard();
@@ -38,19 +34,21 @@ export default async function LeaderboardPage() {
             description="Once ambassadors start earning points, the leaderboard fills up here."
           />
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y-[3px] divide-ink">
             {rows.map((row) => (
               <li
                 key={row.ambassador_id}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3",
-                  row.is_me && "bg-rank-tint/60",
+                  row.is_me && "bg-rank",
                 )}
               >
                 <span
                   className={cn(
-                    "tabular grid size-7 shrink-0 place-items-center rounded-full text-[12.5px] font-semibold",
-                    MEDALS[row.position - 1] ?? "text-ink-faint",
+                    "tabular grid size-8 shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-ink",
+                    MEDALS[row.position - 1]
+                      ? cn("brut-sm", MEDALS[row.position - 1])
+                      : "text-ink-faint",
                   )}
                 >
                   {row.position}
@@ -58,17 +56,17 @@ export default async function LeaderboardPage() {
 
                 <span
                   aria-hidden
-                  className="grid size-9 shrink-0 place-items-center rounded-full bg-canvas-sunk text-[12.5px] font-semibold text-ink-soft"
+                  className="brut-sm grid size-9 shrink-0 place-items-center rounded-full bg-surface text-[12.5px] font-extrabold text-ink"
                 >
                   {initials(row.full_name)}
                 </span>
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-medium text-ink">
+                  <p className="truncate text-[14px] font-extrabold text-ink">
                     {row.full_name}
                     {row.is_me && (
-                      <span className="ml-1.5 text-[12px] font-normal text-rank">
-                        you
+                      <span className="brut-sm ml-2 rounded-full bg-surface px-2 py-0.5 text-[11px] font-extrabold">
+                        YOU
                       </span>
                     )}
                   </p>
@@ -79,7 +77,7 @@ export default async function LeaderboardPage() {
                   )}
                 </div>
 
-                <span className="tabular shrink-0 text-[14px] font-semibold text-ink">
+                <span className="tabular display shrink-0 text-[17px] text-ink">
                   {formatNumber(row.points)}
                 </span>
               </li>

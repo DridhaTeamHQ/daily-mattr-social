@@ -32,12 +32,12 @@ export default async function WelcomePage() {
         <div className="mb-6 text-center">
           <span
             aria-hidden
-            className="bg-brand-gradient mx-auto grid size-14 place-items-center rounded-lg text-white shadow-glow"
+            className="brut animate-wiggle mx-auto grid size-16 place-items-center rounded-md bg-brand text-ink"
           >
             <KeyRound className="size-6" />
           </span>
 
-          <h1 className="mt-4 text-[24px] font-extrabold tracking-tight text-ink">
+          <h1 className="display mt-5 text-[30px] leading-none text-ink">
             {firstName ? `Welcome, ${firstName}` : "Welcome"}
           </h1>
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -46,7 +46,7 @@ export default async function WelcomePage() {
           </p>
         </div>
 
-        <Card className="edge-light">
+        <Card>
           <CardBody>
             <WelcomeForm />
           </CardBody>

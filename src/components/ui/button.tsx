@@ -7,19 +7,18 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet";
 type Size = "sm" | "md" | "lg" | "icon";
 
 /**
- * `pressable` gives primary/danger a solid bottom edge that collapses on
- * click. Ghost and quiet stay flat — a whole page of depressible surfaces
- * reads as noise, so only the things worth pressing get the treatment.
+ * Every filled variant is a LIGHT fill with BLACK text and a black border, so
+ * contrast holds without checking each pairing, and so the outline reads at
+ * any size. `ghost` is the one thing without a border — it exists precisely
+ * for the cases where another outlined box would be noise.
  */
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    "pressable [--pressable-edge:var(--color-brand-press)] bg-brand text-white hover:bg-brand-hover",
-  secondary:
-    "pressable [--pressable-edge:var(--color-line-strong)] bg-surface text-ink border border-line hover:bg-canvas-sunk",
-  ghost: "text-ink-soft hover:bg-canvas-sunk hover:text-ink",
-  danger:
-    "pressable [--pressable-edge:#991b1b] bg-bad text-white hover:brightness-105",
-  quiet: "bg-brand-tint text-brand-press hover:bg-brand-line/60",
+  primary: "pressable bg-brand text-ink hover:bg-brand-hover",
+  secondary: "pressable bg-surface text-ink hover:bg-canvas-sunk",
+  danger: "pressable bg-bad text-white hover:brightness-110",
+  quiet: "pressable bg-poll text-ink hover:brightness-105",
+  ghost:
+    "border-2 border-transparent text-ink-soft hover:border-ink hover:bg-canvas-sunk hover:text-ink",
 };
 
 const SIZES: Record<Size, string> = {
@@ -59,8 +58,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         // `asChild` renders a Link/anchor, which has no disabled attribute.
         disabled={asChild ? undefined : disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center font-semibold whitespace-nowrap",
-          "transition-[background-color,color,filter] duration-150 ease-out",
+          "inline-flex items-center justify-center font-extrabold whitespace-nowrap",
           "disabled:pointer-events-none disabled:opacity-50",
           "[&_svg]:size-4.5 [&_svg]:shrink-0",
           VARIANTS[variant],

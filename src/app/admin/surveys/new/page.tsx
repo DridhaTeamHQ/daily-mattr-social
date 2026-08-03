@@ -21,7 +21,7 @@ export default async function NewSurveyPage() {
           Surveys
         </Link>
 
-        <h1 className="mt-2 text-[22px] font-semibold tracking-tight text-ink">
+        <h1 className="display mt-2 text-[26px] leading-none text-ink">
           New survey
         </h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">

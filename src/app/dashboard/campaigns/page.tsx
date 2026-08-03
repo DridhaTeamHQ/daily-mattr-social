@@ -62,9 +62,7 @@ export default async function CampaignsPage() {
           <Card key={c.id} id={c.id} className="scroll-mt-20">
             <CardBody>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[15px] font-semibold text-ink">
-                  {c.title}
-                </h2>
+                <h2 className="display text-[19px] text-ink">{c.title}</h2>
                 <Badge tone={ended ? "neutral" : "reel"}>
                   {timeRemaining(c.ends_at)}
                 </Badge>
@@ -76,7 +74,7 @@ export default async function CampaignsPage() {
                 </p>
               )}
 
-              <ul className="mt-4 divide-y divide-line rounded-sm border border-line">
+              <ul className="brut mt-4 divide-y-[3px] divide-ink overflow-hidden rounded-sm">
                 {c.tasks.map((t) => {
                   const meta = TASK_META[t.type];
                   const Icon = meta.icon;
@@ -86,16 +84,16 @@ export default async function CampaignsPage() {
 
                   return (
                     <li key={t.id} className="flex items-start gap-3 p-3.5">
-                      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-sm bg-reel-tint">
-                        <Icon className="size-4 text-reel" />
+                      <div className="brut-sm mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm bg-reel-tint">
+                        <Icon className="size-4.5 text-ink" />
                       </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-[13.5px] font-medium text-ink">
+                          <p className="text-[14px] font-extrabold text-ink">
                             {meta.label}
                           </p>
-                          <span className="tabular text-[12.5px] font-medium text-reel">
+                          <span className="brut-sm tabular rounded-full bg-brand px-2 py-0.5 text-[12px] font-extrabold text-ink">
                             +{t.points}
                           </span>
                           {!t.required && (

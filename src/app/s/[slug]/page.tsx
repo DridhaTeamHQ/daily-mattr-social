@@ -71,19 +71,19 @@ export default async function PublicSurveyPage({ params }: Params) {
   return (
     <div className="min-h-dvh bg-canvas">
       {/* ─── Header ────────────────────────────────────────────────────── */}
-      <header className="bg-brand-gradient px-5 py-9 text-white sm:px-8 sm:py-12">
+      <header className="border-b-[3px] border-ink bg-brand px-5 py-9 sm:px-8 sm:py-12">
         <div className="mx-auto max-w-2xl">
-          <p className="text-[13px] font-bold text-white/70">DailyMattr</p>
-          <h1 className="mt-2 text-[28px] leading-[1.15] font-extrabold tracking-tight sm:text-[34px]">
+          <p className="display text-[15px] text-ink">DailyMattr</p>
+          <h1 className="display mt-3 text-[32px] leading-[0.95] text-ink sm:text-[44px]">
             {survey.title}
           </h1>
           {survey.description && (
-            <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-white/85">
+            <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed font-semibold text-ink/80">
               {survey.description}
             </p>
           )}
           {ambassador?.full_name && (
-            <p className="mt-4 inline-block rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] backdrop-blur-sm">
+            <p className="sticker mt-5 inline-block rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-extrabold text-ink">
               Shared by {ambassador.full_name}
               {ambassador.college ? ` · ${ambassador.college}` : ""}
             </p>
@@ -95,7 +95,7 @@ export default async function PublicSurveyPage({ params }: Params) {
         {closed ? (
           <Card>
             <CardBody className="py-12 text-center">
-              <h2 className="text-[18px] font-bold text-ink">
+              <h2 className="display text-[22px] text-ink">
                 This survey has closed
               </h2>
               <p className="mt-2 text-[13.5px] text-ink-soft">
@@ -117,7 +117,7 @@ export default async function PublicSurveyPage({ params }: Params) {
         ) : (
           <Card>
             <CardBody className="py-12 text-center">
-              <h2 className="text-[18px] font-bold text-ink">
+              <h2 className="display text-[22px] text-ink">
                 Nothing to answer yet
               </h2>
               <p className="mt-2 text-[13.5px] text-ink-soft">

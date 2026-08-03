@@ -48,15 +48,15 @@ export function SurveyForm({
 
   if (state.status === "done") {
     return (
-      <Card className="edge-light">
+      <Card>
         <CardBody className="py-12 text-center">
           <span
             aria-hidden
-            className="mx-auto grid size-14 place-items-center rounded-full bg-ok-tint text-ok"
+            className="brut animate-pop mx-auto grid size-20 place-items-center rounded-full bg-rank"
           >
-            <CircleCheck className="size-7" />
+            <CircleCheck className="size-10 text-ink" />
           </span>
-          <h2 className="mt-4 text-[20px] font-extrabold text-ink">
+          <h2 className="display mt-5 text-[26px] leading-tight text-ink">
             {state.message}
           </h2>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
@@ -76,7 +76,7 @@ export function SurveyForm({
               <legend className="flex gap-2 text-[15px] font-bold text-ink">
                 <span
                   aria-hidden
-                  className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-tint text-[12px] font-extrabold text-brand"
+                  className="brut-sm grid size-7 shrink-0 place-items-center rounded-full bg-brand text-[12px] font-extrabold text-ink"
                 >
                   {index + 1}
                 </span>
@@ -107,7 +107,7 @@ export function SurveyForm({
       {/* ─── Who you are ───────────────────────────────────────────────── */}
       <Card>
         <CardBody className="space-y-4">
-          <h2 className="text-[15px] font-bold text-ink">About you</h2>
+          <h2 className="display text-[18px] text-ink">About you</h2>
 
           <Field label="Name" htmlFor="respondent_name">
             <Input id="respondent_name" name="respondent_name" autoComplete="name" />
@@ -169,7 +169,7 @@ function QuestionInput({ question }: { question: PublicQuestion }) {
           {question.options.map((option) => (
             <label
               key={option}
-              className="flex cursor-pointer items-center gap-2.5 rounded-sm border border-line bg-surface px-3.5 py-2.5 text-[14px] text-ink transition-colors hover:border-brand-line hover:bg-brand-tint/40 has-checked:border-brand has-checked:bg-brand-tint"
+              className="flex cursor-pointer items-center gap-2.5 rounded-sm border-[3px] border-ink bg-surface px-3.5 py-3 text-[14.5px] font-bold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px has-checked:bg-brand has-checked:shadow-[3px_3px_0_var(--color-ink)]"
             >
               <input
                 type="radio"
@@ -190,7 +190,7 @@ function QuestionInput({ question }: { question: PublicQuestion }) {
           {question.options.map((option) => (
             <label
               key={option}
-              className="flex cursor-pointer items-center gap-2.5 rounded-sm border border-line bg-surface px-3.5 py-2.5 text-[14px] text-ink transition-colors hover:border-brand-line hover:bg-brand-tint/40 has-checked:border-brand has-checked:bg-brand-tint"
+              className="flex cursor-pointer items-center gap-2.5 rounded-sm border-[3px] border-ink bg-surface px-3.5 py-3 text-[14.5px] font-bold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px has-checked:bg-poll has-checked:shadow-[3px_3px_0_var(--color-ink)]"
             >
               <input
                 type="checkbox"
@@ -241,10 +241,10 @@ function RatingInput({ name, required }: { name: string; required: boolean }) {
           key={n}
           title={`${n} out of 5`}
           className={cn(
-            "cursor-pointer rounded-sm border p-2 transition-colors",
+            "cursor-pointer rounded-sm border-[3px] border-ink p-2 transition-transform",
             value >= n
-              ? "border-warn-line bg-warn-tint text-warn"
-              : "border-line bg-surface text-ink-faint hover:bg-canvas-sunk",
+              ? "bg-brand text-ink shadow-[3px_3px_0_var(--color-ink)] -translate-x-px -translate-y-px"
+              : "bg-surface text-ink-faint hover:bg-canvas-sunk",
           )}
         >
           <input

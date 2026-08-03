@@ -38,7 +38,7 @@ export default async function ReviewPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+          <h1 className="display text-[26px] leading-none text-ink">
             Review queue
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
@@ -47,7 +47,7 @@ export default async function ReviewPage({
           </p>
         </div>
 
-        <div className="flex gap-1 rounded-sm border border-line bg-surface p-1">
+        <div className="brut-sm flex gap-1 rounded-sm bg-surface p-1">
           <FilterTab href="/admin/review" active={!showAll} label="Open" />
           <FilterTab href="/admin/review?filter=all" active={showAll} label="All" />
         </div>
@@ -77,7 +77,7 @@ export default async function ReviewPage({
                   <CardBody className="grid gap-5 md:grid-cols-[minmax(0,15rem)_1fr]">
                     {/* ─── Evidence ─────────────────────────────────────── */}
                     <div>
-                      <div className="relative aspect-[9/16] overflow-hidden rounded-sm border border-line bg-canvas-sunk">
+                      <div className="brut-sm relative aspect-[9/16] overflow-hidden rounded-sm bg-canvas-sunk">
                         {item.signedUrl ? (
                           <Image
                             src={item.signedUrl}
@@ -107,7 +107,7 @@ export default async function ReviewPage({
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           aria-hidden
-                          className="bg-brand-gradient grid size-8 shrink-0 place-items-center rounded-full text-[11.5px] font-semibold text-white"
+                          className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11.5px] font-extrabold text-ink"
                         >
                           {initials(item.ambassador.full_name)}
                         </span>
@@ -218,7 +218,7 @@ function FilterTab({
     <Link
       href={href}
       className={cn(
-        "rounded-xs px-3 py-1.5 text-[13px] font-medium transition-colors",
+        "rounded-xs px-3 py-1.5 text-[13px] font-extrabold transition-colors",
         active
           ? "bg-ink text-white"
           : "text-ink-soft hover:bg-canvas-sunk hover:text-ink",

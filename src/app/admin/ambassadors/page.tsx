@@ -28,7 +28,7 @@ export default async function AmbassadorsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+          <h1 className="display text-[26px] leading-none text-ink">
             Ambassadors
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
@@ -72,7 +72,7 @@ export default async function AmbassadorsPage() {
                       <div className="flex items-center gap-2.5">
                         <span
                           aria-hidden
-                          className="bg-brand-gradient grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white"
+                          className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-extrabold text-ink"
                         >
                           {initials(row.full_name || row.email)}
                         </span>

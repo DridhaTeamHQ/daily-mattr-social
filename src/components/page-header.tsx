@@ -4,18 +4,20 @@ import { cn } from "@/lib/utils";
 
 type Tone = "brand" | "reel" | "poll" | "invite" | "rank";
 
-const CHIP: Record<Tone, string> = {
-  brand: "bg-brand-tint text-brand",
-  reel: "bg-reel-tint text-reel",
-  poll: "bg-poll-tint text-poll",
-  invite: "bg-invite-tint text-invite",
-  rank: "bg-rank-tint text-rank",
+const FILL: Record<Tone, string> = {
+  brand: "bg-brand",
+  reel: "bg-reel",
+  poll: "bg-poll",
+  invite: "bg-invite",
+  rank: "bg-rank",
 };
 
 /**
- * The title block at the top of each section. The coloured icon chip is the
- * same accent the nav uses for that destination, so arriving on a page
- * confirms where you are without reading anything.
+ * The title block at the top of each section.
+ *
+ * The whole strip takes the section's colour rather than a small icon chip —
+ * arriving on a page should be unmistakable before you read the heading, which
+ * is the entire point of giving each section a colour in the first place.
  */
 export function PageHeader({
   title,
@@ -31,23 +33,23 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3.5">
+    <div
+      className={cn(
+        "brut flex flex-wrap items-center gap-3.5 rounded-md p-4",
+        FILL[tone],
+      )}
+    >
       <span
         aria-hidden
-        className={cn(
-          "grid size-10 shrink-0 place-items-center rounded-sm",
-          CHIP[tone],
-        )}
+        className="brut-sm grid size-11 shrink-0 place-items-center rounded-sm bg-surface"
       >
-        <Icon className="size-5" />
+        <Icon className="size-5.5 text-ink" />
       </span>
 
       <div className="min-w-0 flex-1">
-        <h1 className="text-[20px] font-semibold tracking-tight text-ink">
-          {title}
-        </h1>
+        <h1 className="display text-[22px] leading-none text-ink">{title}</h1>
         {description && (
-          <p className="mt-1 text-[13.5px] leading-relaxed text-ink-soft">
+          <p className="mt-1.5 text-[13px] leading-relaxed font-semibold text-ink/75">
             {description}
           </p>
         )}

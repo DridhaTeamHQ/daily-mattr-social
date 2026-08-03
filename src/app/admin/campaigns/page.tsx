@@ -29,7 +29,7 @@ export default async function AdminCampaignsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+          <h1 className="display text-[26px] leading-none text-ink">
             Campaigns
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">

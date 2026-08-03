@@ -55,9 +55,7 @@ export default async function SurveysPage() {
         return (
           <Card key={s.survey_id}>
             <CardBody>
-              <h2 className="text-[15px] font-semibold text-ink">
-                {s.survey_title}
-              </h2>
+              <h2 className="display text-[19px] text-ink">{s.survey_title}</h2>
 
               <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
                 <Metric label="Clicks" value={s.click_count} />
@@ -73,8 +71,8 @@ export default async function SurveysPage() {
                 </p>
               )}
 
-              <div className="mt-4 flex items-center gap-2 rounded-sm border border-line bg-canvas-sunk px-3 py-2">
-                <code className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink-soft">
+              <div className="brut-sm mt-4 flex items-center gap-2 rounded-sm bg-canvas-sunk px-3 py-2.5">
+                <code className="min-w-0 flex-1 truncate font-mono text-[12.5px] font-bold text-ink">
                   {url}
                 </code>
               </div>
@@ -118,15 +116,15 @@ function Metric({
   tone?: "neutral" | "poll";
 }) {
   return (
-    <div className="rounded-sm bg-canvas-sunk py-3">
-      <dd
-        className={`tabular text-[20px] font-semibold ${
-          tone === "poll" ? "text-poll" : "text-ink"
-        }`}
-      >
-        {value}
-      </dd>
-      <dt className="mt-0.5 text-[12px] text-ink-soft">{label}</dt>
+    <div
+      className={`brut-sm rounded-sm py-3 ${
+        tone === "poll" ? "bg-poll-tint" : "bg-canvas-sunk"
+      }`}
+    >
+      <dd className="tabular display text-[24px] text-ink">{value}</dd>
+      <dt className="mt-0.5 text-[11.5px] font-extrabold tracking-wide text-ink/70 uppercase">
+        {label}
+      </dt>
     </div>
   );
 }

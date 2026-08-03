@@ -1,11 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Archivo_Black, Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+});
+
+/**
+ * Single-weight display face for headlines and numbers. Inter at 900 is close,
+ * but a real display cut is what separates "bold sans-serif" from the poster
+ * typography this style is built on.
+ */
+const display = Archivo_Black({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: "400",
   display: "swap",
 });
 
@@ -19,7 +31,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#fafaf9",
+  themeColor: "#ffd400",
   width: "device-width",
   initialScale: 1,
   // Students are on phones all day; let them zoom.
@@ -30,16 +42,21 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} ${display.variable} h-full`}>
       <body className="min-h-full antialiased">
         {children}
         <Toaster
           position="top-center"
           toastOptions={{
+            // Toasts get the same outline and hard shadow as everything else,
+            // or they read as arriving from a different application.
             style: {
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-line)",
-              boxShadow: "var(--shadow-pop)",
+              borderRadius: "var(--radius-sm)",
+              border: "3px solid var(--color-ink)",
+              boxShadow: "4px 4px 0 var(--color-ink)",
+              background: "var(--color-surface)",
+              color: "var(--color-ink)",
+              fontWeight: "600",
             },
           }}
         />

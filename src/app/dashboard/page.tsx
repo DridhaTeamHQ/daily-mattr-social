@@ -8,12 +8,13 @@ import {
   Zap,
 } from "lucide-react";
 
+import { LevelUpWatcher } from "@/components/level-up";
 import { PointsHero, TierTrack } from "@/components/points-hero";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { Stat } from "@/components/ui/stat";
+import { ProgressBar, Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
 import { cn, formatDate, formatDelta, timeRemaining } from "@/lib/utils";
 
@@ -46,6 +47,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-7">
+      <LevelUpWatcher points={standing.points} />
+
       <PointsHero
         points={standing.points}
         rank={standing.position > 0 ? standing.position : null}
@@ -65,9 +68,9 @@ export default async function DashboardPage() {
           tone="reel"
         />
         <Stat
-          label="Survey responses"
+          label="Responses"
           value={surveyResponses}
-          sub={`Across ${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
+          sub={`${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
           icon={ClipboardList}
           tone="poll"
         />
@@ -76,7 +79,7 @@ export default async function DashboardPage() {
           value={referrals.total_confirmed}
           sub={
             referrals.last_conversion
-              ? `Last on ${formatDate(referrals.last_conversion)}`
+              ? `Last ${formatDate(referrals.last_conversion)}`
               : "None yet"
           }
           icon={Gift}
@@ -91,7 +94,7 @@ export default async function DashboardPage() {
           title="Campaigns"
           href="/dashboard/campaigns"
           linkLabel="See all"
-          tone="reel"
+          fill="bg-reel"
         />
 
         {campaigns.length === 0 ? (
@@ -99,7 +102,7 @@ export default async function DashboardPage() {
             <EmptyState
               icon={Clapperboard}
               title="No live campaigns"
-              description="When the team publishes a reel, it shows up here with the tasks you can complete."
+              description="When the team drops a reel, it lands here with the tasks you can complete."
             />
           </Card>
         ) : (
@@ -111,48 +114,42 @@ export default async function DashboardPage() {
                   t.submission_status === "auto_approved",
               ).length;
               const up = c.tasks.reduce((n, t) => n + t.points, 0);
-              const pct = Math.round((done / Math.max(1, c.tasks.length)) * 100);
+              const ended = timeRemaining(c.ends_at) === "Ended";
 
               return (
                 <li key={c.id}>
-                  <Card interactive className="overflow-hidden">
+                  <Card interactive>
                     <CardBody className="flex items-start gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-[16px] font-bold text-ink">
+                          <h3 className="display text-[17px] text-ink">
                             {c.title}
                           </h3>
-                          <Badge
-                            tone={
-                              timeRemaining(c.ends_at) === "Ended"
-                                ? "neutral"
-                                : "reel"
-                            }
-                          >
+                          <Badge tone={ended ? "neutral" : "reel"}>
                             {timeRemaining(c.ends_at)}
                           </Badge>
                         </div>
 
                         {c.description && (
-                          <p className="mt-1.5 line-clamp-2 text-[13.5px] leading-relaxed text-ink-soft">
+                          <p className="mt-1.5 line-clamp-2 text-[13.5px] leading-relaxed font-medium text-ink-soft">
                             {c.description}
                           </p>
                         )}
 
-                        <div className="mt-3.5 flex items-center gap-2.5">
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-canvas-sunk">
-                            <div
-                              className="h-full rounded-full bg-reel transition-[width] duration-500"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className="shrink-0 text-[12.5px] font-semibold text-ink-soft">
+                        <div className="mt-3.5 flex items-center gap-3">
+                          <ProgressBar
+                            value={done}
+                            max={c.tasks.length}
+                            tone="reel"
+                            className="flex-1"
+                          />
+                          <span className="shrink-0 text-[12.5px] font-extrabold text-ink">
                             {done}/{c.tasks.length}
                           </span>
                         </div>
 
-                        <p className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-bold text-reel">
-                          <Zap className="size-3.5" />
+                        <p className="brut-sm mt-3 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-extrabold text-ink">
+                          <Zap className="size-3.5" fill="currentColor" />
                           {up} points up for grabs
                         </p>
                       </div>
@@ -171,36 +168,34 @@ export default async function DashboardPage() {
 
       {/* ─── Recent activity ───────────────────────────────────────────── */}
       <section>
-        <SectionHeader title="Recent points" />
+        <SectionHeader title="Recent points" fill="bg-brand" />
 
         <Card>
           {recentLedger.length === 0 ? (
             <EmptyState
               title="Nothing yet"
-              description="Complete a task or share a survey link and your points will appear here."
+              description="Finish a task or share a survey link and your points show up here."
             />
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="divide-y-[3px] divide-ink">
               {recentLedger.map((entry) => (
                 <li
                   key={entry.id}
                   className="flex items-center gap-4 px-5 py-3.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-ink">
+                    <p className="truncate text-[14px] font-extrabold text-ink">
                       {entry.note ?? LEDGER_LABELS[entry.reason] ?? entry.reason}
                     </p>
-                    <p className="mt-0.5 text-[12px] text-ink-soft">
+                    <p className="mt-0.5 text-[12px] font-semibold text-ink-soft">
                       {LEDGER_LABELS[entry.reason] ?? entry.reason} ·{" "}
                       {formatDate(entry.created_at)}
                     </p>
                   </div>
                   <span
                     className={cn(
-                      "tabular shrink-0 rounded-full px-2.5 py-1 text-[13.5px] font-extrabold",
-                      entry.delta < 0
-                        ? "bg-bad-tint text-bad"
-                        : "bg-ok-tint text-ok",
+                      "tabular brut-sm shrink-0 rounded-full px-2.5 py-1 text-[13.5px] font-extrabold text-ink",
+                      entry.delta < 0 ? "bg-bad-tint" : "bg-ok-tint",
                     )}
                   >
                     {formatDelta(entry.delta)}
@@ -215,37 +210,34 @@ export default async function DashboardPage() {
   );
 }
 
-const ACCENT_BAR: Record<string, string> = {
-  reel: "bg-reel",
-  poll: "bg-poll",
-  invite: "bg-invite",
-  brand: "bg-brand",
-};
-
 function SectionHeader({
   title,
   href,
   linkLabel,
-  tone = "brand",
+  fill = "bg-brand",
 }: {
   title: string;
   href?: string;
   linkLabel?: string;
-  tone?: keyof typeof ACCENT_BAR;
+  fill?: string;
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-4">
-      <h2 className="flex items-center gap-2 text-[13px] font-extrabold tracking-wide text-ink-soft uppercase">
-        <span
-          aria-hidden
-          className={cn("h-4 w-1.5 rounded-full", ACCENT_BAR[tone])}
-        />
+      {/* The heading is a filled outlined block, not a label — it anchors the
+          section the way a poster headline does. */}
+      <h2
+        className={cn(
+          "brut-sm display rounded-sm px-3 py-1 text-[13px] text-ink",
+          fill,
+        )}
+      >
         {title}
       </h2>
+
       {href && (
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:text-brand-hover"
+          className="inline-flex items-center gap-1 text-[13px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
         >
           {linkLabel}
           <ArrowRight className="size-3.5" />

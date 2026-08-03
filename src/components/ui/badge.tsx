@@ -12,16 +12,21 @@ type Tone =
   | "invite"
   | "rank";
 
+/**
+ * Every badge is a light fill with black text and a black outline. Uniform by
+ * design: the colour carries the category, the outline carries the style, and
+ * contrast never needs checking pair by pair.
+ */
 const TONES: Record<Tone, string> = {
-  neutral: "bg-canvas-sunk text-ink-soft border-line",
-  brand: "bg-brand-tint text-brand-press border-brand-line",
-  ok: "bg-ok-tint text-ok border-ok-line",
-  warn: "bg-warn-tint text-warn border-warn-line",
-  bad: "bg-bad-tint text-bad border-bad-line",
-  reel: "bg-reel-tint text-reel border-reel-line",
-  poll: "bg-poll-tint text-poll border-poll-line",
-  invite: "bg-invite-tint text-invite border-invite-line",
-  rank: "bg-rank-tint text-rank border-rank-line",
+  neutral: "bg-canvas-sunk",
+  brand: "bg-brand",
+  ok: "bg-ok-tint",
+  warn: "bg-warn-tint",
+  bad: "bg-bad-tint",
+  reel: "bg-reel-tint",
+  poll: "bg-poll-tint",
+  invite: "bg-invite-tint",
+  rank: "bg-rank-tint",
 };
 
 export function Badge({
@@ -34,16 +39,14 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-xs border px-2 py-0.5",
-        "text-[12px] font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1.5 rounded-xs border-2 border-ink px-2 py-0.5",
+        "text-[12px] font-extrabold text-ink whitespace-nowrap",
         TONES[tone],
         className,
       )}
       {...props}
     >
-      {dot && (
-        <span className="size-1.5 rounded-full bg-current opacity-70" aria-hidden />
-      )}
+      {dot && <span className="size-2 rounded-full bg-ink" aria-hidden />}
       {children}
     </span>
   );

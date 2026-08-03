@@ -28,6 +28,9 @@ const ACTION_LABELS: Record<string, string> = {
   "campaign.create": "created a campaign",
   "survey.status": "changed a survey's status",
   "survey.links": "issued survey links",
+  "survey.create": "built a survey",
+  "ambassador.create": "added an ambassador",
+  "ambassador.reset_password": "reset an ambassador's password",
 };
 
 export default async function AdminOverviewPage() {
@@ -41,7 +44,7 @@ export default async function AdminOverviewPage() {
   return (
     <div className="space-y-7">
       <div>
-        <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+        <h1 className="display text-[26px] leading-none text-ink">
           Overview
         </h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">

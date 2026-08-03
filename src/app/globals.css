@@ -1,107 +1,117 @@
 @import "tailwindcss";
 
-/* ============================================================
-   DailyMattr Socials — design tokens
+/* ============================================================================
+   DailyMattr Socials — neo-brutalist design system
 
-   Built for 19-year-olds on phones, not for a finance dashboard.
-   Saturated colour, fat radii, chunky type, and buttons that feel
-   like buttons. Every accent still means something — one per section
-   — but the volume is turned up.
+   Two rules carry the whole thing:
 
-   Status colours (ok / warn / bad) stay reserved for status. The moment
-   they get borrowed for decoration, "approved" stops reading as green.
-   ============================================================ */
+     1. A hard 3px black border declares that a thing exists.
+     2. A hard offset shadow with ZERO blur gives it physical weight.
+
+   Colour, type and layout serve those two. Nothing here has a gradient on a
+   surface, a soft shadow, or a translucent border — the moment you add one,
+   the style collapses into the same generic SaaS look everything else has.
+
+   Contrast rule: every accent is a LIGHT fill with BLACK text on top. That
+   keeps text at 4.5:1 without having to check each pairing, and it is why the
+   palette can be this loud without becoming unreadable.
+   ============================================================================ */
 
 @theme {
-  /* Surfaces */
-  --color-canvas: #fbfaff; /* page background, faint violet cast */
-  --color-canvas-sunk: #f3f1fb; /* inset wells */
-  --color-surface: #ffffff; /* cards */
-  --color-line: #ebe7f7; /* hairline borders */
-  --color-line-strong: #d9d2ee; /* dividers that need to read */
+  /* ── Structure ─────────────────────────────────────────────────────────── */
+  --color-ink: #0a0a0a; /* text, and every border */
+  --color-ink-soft: #4b4b4b;
+  --color-ink-faint: #8a8a8a;
 
-  /* Ink */
-  --color-ink: #16121f; /* primary text — near-black, violet-leaning */
-  --color-ink-soft: #56507a; /* secondary text */
-  --color-ink-faint: #9a94b8; /* tertiary, placeholders */
+  --color-canvas: #fff8e3; /* warm cream — cards pop off it */
+  --color-canvas-sunk: #f3ebd4;
+  --color-surface: #ffffff;
 
-  /* Brand — electric violet */
-  --color-brand: #6d28d9;
-  --color-brand-hover: #5b21b6;
-  --color-brand-press: #4c1d95;
-  --color-brand-tint: #f3ecff;
-  --color-brand-line: #d8c6ff;
+  /* `line` is black on purpose. A grey hairline is the thing this style is
+     defined in opposition to. */
+  --color-line: #0a0a0a;
+  --color-line-strong: #0a0a0a;
 
-  /* Semantic — reserved for status only */
-  --color-ok: #047857;
-  --color-ok-tint: #e7fbf3;
-  --color-ok-line: #9decc7;
+  /* ── Accents ───────────────────────────────────────────────────────────── */
+  /* One per section, carried by the nav, page headers and stat chips so
+     colour tells you where you are before you read anything. */
 
-  --color-warn: #b45309;
-  --color-warn-tint: #fff8e8;
-  --color-warn-line: #fcdf9c;
+  /* Points / home */
+  --color-brand: #ffd400;
+  --color-brand-hover: #ffdf3d;
+  --color-brand-press: #e6bf00;
+  --color-brand-tint: #fff2b8;
+  --color-brand-line: #0a0a0a;
 
-  --color-bad: #dc2626;
-  --color-bad-tint: #fff0f0;
-  --color-bad-line: #fdc8c8;
-
-  /* ── Section accents ──────────────────────────────────────────────
-     One per area of the app, carried by the nav, page headers and stat
-     chips so colour tells you where you are. Solids clear 4.5:1 on
-     white and on their own tint. */
-
-  /* Campaigns — Instagram work */
-  --color-reel: #db2777;
-  --color-reel-tint: #ffeef7;
-  --color-reel-line: #fbc4de;
+  /* Campaigns */
+  --color-reel: #ff4d9d;
+  --color-reel-tint: #ffd6e8;
+  --color-reel-line: #0a0a0a;
 
   /* Surveys */
-  --color-poll: #0d9488;
-  --color-poll-tint: #e6fbf7;
-  --color-poll-line: #97ead9;
+  --color-poll: #00d3e0;
+  --color-poll-tint: #b8f6fb;
+  --color-poll-line: #0a0a0a;
 
   /* Referrals */
-  --color-invite: #c2410c;
-  --color-invite-tint: #fff2e8;
-  --color-invite-line: #fdc9a4;
+  --color-invite: #ff7a2f;
+  --color-invite-tint: #ffdcc4;
+  --color-invite-line: #0a0a0a;
 
   /* Leaderboard */
-  --color-rank: #7c3aed;
-  --color-rank-tint: #f4edff;
-  --color-rank-line: #dcc9ff;
+  --color-rank: #b6ff3d;
+  --color-rank-tint: #e4ffc0;
+  --color-rank-line: #0a0a0a;
 
-  /* Streaks — the one place a hot colour is allowed to shout */
-  --color-flame: #ea580c;
-  --color-flame-tint: #fff3e8;
+  /* Streaks */
+  --color-flame: #ff5a1f;
+  --color-flame-tint: #ffd9c7;
 
-  /* Radii */
-  --radius-xs: 8px;
-  --radius-sm: 14px;
-  --radius-md: 20px;
-  --radius-lg: 28px;
-  --radius-xl: 36px;
+  /* ── Status ────────────────────────────────────────────────────────────── */
+  /* Reserved for status. Borrowing these for decoration is how "approved"
+     stops reading as approved. */
+  --color-ok: #00a650;
+  --color-ok-tint: #c4f5d8;
+  --color-ok-line: #0a0a0a;
 
-  /* Type */
+  --color-warn: #b06a00;
+  --color-warn-tint: #ffe9ad;
+  --color-warn-line: #0a0a0a;
+
+  --color-bad: #e00b0b;
+  --color-bad-tint: #ffd2d2;
+  --color-bad-line: #0a0a0a;
+
+  /* ── Radii ─────────────────────────────────────────────────────────────── */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+
+  /* ── Type ──────────────────────────────────────────────────────────────── */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-display), var(--font-inter), ui-sans-serif,
+    system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
-  /* Elevation — soft, never heavy */
-  --shadow-card: 0 1px 2px rgb(22 18 31 / 0.04), 0 2px 8px rgb(22 18 31 / 0.04);
-  --shadow-raised: 0 2px 4px rgb(22 18 31 / 0.05),
-    0 8px 24px rgb(22 18 31 / 0.08);
-  --shadow-pop: 0 8px 16px rgb(22 18 31 / 0.08), 0 24px 56px rgb(22 18 31 / 0.16);
-  /* Coloured glow for the hero and primary actions. */
-  --shadow-glow: 0 8px 28px rgb(109 40 217 / 0.32);
+  /* ── Shadows ───────────────────────────────────────────────────────────── */
+  /* Offsets only. No blur, no alpha. */
+  --shadow-card: 4px 4px 0 var(--color-ink);
+  --shadow-raised: 6px 6px 0 var(--color-ink);
+  --shadow-pop: 8px 8px 0 var(--color-ink);
+  --shadow-glow: 6px 6px 0 var(--color-ink);
+  --shadow-tight: 2px 2px 0 var(--color-ink);
 }
 
-/* ============================================================
+/* ============================================================================
    Base
-   ============================================================ */
+   ============================================================================ */
 
 @layer base {
   * {
-    border-color: var(--color-line);
+    border-color: var(--color-ink);
   }
 
   html {
@@ -111,22 +121,14 @@
 
   body {
     background-color: var(--color-canvas);
-    /* Two very faint colour washes anchored to the top corners. Keeps a
-       long scroll of white cards from reading as a spreadsheet, without
-       putting colour behind any text. */
+    /* Graph-paper grid. A flat colour field reads as unfinished in this
+       style; the grid gives it the drawn-on-paper feel without competing
+       with anything. */
     background-image:
-      radial-gradient(
-        60rem 32rem at 8% -8%,
-        color-mix(in oklab, var(--color-brand) 11%, transparent),
-        transparent 62%
-      ),
-      radial-gradient(
-        52rem 28rem at 100% -12%,
-        color-mix(in oklab, var(--color-rank) 9%, transparent),
-        transparent 60%
-      );
+      linear-gradient(rgb(10 10 10 / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(10 10 10 / 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
     background-attachment: fixed;
-    background-repeat: no-repeat;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -134,22 +136,21 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Large numbers are the visual hero of this product. */
+  /* Big numbers are the hero of this product. */
   .tabular {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
 
   ::selection {
-    background-color: var(--color-brand-tint);
-    color: var(--color-brand-press);
+    background-color: var(--color-brand);
+    color: var(--color-ink);
   }
 
-  /* One consistent focus ring everywhere. */
+  /* A thick black ring, matching everything else. */
   :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 3px solid var(--color-ink);
     outline-offset: 2px;
-    border-radius: var(--radius-xs);
   }
 
   input::placeholder,
@@ -157,7 +158,6 @@
     color: var(--color-ink-faint);
   }
 
-  /* Hide the ugly default number spinners. */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -165,54 +165,82 @@
   }
 }
 
-/* ============================================================
-   Motion — quick, springy, and never in the way. Things pop in,
-   buttons physically depress, and nothing animates for longer than
-   the user's patience. All of it is disabled under
-   prefers-reduced-motion at the bottom of this file.
-   ============================================================ */
+/* ============================================================================
+   Utilities
+   ============================================================================ */
 
 @layer utilities {
-  /* Brand gradient, used for the wordmark and the points hero. Violet →
-     purple → pink; all three are in the palette above, so it never
-     introduces a colour the rest of the app doesn't use. */
-  .bg-brand-gradient {
-    background-image: linear-gradient(
-      135deg,
-      var(--color-brand) 0%,
-      var(--color-rank) 55%,
-      var(--color-reel) 100%
-    );
+  /* The core primitive: black outline + hard offset shadow. */
+  .brut {
+    border: 3px solid var(--color-ink);
+    box-shadow: var(--shadow-card);
   }
-
-  /* Warmer variant for streaks and celebrations. */
-  .bg-flame-gradient {
-    background-image: linear-gradient(
-      135deg,
-      var(--color-reel) 0%,
-      var(--color-flame) 60%,
-      #f59e0b 100%
-    );
+  .brut-sm {
+    border: 2px solid var(--color-ink);
+    box-shadow: var(--shadow-tight);
+  }
+  .brut-lg {
+    border: 4px solid var(--color-ink);
+    box-shadow: var(--shadow-raised);
   }
 
   /**
-   * Chunky pressable surface.
+   * Pressable surface.
    *
-   * A solid bottom edge instead of a blur, so the control reads as a
-   * physical key; pressing removes the edge and drops the button into
-   * it. This is the single biggest reason the app feels like a game
-   * rather than a form.
+   * Hover lifts it up and away from its shadow; pressing drops it into the
+   * shadow so the offset goes to zero. That translate-on-press is the single
+   * biggest reason the app feels like an object rather than a form.
    */
   .pressable {
-    box-shadow: 0 4px 0 0 var(--pressable-edge, rgb(22 18 31 / 0.18));
+    border: 3px solid var(--color-ink);
+    box-shadow: var(--shadow-card);
     transition:
-      transform 90ms ease-out,
-      box-shadow 90ms ease-out,
-      background-color 150ms ease-out;
+      transform 80ms ease-out,
+      box-shadow 80ms ease-out,
+      background-color 140ms ease-out;
+  }
+  .pressable:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 var(--color-ink);
   }
   .pressable:active:not(:disabled) {
-    transform: translateY(4px);
-    box-shadow: 0 0 0 0 var(--pressable-edge, rgb(22 18 31 / 0.18));
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 var(--color-ink);
+  }
+
+  /* Cards that react to a hover without being clickable buttons. */
+  .lift:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-raised);
+  }
+  .lift {
+    transition:
+      transform 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  /* Sticker: a rotated, outlined label. Used sparingly — a page of tilted
+     things is a mess, one tilted thing is a personality. */
+  .sticker {
+    border: 3px solid var(--color-ink);
+    box-shadow: var(--shadow-tight);
+    transform: rotate(-2deg);
+  }
+  .sticker-r {
+    transform: rotate(2deg);
+  }
+
+  /* Heavy display type. */
+  .display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  /* Chunky outlined headline, like the reference poster type. */
+  .text-outline {
+    -webkit-text-stroke: 2px var(--color-ink);
+    paint-order: stroke fill;
   }
 
   .animate-pop {
@@ -221,32 +249,14 @@
   .animate-float {
     animation: float 3.2s ease-in-out infinite;
   }
-  /* Attention pulse for a live streak or an unread badge. */
   .animate-throb {
     animation: throb 2s ease-in-out infinite;
   }
-
-  .text-brand-gradient {
-    background-image: linear-gradient(
-      135deg,
-      var(--color-brand) 0%,
-      var(--color-rank) 60%,
-      var(--color-reel) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .animate-wiggle {
+    animation: wiggle 600ms ease-in-out;
   }
-
-  /* Hairline highlight along the top of a raised surface. */
-  .edge-light {
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.6),
-      var(--shadow-raised);
-  }
-
   .animate-rise {
-    animation: rise 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .animate-fade {
     animation: fade 150ms ease-out both;
@@ -254,12 +264,18 @@
   .animate-sheen {
     animation: sheen 1.4s ease-in-out infinite;
   }
+  .animate-slam {
+    animation: slam 420ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
+  }
+  .animate-marquee {
+    animation: marquee 22s linear infinite;
+  }
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -279,7 +295,7 @@
 @keyframes sheen {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
@@ -289,7 +305,7 @@
 @keyframes pop {
   from {
     opacity: 0;
-    transform: scale(0.9);
+    transform: scale(0.88);
   }
   to {
     opacity: 1;
@@ -303,7 +319,7 @@
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
   }
 }
 
@@ -313,7 +329,51 @@
     transform: scale(1);
   }
   50% {
-    transform: scale(1.08);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-6deg);
+  }
+  40% {
+    transform: rotate(5deg);
+  }
+  60% {
+    transform: rotate(-3deg);
+  }
+  80% {
+    transform: rotate(2deg);
+  }
+}
+
+/* Lands like a stamp — used for the level-up card. */
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-1deg);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
   }
 }
 
@@ -325,5 +385,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The press translate is feedback, not decoration, so it stays — but
+     nothing should drift on its own. */
+  .animate-float,
+  .animate-throb,
+  .animate-marquee {
+    animation: none !important;
   }
 }

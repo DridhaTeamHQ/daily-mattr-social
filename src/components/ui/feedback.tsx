@@ -7,7 +7,10 @@ export function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("bg-canvas-sunk rounded-sm animate-sheen", className)}
+      className={cn(
+        "bg-canvas-sunk border-2 border-ink rounded-sm animate-sheen",
+        className,
+      )}
       {...props}
     />
   );
@@ -29,18 +32,18 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center text-center px-6 py-14",
+        "flex flex-col items-center justify-center px-6 py-14 text-center",
         className,
       )}
     >
       {Icon && (
-        <div className="size-11 rounded-md bg-canvas-sunk grid place-items-center mb-4">
-          <Icon className="size-5 text-ink-faint" />
+        <div className="brut animate-float mb-5 grid size-16 place-items-center rounded-md bg-brand">
+          <Icon className="size-7 text-ink" />
         </div>
       )}
-      <p className="text-[15px] font-semibold text-ink">{title}</p>
+      <p className="display text-[18px] text-ink">{title}</p>
       {description && (
-        <p className="text-[13.5px] text-ink-soft mt-1.5 max-w-sm leading-relaxed">
+        <p className="mt-2 max-w-sm text-[13.5px] leading-relaxed font-medium text-ink-soft">
           {description}
         </p>
       )}
@@ -62,21 +65,28 @@ export function Note({
   className?: string;
 }) {
   const tones = {
-    neutral: "bg-canvas-sunk border-line text-ink-soft",
-    brand: "bg-brand-tint border-brand-line text-brand-press",
-    warn: "bg-warn-tint border-warn-line text-warn",
-    bad: "bg-bad-tint border-bad-line text-bad",
-    ok: "bg-ok-tint border-ok-line text-ok",
+    neutral: "bg-canvas-sunk",
+    brand: "bg-brand",
+    warn: "bg-warn-tint",
+    bad: "bg-bad-tint",
+    ok: "bg-ok-tint",
   };
+
   return (
     <div
       className={cn(
-        "border rounded-sm px-3.5 py-3 text-[13px] leading-relaxed",
+        // Text stays ink on every tone — the fill carries the meaning, and
+        // black on a light fill never needs a contrast check.
+        "brut rounded-sm px-4 py-3 text-[13px] leading-relaxed font-medium text-ink",
         tones[tone],
         className,
       )}
     >
-      {title && <p className="font-semibold mb-1">{title}</p>}
+      {title && (
+        <p className="mb-1 text-[13px] font-extrabold tracking-wide uppercase">
+          {title}
+        </p>
+      )}
       {children}
     </div>
   );

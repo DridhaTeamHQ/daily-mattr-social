@@ -3,14 +3,17 @@ import { cn, formatNumber } from "@/lib/utils";
 
 type StatTone = "brand" | "reel" | "poll" | "invite" | "rank";
 
-/** Icon chip colours. The number itself stays ink — colour marks the
- *  category, it doesn't compete with the figure. */
+/**
+ * The whole tile takes the section colour, not just an icon chip. At the size
+ * these render on a phone, a small tinted square is invisible — the block of
+ * colour is what makes the row scannable.
+ */
 const STAT_TONES: Record<StatTone, string> = {
-  brand: "bg-brand-tint text-brand",
-  reel: "bg-reel-tint text-reel",
-  poll: "bg-poll-tint text-poll",
-  invite: "bg-invite-tint text-invite",
-  rank: "bg-rank-tint text-rank",
+  brand: "bg-brand",
+  reel: "bg-reel-tint",
+  poll: "bg-poll-tint",
+  invite: "bg-invite-tint",
+  rank: "bg-rank-tint",
 };
 
 export function Stat({
@@ -29,34 +32,31 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "bg-surface border border-line rounded-md shadow-card p-4",
-        "transition-shadow duration-150 ease-out hover:shadow-raised",
-        className,
-      )}
-    >
+    <div className={cn("brut lift rounded-md p-4", STAT_TONES[tone], className)}>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[12.5px] font-medium text-ink-soft">{label}</p>
+        <p className="text-[12px] font-extrabold tracking-wide text-ink uppercase">
+          {label}
+        </p>
         {Icon && (
-          <span
-            className={cn(
-              "grid size-7 shrink-0 place-items-center rounded-xs",
-              STAT_TONES[tone],
-            )}
-          >
-            <Icon className="size-4" />
+          <span className="brut-sm grid size-8 shrink-0 place-items-center rounded-xs bg-surface">
+            <Icon className="size-4 text-ink" />
           </span>
         )}
       </div>
-      <p className="tabular text-[28px] font-semibold text-ink mt-2 leading-none">
+
+      <p className="display tabular mt-2.5 text-[32px] leading-none text-ink">
         {typeof value === "number" ? formatNumber(value) : value}
       </p>
-      {sub && <p className="text-[12.5px] text-ink-soft mt-2">{sub}</p>}
+
+      {sub && (
+        <p className="mt-2 text-[12.5px] font-semibold text-ink/70">{sub}</p>
+      )}
     </div>
   );
 }
 
+/** Chunky outlined progress bar. The fill has its own right-hand border so it
+ *  reads as a solid block sliding along a track, not a coloured gradient. */
 export function ProgressBar({
   value,
   max,
@@ -66,12 +66,25 @@ export function ProgressBar({
   value: number;
   max: number;
   className?: string;
-  tone?: "brand" | "ok";
+  tone?: "brand" | "ok" | "reel" | "poll" | "invite" | "rank";
 }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+
+  const fill = {
+    brand: "bg-brand",
+    ok: "bg-ok",
+    reel: "bg-reel",
+    poll: "bg-poll",
+    invite: "bg-invite",
+    rank: "bg-rank",
+  }[tone];
+
   return (
     <div
-      className={cn("h-1.5 rounded-full bg-canvas-sunk overflow-hidden", className)}
+      className={cn(
+        "h-4 overflow-hidden rounded-full border-[3px] border-ink bg-surface",
+        className,
+      )}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
@@ -79,8 +92,9 @@ export function ProgressBar({
     >
       <div
         className={cn(
-          "h-full rounded-full transition-[width] duration-300 ease-out",
-          tone === "brand" ? "bg-brand" : "bg-ok",
+          "h-full transition-[width] duration-500 ease-out",
+          pct > 0 && pct < 100 && "border-r-[3px] border-ink",
+          fill,
         )}
         style={{ width: `${pct}%` }}
       />

@@ -23,50 +23,36 @@ import { cn, initials } from "@/lib/utils";
  * Ambassadors are on phones almost exclusively, so navigation is a thumb-reach
  * bottom bar on small screens and a top bar from `sm` up.
  *
- * Each destination carries its own accent, matching the colour that section
- * uses throughout. The nav is where students learn the mapping.
+ * Each destination owns a colour, and the active item is a filled black-edged
+ * block rather than a tint — at a glance, from a metre away, on a cracked
+ * phone screen.
  */
 
 const ITEMS = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    icon: House,
-    active: "bg-brand-tint text-brand-press",
-    dot: "text-brand",
-    pill: "bg-brand",
-  },
+  { href: "/dashboard", label: "Home", icon: House, fill: "bg-brand" },
   {
     href: "/dashboard/campaigns",
     label: "Campaigns",
     icon: Clapperboard,
-    active: "bg-reel-tint text-reel",
-    dot: "text-reel",
-    pill: "bg-reel",
+    fill: "bg-reel",
   },
   {
     href: "/dashboard/surveys",
     label: "Surveys",
     icon: ClipboardList,
-    active: "bg-poll-tint text-poll",
-    dot: "text-poll",
-    pill: "bg-poll",
+    fill: "bg-poll",
   },
   {
     href: "/dashboard/referrals",
     label: "Referrals",
     icon: Gift,
-    active: "bg-invite-tint text-invite",
-    dot: "text-invite",
-    pill: "bg-invite",
+    fill: "bg-invite",
   },
   {
     href: "/dashboard/leaderboard",
     label: "Ranks",
     icon: Trophy,
-    active: "bg-rank-tint text-rank",
-    dot: "text-rank",
-    pill: "bg-rank",
+    fill: "bg-rank",
   },
 ];
 
@@ -85,9 +71,12 @@ export function StreakChip({ days }: { days: number }) {
   return (
     <span
       title={`${days}-day streak`}
-      className="inline-flex items-center gap-1 rounded-full bg-flame-tint px-2.5 py-1 text-[13px] font-bold text-flame"
+      className="brut-sm inline-flex items-center gap-1 rounded-full bg-flame-tint px-2.5 py-1 text-[13px] font-extrabold text-ink"
     >
-      <Flame className={cn("size-4", days >= 3 && "animate-throb")} />
+      <Flame
+        className={cn("size-4 text-flame", days >= 3 && "animate-throb")}
+        fill="currentColor"
+      />
       {days}
     </span>
   );
@@ -107,33 +96,36 @@ export function TopNav({
   const isActive = useIsActive();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-surface/85 backdrop-blur-md">
+    // White, not yellow: the points hero directly below is a full yellow
+    // block, and two adjacent yellow bands read as one shape.
+    <header className="sticky top-0 z-20 border-b-[3px] border-ink bg-surface">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4 sm:px-6">
         <Link href="/dashboard" className="shrink-0">
-          <span className="text-brand-gradient text-[19px] font-extrabold tracking-tight">
-            DailyMattr
-          </span>
+          <span className="display text-[20px] text-ink">DailyMattr</span>
         </Link>
 
-        <nav className="hidden flex-1 items-center gap-1 sm:flex">
-          {ITEMS.map(({ href, label, active }) => (
-            <Link
-              key={href}
-              href={href}
-              aria-current={isActive(href) ? "page" : undefined}
-              className={cn(
-                "rounded-sm px-3.5 py-2 text-[14px] font-semibold transition-colors",
-                isActive(href)
-                  ? active
-                  : "text-ink-soft hover:bg-canvas-sunk hover:text-ink",
-              )}
-            >
-              {label}
-            </Link>
-          ))}
+        <nav className="hidden flex-1 items-center gap-1.5 sm:flex">
+          {ITEMS.map(({ href, label, fill }) => {
+            const active = isActive(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "rounded-sm px-3 py-1.5 text-[13.5px] font-extrabold text-ink transition-transform",
+                  active
+                    ? cn("brut-sm", fill)
+                    : "border-2 border-transparent hover:border-ink hover:bg-canvas-sunk",
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-2">
           <StreakChip days={streak} />
 
           <NotificationBell
@@ -144,7 +136,7 @@ export function TopNav({
           <span
             aria-hidden
             title={name}
-            className="bg-brand-gradient grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white"
+            className="brut-sm display grid size-9 shrink-0 place-items-center rounded-full bg-reel text-[12px] text-ink"
           >
             {initials(name)}
           </span>
@@ -153,7 +145,7 @@ export function TopNav({
             <button
               type="submit"
               title="Sign out"
-              className="grid size-10 place-items-center rounded-sm text-ink-faint transition-colors hover:bg-canvas-sunk hover:text-ink"
+              className="grid size-9 place-items-center rounded-sm border-2 border-transparent text-ink transition-colors hover:border-ink hover:bg-canvas-sunk"
             >
               <LogOut className="size-4.5" />
               <span className="sr-only">Sign out</span>
@@ -171,33 +163,44 @@ export function BottomNav() {
   return (
     <nav
       className={cn(
-        "fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-md sm:hidden",
+        "fixed inset-x-0 bottom-0 z-20 border-t-[3px] border-ink bg-surface sm:hidden",
         // Clear the iOS home indicator.
         "pb-[env(safe-area-inset-bottom)]",
       )}
     >
-      <ul className="flex">
-        {ITEMS.map(({ href, label, icon: Icon, dot, pill }) => {
+      <ul className="flex items-stretch">
+        {ITEMS.map(({ href, label, icon: Icon, fill }) => {
           const active = isActive(href);
           return (
             <li key={href} className="flex-1">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-bold transition-colors",
-                  active ? dot : "text-ink-faint",
-                )}
+                className="flex flex-col items-center gap-1 px-1 py-2"
               >
                 <span
-                  aria-hidden
                   className={cn(
-                    "absolute top-0 h-1 rounded-b-full transition-all duration-200",
-                    active ? cn("w-10", pill) : "w-0",
+                    "grid size-9 place-items-center rounded-sm transition-transform",
+                    active
+                      ? cn("brut-sm animate-pop", fill)
+                      : "border-2 border-transparent",
                   )}
-                />
-                <Icon className={cn("size-5.5", active && "animate-pop")} />
-                {label}
+                >
+                  <Icon
+                    className={cn(
+                      "size-5",
+                      active ? "text-ink" : "text-ink-faint",
+                    )}
+                  />
+                </span>
+                <span
+                  className={cn(
+                    "text-[10.5px] font-extrabold",
+                    active ? "text-ink" : "text-ink-faint",
+                  )}
+                >
+                  {label}
+                </span>
               </Link>
             </li>
           );

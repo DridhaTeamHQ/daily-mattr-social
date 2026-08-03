@@ -9,9 +9,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "bg-surface border border-line rounded-md shadow-card",
-        interactive &&
-          "transition-shadow duration-150 ease-out hover:shadow-raised",
+        "brut bg-surface rounded-md",
+        interactive && "lift",
         className,
       )}
       {...props}
@@ -32,7 +31,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn("text-[15px] font-semibold text-ink", className)}
+      className={cn("text-[16px] font-extrabold text-ink", className)}
       {...props}
     />
   );
@@ -44,7 +43,10 @@ export function CardDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn("text-[13px] text-ink-soft leading-relaxed mt-1", className)}
+      className={cn(
+        "text-[13.5px] text-ink-soft leading-relaxed mt-1",
+        className,
+      )}
       {...props}
     />
   );
@@ -63,8 +65,10 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      // A solid 3px rule, not a hairline — the divider has to hold its own
+      // against the card's own border.
       className={cn(
-        "px-5 py-3.5 border-t border-line bg-canvas-sunk/50 rounded-b-md",
+        "px-5 py-3.5 border-t-[3px] border-ink bg-canvas-sunk rounded-b-[13px]",
         className,
       )}
       {...props}

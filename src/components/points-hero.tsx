@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Flame, Sparkles, Trophy } from "lucide-react";
+import { Flame, Star, Trophy, Zap } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { cn, formatNumber } from "@/lib/utils";
@@ -10,16 +10,16 @@ import { cn, formatNumber } from "@/lib/utils";
  * Milestones. Deliberately close together at the bottom — the first one has to
  * be reachable in a single afternoon or it isn't a goal, it's a wall.
  */
-const TIERS = [
-  { at: 0, name: "Rookie" },
-  { at: 100, name: "Getting going" },
-  { at: 300, name: "Regular" },
-  { at: 750, name: "Campus star" },
-  { at: 1500, name: "Legend" },
-  { at: 3000, name: "Hall of fame" },
+export const TIERS = [
+  { at: 0, name: "Rookie", fill: "bg-surface" },
+  { at: 100, name: "Warmed up", fill: "bg-poll-tint" },
+  { at: 300, name: "Regular", fill: "bg-rank-tint" },
+  { at: 750, name: "Campus star", fill: "bg-invite-tint" },
+  { at: 1500, name: "Legend", fill: "bg-reel-tint" },
+  { at: 3000, name: "Hall of fame", fill: "bg-brand" },
 ];
 
-function tierFor(points: number) {
+export function tierFor(points: number) {
   let current = TIERS[0];
   let next: (typeof TIERS)[number] | null = null;
 
@@ -66,89 +66,86 @@ export function PointsHero({
   const pct = next ? Math.min(100, Math.round((into / span) * 100)) : 100;
 
   return (
-    <div className="bg-brand-gradient relative overflow-hidden rounded-lg px-5 py-6 text-white shadow-glow sm:px-8 sm:py-8">
-      <div className="relative z-10">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[12px] font-bold backdrop-blur-sm">
-            <Sparkles className="size-3.5" />
-            {current.name}
+    <div className="brut-lg relative rounded-lg bg-brand p-5 sm:p-7">
+      {/* Sticker badges, tilted just enough to look applied rather than
+          laid out. Absolute on desktop, inline on phones where there is no
+          room to float anything. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:absolute sm:top-5 sm:right-6 sm:mb-0 sm:flex-col sm:items-end">
+        <span className="sticker inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-extrabold text-ink">
+          <Star className="size-3.5" fill="currentColor" />
+          {current.name}
+        </span>
+
+        {streak > 0 && (
+          <span className="sticker sticker-r inline-flex items-center gap-1.5 rounded-full bg-flame-tint px-3 py-1.5 text-[12.5px] font-extrabold text-ink">
+            <Flame className="size-3.5 text-flame" fill="currentColor" />
+            {streak} day{streak === 1 ? "" : "s"}
           </span>
-
-          {streak > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[12px] font-bold backdrop-blur-sm">
-              <Flame className="size-3.5" />
-              {streak} day{streak === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-
-        <p className="mt-4 text-[13px] font-semibold text-white/70">
-          Your points
-        </p>
-        <CountUp
-          value={points}
-          className="tabular block text-[64px] leading-[0.95] font-extrabold sm:text-[84px]"
-        />
-
-        {rank !== null && total > 0 && (
-          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[13px] backdrop-blur-sm">
-            <Trophy className="size-3.5" />
-            Rank <span className="font-extrabold">#{rank}</span> of {total}
-          </p>
-        )}
-
-        {/* Progress to the next tier. The number that matters is "how many
-            more", not the percentage — nobody grinds toward 62%. */}
-        {next && (
-          <div className="mt-5 max-w-sm">
-            <div className="flex items-baseline justify-between text-[12.5px] font-semibold">
-              <span className="text-white/75">Next: {next.name}</span>
-              <span className="text-white">
-                {formatNumber(next.at - points)} to go
-              </span>
-            </div>
-            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/25">
-              <div
-                className="h-full rounded-full bg-white transition-[width] duration-700 ease-out"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
         )}
       </div>
 
-      {/* Atmosphere only — nothing readable sits on these. */}
-      <div
-        aria-hidden
-        className="animate-float pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-white/20 blur-3xl"
+      <p className="text-[13px] font-extrabold tracking-widest text-ink uppercase">
+        Your points
+      </p>
+
+      <CountUp
+        value={points}
+        className="display tabular block text-[68px] leading-[0.9] text-ink sm:text-[92px]"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-28 -left-20 size-64 rounded-full bg-white/10 blur-3xl"
-      />
+
+      {rank !== null && total > 0 && (
+        <span className="brut-sm mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-extrabold text-ink">
+          <Trophy className="size-4" />
+          Rank #{rank} of {total}
+        </span>
+      )}
+
+      {/* Progress to the next tier. The number that matters is "how many
+          more", not the percentage — nobody grinds toward 62%. */}
+      {next && (
+        <div className="mt-5 max-w-md">
+          <div className="flex items-baseline justify-between text-[12.5px] font-extrabold text-ink uppercase">
+            <span>Next: {next.name}</span>
+            <span className="inline-flex items-center gap-1">
+              <Zap className="size-3.5" fill="currentColor" />
+              {formatNumber(next.at - points)} to go
+            </span>
+          </div>
+
+          <div className="mt-2 h-5 overflow-hidden rounded-full border-[3px] border-ink bg-surface">
+            <div
+              className={cn(
+                "h-full bg-reel transition-[width] duration-700 ease-out",
+                pct > 0 && pct < 100 && "border-r-[3px] border-ink",
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Compact tier chips, shown under the hero as something to aim at. */
+/** Tier chips, shown under the hero as something to aim at. */
 export function TierTrack({ points }: { points: number }) {
   return (
-    <ul className="flex gap-2 overflow-x-auto pb-1">
+    <ul className="flex gap-2 overflow-x-auto pb-2">
       {TIERS.map((tier) => {
         const reached = points >= tier.at;
         return (
           <li key={tier.name} className="shrink-0">
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-bold whitespace-nowrap",
+                "inline-flex items-center gap-1.5 rounded-full border-[3px] border-ink px-3 py-1.5 text-[12.5px] font-extrabold whitespace-nowrap",
                 reached
-                  ? "border-brand-line bg-brand-tint text-brand-press"
-                  : "border-line bg-surface text-ink-faint",
+                  ? cn("text-ink shadow-[3px_3px_0_var(--color-ink)]", tier.fill)
+                  : "bg-surface text-ink-faint opacity-60",
               )}
             >
-              {reached && <Sparkles className="size-3.5" />}
+              {reached && <Star className="size-3.5" fill="currentColor" />}
               {tier.name}
-              <span className="tabular font-semibold opacity-70">
+              <span className="tabular opacity-70">
                 {formatNumber(tier.at)}
               </span>
             </span>
