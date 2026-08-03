@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Clapperboard, ClipboardList, Gift, Zap } from "lucide-react";
 
@@ -75,6 +76,20 @@ export default async function LoginPage({
           <Zap className="size-3.5" fill="currentColor" />
           Student ambassador programme
         </p>
+
+        {/* Die-cut sticker, bled off the bottom-right corner.
+            `hidden xl:block` because below that width the panel isn't wide
+            enough to hold both the headline and the figure, and decoration
+            over copy is worse than no decoration. */}
+        <Image
+          src="/mascot.png"
+          alt=""
+          aria-hidden
+          width={628}
+          height={899}
+          priority
+          className="pointer-events-none absolute -right-16 -bottom-14 z-0 hidden h-auto w-[17rem] rotate-3 select-none xl:block 2xl:w-[21rem]"
+        />
 
         {/* Oversized outlined marks — decoration only, nothing readable
             sits on them. */}
