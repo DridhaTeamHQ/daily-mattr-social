@@ -25,8 +25,23 @@ function textModel(): string {
   return process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini";
 }
 
+/**
+ * Deliberately NOT the same tier as the text model.
+ *
+ * Judging a screenshot means reading an 11px handle and telling a filled heart
+ * from an outlined one inside a full desktop screen. gpt-4o-mini cannot do it:
+ * on a real 1910×1045 browser screenshot of @dailymattr it reported the handle
+ * as "diyash", then — once told not to guess — said the handle was unreadable
+ * while still concluding the post wasn't @dailymattr. Both times: matches
+ * false, confidence 0.9. Confidently wrong, which is the worst failure mode
+ * here, because it sends a student's genuine work to the reject pile.
+ *
+ * Same image, same prompt, gpt-4.1-mini reads "dailymattr" and returns true at
+ * 0.95. It costs about the same. The cheaper model was not a saving, it was a
+ * defect.
+ */
 function visionModel(): string {
-  return process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+  return process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini";
 }
 
 export type AiResult<T> =
@@ -272,9 +287,13 @@ export async function adjudicateScreenshot(input: {
     "Set matches: true ONLY if all of these hold:",
     `- the post is from @${input.expectedHandle}`,
     `- ${evidence}`,
-    "- the image looks like an unedited phone screenshot of the Instagram app",
+    "- the image is an unedited screenshot of Instagram, taken EITHER in the phone app OR in a desktop web browser",
     "",
-    "Set matches: false if the handle differs, the action isn't visibly done, the image is a photo of another screen, or it shows signs of editing.",
+    "A desktop browser screenshot is completely valid evidence. Do not mark something false for being landscape, for showing browser chrome, tabs, a sidebar or a taskbar, or for having the post occupy only part of a wide screen. Judge the Instagram content itself, not the device it was viewed on.",
+    "",
+    "Set matches: false if the handle clearly differs, the action is visibly not done, the image is a photo of another screen taken with a camera, or it shows signs of editing.",
+    "",
+    "If the handle is too small or blurry to read with confidence, do NOT report a guess as fact — say so in the reason, leave handle_seen empty, and lower your confidence. A misread handle that you stated confidently is worse than admitting you couldn't read it.",
     "",
     "Be strict. If you are unsure, answer false with low confidence — a human reviews everything you decline, so a wrong 'no' costs seconds while a wrong 'yes' pays out for a fake.",
     "confidence is your certainty in the answer you gave, from 0 to 1.",
@@ -298,7 +317,11 @@ export async function adjudicateScreenshot(input: {
             },
             {
               type: "image_url",
-              image_url: { url: input.imageDataUrl, detail: "low" },
+              // High detail, deliberately. The entire task is reading a small
+              // handle and a small like control; "low" downsamples to ~512px,
+              // which on a desktop screenshot makes both illegible and
+              // produces confident nonsense like a misread handle.
+              image_url: { url: input.imageDataUrl, detail: "high" },
             },
           ],
         },

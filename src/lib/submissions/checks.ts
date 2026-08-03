@@ -65,8 +65,22 @@ export function runChecks(
   return checks;
 }
 
-/** The checks that actually gate auto-approval. */
-const BLOCKING = ["unique_image", "not_reused", "full_size_image"] as const;
+/**
+ * The checks that actually gate auto-approval.
+ *
+ * Exported because the review queue needs to tell a reviewer which failures
+ * matter. `portrait` and `has_capture_time` are recorded for context and were
+ * never meant to gate anything — a desktop screenshot is landscape, and phone
+ * screenshots routinely carry no EXIF. Presenting those as "failed checks"
+ * makes a perfectly good submission look suspicious.
+ */
+export const BLOCKING_CHECKS = [
+  "unique_image",
+  "not_reused",
+  "full_size_image",
+] as const;
+
+const BLOCKING = BLOCKING_CHECKS;
 
 export function blockingFailures(checks: CheckResults): string[] {
   return BLOCKING.filter((key) => checks[key] === false);

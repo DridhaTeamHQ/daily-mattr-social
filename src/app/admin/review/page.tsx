@@ -16,6 +16,7 @@ import {
   revokeSubmission,
 } from "@/lib/admin/actions";
 import { getReviewQueue } from "@/lib/admin/queries";
+import { BLOCKING_CHECKS } from "@/lib/submissions/checks";
 import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Review" };
@@ -253,6 +254,20 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /**
+ * How to read a `false` that isn't a problem.
+ *
+ * `portrait` and `has_capture_time` are context, not verdicts — a student who
+ * screenshots Instagram in a desktop browser gets a landscape image with no
+ * EXIF, and both are entirely legitimate. Painting them red made a good
+ * submission look like it had failed two checks, which is how a reviewer talks
+ * themselves into rejecting real work.
+ */
+const CONTEXT_ONLY: Record<string, { yes: string; no: string }> = {
+  portrait: { yes: "phone screenshot", no: "desktop or landscape" },
+  has_capture_time: { yes: "has capture time", no: "no capture time" },
+};
+
+/**
  * The deterministic checks, rendered as pass/fail. These are what the pipeline
  * measured before any AI got involved, and they are the part a reviewer can
  * actually verify by looking at the image.
@@ -269,7 +284,12 @@ function ChecksPanel({ checks }: { checks: unknown }) {
     );
   }
 
-  const failures = entries.filter(([, v]) => v === false);
+  // Only the checks that actually gate approval can "fail". The rest describe
+  // the image.
+  const failures = entries.filter(
+    ([key, value]) =>
+      value === false && (BLOCKING_CHECKS as readonly string[]).includes(key),
+  );
 
   return (
     <div className="mt-4">
@@ -282,6 +302,16 @@ function ChecksPanel({ checks }: { checks: unknown }) {
 
       <ul className="mt-2 flex flex-wrap gap-1.5">
         {entries.map(([key, value]) => {
+          const context = CONTEXT_ONLY[key];
+
+          if (typeof value === "boolean" && context) {
+            return (
+              <li key={key}>
+                <Badge tone="neutral">{value ? context.yes : context.no}</Badge>
+              </li>
+            );
+          }
+
           const label = key.replace(/_/g, " ");
           if (typeof value === "boolean") {
             return (
