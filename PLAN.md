@@ -77,16 +77,29 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 - **Colour system** — one accent per section (campaigns pink, surveys teal,
   referrals orange, leaderboard violet), carried by the nav, page headers and
   stat chips so colour signals location. Status colours stay reserved.
+- **Admin section** — overview, review queue (signed-URL screenshots,
+  pass/fail checks, approve / reject / revoke), campaigns, surveys,
+  ambassadors. Toast feedback on every mutation.
+- **Notifications** — 0008 adds `notifications` + `push_subscriptions`.
+  In-app bell with unread count, Web Push over VAPID with a service worker,
+  confetti on an unopened approval, and `my_streak()` behind the flame.
+- **Student UI** — rebuilt bold and playful: violet base, fat radii, pressable
+  buttons, count-up hero, tier track, progress bars.
 - **Repo** — https://github.com/DridhaTeamHQ/daily-mattr-social
+- **Deployed** — https://daily-mattr-social-mbge.vercel.app (Vercel, auto-deploys from `main`)
 
 ### Not started
 
 - The public survey route `/s/[slug]`. The "Preview" button on the surveys
   page still 404s.
-- Screenshot upload. The Upload buttons on campaigns are inert.
-- The whole `/admin` section — admins currently land on the ambassador
-  dashboard, where they read as having no points because `leaderboard()` and
-  `my_standing()` filter to ambassadors.
+- **Screenshot upload** — the biggest remaining gap. The Upload buttons on
+  campaigns are inert, so submissions can only be created by the seed script.
+  `lib/images.ts` already does sha256 + dhash + EXIF, so the pipeline has its
+  fingerprinting; what is missing is the route that accepts a file, runs the
+  deterministic checks, calls `find_similar_submissions()`, and decides
+  auto-approve vs. review.
+- AI adjudication. `OPENAI_API_KEY` is set but nothing calls it yet.
+- The survey builder, and CSV referral import.
 - Password reset / invite acceptance.
 
 ## Remaining work, in order
@@ -151,3 +164,10 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
   argument with `+` degrades every row type to `GenericStringError`.
 - **Grid `min-h-dvh` does not stretch an implicit `auto` row** — panels stop
   short of the viewport unless the row is explicitly `1fr`.
+- **The React Compiler lint forbids `setState` in an effect body.** External
+  state (push permission) belongs in `useSyncExternalStore`; prop-driven resets
+  belong in a render-phase adjustment.
+- **Instagram screenshots are mostly identical chrome.** Two legitimately
+  different screenshots can sit within a dhash distance of 6, so
+  `phash.reject_distance` is a flag-for-review threshold, not an auto-reject
+  one.
