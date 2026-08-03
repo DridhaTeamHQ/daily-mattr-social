@@ -663,3 +663,251 @@ export async function getAnalytics(days = 30): Promise<Analytics> {
     },
   };
 }
+
+// ─── One ambassador ─────────────────────────────────────────────────────────
+
+export type AmbassadorSubmission = {
+  id: string;
+  status: Enums<"submission_status">;
+  uploadedAt: string;
+  points: number;
+  taskType: Enums<"task_type">;
+  campaign: string;
+};
+
+export type AmbassadorSurveyStat = {
+  surveyId: string;
+  title: string;
+  slug: string;
+  clicks: number;
+  responses: number;
+  duplicates: number;
+};
+
+export type AmbassadorDetail = {
+  profile: Tables<"profiles">;
+  points: {
+    total: number;
+    earned: number;
+    reversed: number;
+    rank: number | null;
+    cohort: number;
+  };
+  streak: number;
+  pointsByDay: DayPoint[];
+  earningsBySource: NamedValue[];
+  ledger: {
+    id: number;
+    delta: number;
+    reason: Enums<"ledger_reason">;
+    note: string | null;
+    created_at: string;
+  }[];
+  surveys: AmbassadorSurveyStat[];
+  submissions: AmbassadorSubmission[];
+  referrals: {
+    counted: number;
+    voided: number;
+    last: string | null;
+    points: number;
+  };
+};
+
+/**
+ * Consecutive days with earnings, counted in IST.
+ *
+ * `my_streak()` is scoped to `auth.uid()`, so it can only ever answer for the
+ * caller. An admin looking at someone else needs the same number computed from
+ * that person's rows instead.
+ */
+function streakFrom(rows: { delta: number; created_at: string }[]): number {
+  const days = new Set(
+    rows.filter((r) => r.delta > 0).map((r) => istDay(r.created_at)),
+  );
+  if (days.size === 0) return 0;
+
+  const today = istDay(new Date().toISOString());
+  const yesterday = istDay(new Date(Date.now() - DAY_MS).toISOString());
+
+  // A streak that ended before yesterday is over, not merely paused.
+  let cursor = days.has(today) ? today : days.has(yesterday) ? yesterday : null;
+  if (!cursor) return 0;
+
+  let count = 0;
+  while (days.has(cursor)) {
+    count++;
+    cursor = istDay(new Date(new Date(cursor).getTime() - DAY_MS).toISOString());
+  }
+  return count;
+}
+
+export async function getAmbassadorDetail(
+  profileId: string,
+  days = 30,
+): Promise<AmbassadorDetail | null> {
+  const supabase = await createClient();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (!profile || profile.role !== "ambassador") return null;
+
+  const [
+    ledgerRes,
+    allLedgerRes,
+    cohortRes,
+    linksRes,
+    responsesRes,
+    submissionsRes,
+    conversionsRes,
+  ] = await Promise.all([
+    supabase
+      .from("point_ledger")
+      .select("id, delta, reason, note, created_at")
+      .eq("ambassador_id", profileId)
+      .order("created_at", { ascending: false }),
+    // Everyone's totals, so this person's rank is a real position in the
+    // cohort rather than a number that only makes sense on its own.
+    supabase.from("point_ledger").select("ambassador_id, delta"),
+    supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "ambassador")
+      .eq("status", "active"),
+    supabase
+      .from("survey_links")
+      .select("id, slug, click_count, surveys(id, title)")
+      .eq("ambassador_id", profileId),
+    supabase
+      .from("survey_responses")
+      .select("survey_id, status")
+      .eq("ambassador_id", profileId),
+    supabase
+      .from("submissions")
+      .select("id, status, uploaded_at, campaign_tasks(type, points, campaigns(title))")
+      .eq("ambassador_id", profileId)
+      .order("uploaded_at", { ascending: false }),
+    supabase
+      .from("referral_conversions")
+      .select("status, converted_at")
+      .eq("ambassador_id", profileId),
+  ]);
+
+  const ledger = ledgerRes.data ?? [];
+  const deltas = ledger.map((r) => r.delta);
+
+  // ── Rank within the active cohort ─────────────────────────────────────────
+  const activeIds = new Set((cohortRes.data ?? []).map((r) => r.id));
+  const totals = new Map<string, number>();
+  for (const id of activeIds) totals.set(id, 0);
+  for (const row of allLedgerRes.data ?? []) {
+    if (!activeIds.has(row.ambassador_id)) continue;
+    totals.set(row.ambassador_id, (totals.get(row.ambassador_id) ?? 0) + row.delta);
+  }
+
+  const mine = totals.get(profileId) ?? 0;
+  const rank = activeIds.has(profileId)
+    ? [...totals.values()].filter((v) => v > mine).length + 1
+    : null;
+
+  // ── Points per day ────────────────────────────────────────────────────────
+  const perDay = new Map<string, number>();
+  for (let i = days - 1; i >= 0; i--) {
+    perDay.set(new Date(Date.now() - i * DAY_MS).toISOString().slice(0, 10), 0);
+  }
+  for (const row of ledger) {
+    if (row.delta <= 0) continue;
+    const key = istDay(row.created_at);
+    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + row.delta);
+  }
+
+  const REASON_LABEL: Record<string, string> = {
+    survey_response: "Surveys",
+    instagram_task: "Campaigns",
+    referral: "Referrals",
+    manual_adjust: "Manual",
+  };
+  const bySource = new Map<string, number>();
+  for (const row of ledger) {
+    if (row.delta <= 0) continue;
+    const label = REASON_LABEL[row.reason] ?? "Other";
+    bySource.set(label, (bySource.get(label) ?? 0) + row.delta);
+  }
+
+  // ── Surveys ───────────────────────────────────────────────────────────────
+  const valid = new Map<string, number>();
+  const dupes = new Map<string, number>();
+  for (const r of responsesRes.data ?? []) {
+    const bucket = r.status === "valid" ? valid : dupes;
+    bucket.set(r.survey_id, (bucket.get(r.survey_id) ?? 0) + 1);
+  }
+
+  const surveys: AmbassadorSurveyStat[] = (linksRes.data ?? []).flatMap((l) =>
+    l.surveys
+      ? [
+          {
+            surveyId: l.surveys.id,
+            title: l.surveys.title,
+            slug: l.slug,
+            clicks: l.click_count,
+            responses: valid.get(l.surveys.id) ?? 0,
+            duplicates: dupes.get(l.surveys.id) ?? 0,
+          },
+        ]
+      : [],
+  );
+  surveys.sort((a, b) => b.responses - a.responses);
+
+  // ── Submissions ───────────────────────────────────────────────────────────
+  const submissions: AmbassadorSubmission[] = (
+    submissionsRes.data ?? []
+  ).flatMap((s) =>
+    s.campaign_tasks
+      ? [
+          {
+            id: s.id,
+            status: s.status,
+            uploadedAt: s.uploaded_at,
+            points: s.campaign_tasks.points,
+            taskType: s.campaign_tasks.type,
+            campaign: s.campaign_tasks.campaigns?.title ?? "-",
+          },
+        ]
+      : [],
+  );
+
+  // ── Referrals ─────────────────────────────────────────────────────────────
+  const conversions = conversionsRes.data ?? [];
+  const counted = conversions.filter((c) => c.status === "counted");
+  const convertedDates = counted.map((c) => c.converted_at).sort();
+
+  return {
+    profile,
+    points: {
+      total: deltas.reduce((a, b) => a + b, 0),
+      earned: deltas.filter((d) => d > 0).reduce((a, b) => a + b, 0),
+      reversed: Math.abs(deltas.filter((d) => d < 0).reduce((a, b) => a + b, 0)),
+      rank,
+      cohort: activeIds.size,
+    },
+    streak: streakFrom(ledger),
+    pointsByDay: [...perDay.entries()].map(([day, value]) => ({ day, value })),
+    earningsBySource: [...bySource.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value),
+    ledger,
+    surveys,
+    submissions,
+    referrals: {
+      counted: counted.length,
+      voided: conversions.length - counted.length,
+      last: convertedDates.length ? convertedDates[convertedDates.length - 1] : null,
+      points: ledger
+        .filter((l) => l.reason === "referral")
+        .reduce((n, l) => n + l.delta, 0),
+    },
+  };
+}

@@ -1,5 +1,7 @@
 import { Users } from "lucide-react";
 
+import Link from "next/link";
+
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
@@ -97,9 +99,12 @@ export default async function AmbassadorsPage({
                           {initials(row.full_name || row.email)}
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate text-[13.5px] font-medium text-ink">
+                          <Link
+                            href={`/admin/ambassadors/${row.id}`}
+                            className="truncate text-[13.5px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
+                          >
                             {row.full_name || "—"}
-                          </p>
+                          </Link>
                           <p className="truncate text-[12px] text-ink-soft">
                             {row.college ?? row.email}
                           </p>
