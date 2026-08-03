@@ -695,6 +695,81 @@ export type Database = {
           },
         ];
       };
+
+      notifications: {
+        Row: {
+          id: string;
+          profile_id: string;
+          type: Enums<"notification_type">;
+          title: string;
+          body: string | null;
+          /** Relative path only — enforced by a CHECK constraint. */
+          href: string | null;
+          meta: Json;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          type: Enums<"notification_type">;
+          title: string;
+          body?: string | null;
+          href?: string | null;
+          meta?: Json;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        /** Students may only mark them read. */
+        Update: { read_at?: string | null };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      push_subscriptions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent: string | null;
+          created_at: string;
+          last_used: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent?: string | null;
+          created_at?: string;
+          last_used?: string | null;
+        };
+        Update: {
+          p256dh?: string;
+          auth?: string;
+          user_agent?: string | null;
+          last_used?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
 
     Views: Record<never, never>;
@@ -756,6 +831,10 @@ export type Database = {
           last_conversion: string | null;
         }[];
       };
+      my_streak: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       find_similar_submissions: {
         Args: {
           probe: string;
@@ -801,6 +880,16 @@ export type Database = {
         | "approved"
         | "rejected"
         | "revoked";
+      notification_type:
+        | "submission_approved"
+        | "submission_rejected"
+        | "submission_revoked"
+        | "points_awarded"
+        | "campaign_live"
+        | "survey_live"
+        | "rank_up"
+        | "referral_confirmed"
+        | "account";
       conversion_source: "csv_import" | "manual" | "api";
       conversion_status: "counted" | "void";
     };

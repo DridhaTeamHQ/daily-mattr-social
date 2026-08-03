@@ -59,6 +59,16 @@ export type LeaderboardRow = {
   is_me: boolean;
 };
 
+export type NotificationRow = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 export type DashboardData = {
   profile: {
     id: string;
@@ -78,6 +88,9 @@ export type DashboardData = {
     last_conversion: string | null;
   };
   recentLedger: LedgerEntry[];
+  /** Consecutive days with earnings, for the flame. */
+  streak: number;
+  notifications: NotificationRow[];
 };
 
 /** True when the screens are showing fixtures rather than real data. */
@@ -98,8 +111,15 @@ export async function getDashboard(): Promise<DashboardData | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [profileRes, standingRes, surveysRes, referralsRes, ledgerRes] =
-    await Promise.all([
+  const [
+    profileRes,
+    standingRes,
+    surveysRes,
+    referralsRes,
+    ledgerRes,
+    streakRes,
+    notificationsRes,
+  ] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, full_name, college, referral_code, role, status")
@@ -114,6 +134,13 @@ export async function getDashboard(): Promise<DashboardData | null> {
         .eq("ambassador_id", user.id)
         .order("created_at", { ascending: false })
         .limit(8),
+      supabase.rpc("my_streak"),
+      supabase
+        .from("notifications")
+        .select("id, type, title, body, href, read_at, created_at")
+        .eq("profile_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
 
   const profile = profileRes.data;
@@ -139,6 +166,8 @@ export async function getDashboard(): Promise<DashboardData | null> {
       last_conversion: referral?.last_conversion ?? null,
     },
     recentLedger: ledgerRes.data ?? [],
+    streak: streakRes.data ?? 0,
+    notifications: notificationsRes.data ?? [],
   };
 }
 

@@ -57,56 +57,6 @@ export function Stat({
   );
 }
 
-/**
- * The points hero on the ambassador dashboard. This is deliberately the
- * biggest thing on the page — it's the reason students come back.
- */
-export function PointsHero({
-  points,
-  rank,
-  total,
-  className,
-}: {
-  points: number;
-  rank: number | null;
-  total: number;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "bg-brand-gradient relative overflow-hidden rounded-lg",
-        "px-6 py-7 text-white shadow-raised sm:px-8 sm:py-9",
-        className,
-      )}
-    >
-      <div className="relative z-10">
-        <p className="text-[13px] font-medium text-white/75">Your points</p>
-        <p className="tabular mt-1 text-[56px] leading-[1.02] font-semibold sm:text-[68px]">
-          {formatNumber(points)}
-        </p>
-
-        {rank !== null && total > 0 && (
-          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[13px] text-white/90 backdrop-blur-sm">
-            Rank <span className="font-semibold text-white">#{rank}</span> of{" "}
-            {total} {total === 1 ? "ambassador" : "ambassadors"}
-          </p>
-        )}
-      </div>
-
-      {/* Decorative light. Purely atmospheric — nothing readable sits on it. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 -right-20 size-72 rounded-full bg-white/20 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-28 -left-16 size-64 rounded-full bg-white/10 blur-3xl"
-      />
-    </div>
-  );
-}
-
 export function ProgressBar({
   value,
   max,

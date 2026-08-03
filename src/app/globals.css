@@ -2,77 +2,84 @@
 
 /* ============================================================
    DailyMattr Socials — design tokens
-   Light only, no dark mode. Colour is used with intent: indigo is the
-   brand and carries points; each section of the app owns one accent so
-   students can tell where they are at a glance. Status colours (ok /
-   warn / bad) are never borrowed for decoration.
+
+   Built for 19-year-olds on phones, not for a finance dashboard.
+   Saturated colour, fat radii, chunky type, and buttons that feel
+   like buttons. Every accent still means something — one per section
+   — but the volume is turned up.
+
+   Status colours (ok / warn / bad) stay reserved for status. The moment
+   they get borrowed for decoration, "approved" stops reading as green.
    ============================================================ */
 
 @theme {
   /* Surfaces */
-  --color-canvas: #fafaf9; /* page background, warm off-white */
-  --color-canvas-sunk: #f5f5f4; /* inset wells, table headers */
+  --color-canvas: #fbfaff; /* page background, faint violet cast */
+  --color-canvas-sunk: #f3f1fb; /* inset wells */
   --color-surface: #ffffff; /* cards */
-  --color-line: #e7e5e4; /* hairline borders */
-  --color-line-strong: #d6d3d1; /* dividers that need to read */
+  --color-line: #ebe7f7; /* hairline borders */
+  --color-line-strong: #d9d2ee; /* dividers that need to read */
 
   /* Ink */
-  --color-ink: #1c1917; /* primary text */
-  --color-ink-soft: #57534e; /* secondary text */
-  --color-ink-faint: #a8a29e; /* tertiary, placeholders */
+  --color-ink: #16121f; /* primary text — near-black, violet-leaning */
+  --color-ink-soft: #56507a; /* secondary text */
+  --color-ink-faint: #9a94b8; /* tertiary, placeholders */
 
-  /* Brand — single muted indigo */
-  --color-brand: #4f46e5;
-  --color-brand-hover: #4338ca;
-  --color-brand-press: #3730a3;
-  --color-brand-tint: #eef2ff;
-  --color-brand-line: #c7d2fe;
+  /* Brand — electric violet */
+  --color-brand: #6d28d9;
+  --color-brand-hover: #5b21b6;
+  --color-brand-press: #4c1d95;
+  --color-brand-tint: #f3ecff;
+  --color-brand-line: #d8c6ff;
 
   /* Semantic — reserved for status only */
-  --color-ok: #059669;
-  --color-ok-tint: #ecfdf5;
-  --color-ok-line: #a7f3d0;
+  --color-ok: #047857;
+  --color-ok-tint: #e7fbf3;
+  --color-ok-line: #9decc7;
 
   --color-warn: #b45309;
-  --color-warn-tint: #fffbeb;
-  --color-warn-line: #fde68a;
+  --color-warn-tint: #fff8e8;
+  --color-warn-line: #fcdf9c;
 
   --color-bad: #dc2626;
-  --color-bad-tint: #fef2f2;
-  --color-bad-line: #fecaca;
+  --color-bad-tint: #fff0f0;
+  --color-bad-line: #fdc8c8;
 
   /* ── Section accents ──────────────────────────────────────────────
-     One per area of the app. Same three-step shape as the semantic
-     colours (solid / tint / line) so they drop into Badge and Stat
-     without special cases. Every solid here clears 4.5:1 on its own
-     tint and on white. */
+     One per area of the app, carried by the nav, page headers and stat
+     chips so colour tells you where you are. Solids clear 4.5:1 on
+     white and on their own tint. */
 
   /* Campaigns — Instagram work */
   --color-reel: #db2777;
-  --color-reel-tint: #fdf2f8;
-  --color-reel-line: #fbcfe8;
+  --color-reel-tint: #ffeef7;
+  --color-reel-line: #fbc4de;
 
   /* Surveys */
   --color-poll: #0d9488;
-  --color-poll-tint: #f0fdfa;
-  --color-poll-line: #99f6e4;
+  --color-poll-tint: #e6fbf7;
+  --color-poll-line: #97ead9;
 
   /* Referrals */
   --color-invite: #c2410c;
-  --color-invite-tint: #fff7ed;
-  --color-invite-line: #fed7aa;
+  --color-invite-tint: #fff2e8;
+  --color-invite-line: #fdc9a4;
 
   /* Leaderboard */
   --color-rank: #7c3aed;
-  --color-rank-tint: #f5f3ff;
-  --color-rank-line: #ddd6fe;
+  --color-rank-tint: #f4edff;
+  --color-rank-line: #dcc9ff;
+
+  /* Streaks — the one place a hot colour is allowed to shout */
+  --color-flame: #ea580c;
+  --color-flame-tint: #fff3e8;
 
   /* Radii */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --radius-xs: 8px;
+  --radius-sm: 14px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
 
   /* Type */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
@@ -80,10 +87,12 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   /* Elevation — soft, never heavy */
-  --shadow-card: 0 1px 2px rgb(28 25 23 / 0.04), 0 1px 3px rgb(28 25 23 / 0.03);
-  --shadow-raised: 0 2px 4px rgb(28 25 23 / 0.04),
-    0 4px 12px rgb(28 25 23 / 0.06);
-  --shadow-pop: 0 4px 8px rgb(28 25 23 / 0.05), 0 12px 32px rgb(28 25 23 / 0.1);
+  --shadow-card: 0 1px 2px rgb(22 18 31 / 0.04), 0 2px 8px rgb(22 18 31 / 0.04);
+  --shadow-raised: 0 2px 4px rgb(22 18 31 / 0.05),
+    0 8px 24px rgb(22 18 31 / 0.08);
+  --shadow-pop: 0 8px 16px rgb(22 18 31 / 0.08), 0 24px 56px rgb(22 18 31 / 0.16);
+  /* Coloured glow for the hero and primary actions. */
+  --shadow-glow: 0 8px 28px rgb(109 40 217 / 0.32);
 }
 
 /* ============================================================
@@ -157,13 +166,16 @@
 }
 
 /* ============================================================
-   Motion — quick and calm. Nothing bounces.
+   Motion — quick, springy, and never in the way. Things pop in,
+   buttons physically depress, and nothing animates for longer than
+   the user's patience. All of it is disabled under
+   prefers-reduced-motion at the bottom of this file.
    ============================================================ */
 
 @layer utilities {
-  /* Brand gradient, used for the wordmark and the points hero. Indigo →
-     violet → a touch of pink; all three are in the palette above, so it
-     never introduces a colour the rest of the app doesn't use. */
+  /* Brand gradient, used for the wordmark and the points hero. Violet →
+     purple → pink; all three are in the palette above, so it never
+     introduces a colour the rest of the app doesn't use. */
   .bg-brand-gradient {
     background-image: linear-gradient(
       135deg,
@@ -171,6 +183,47 @@
       var(--color-rank) 55%,
       var(--color-reel) 100%
     );
+  }
+
+  /* Warmer variant for streaks and celebrations. */
+  .bg-flame-gradient {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-reel) 0%,
+      var(--color-flame) 60%,
+      #f59e0b 100%
+    );
+  }
+
+  /**
+   * Chunky pressable surface.
+   *
+   * A solid bottom edge instead of a blur, so the control reads as a
+   * physical key; pressing removes the edge and drops the button into
+   * it. This is the single biggest reason the app feels like a game
+   * rather than a form.
+   */
+  .pressable {
+    box-shadow: 0 4px 0 0 var(--pressable-edge, rgb(22 18 31 / 0.18));
+    transition:
+      transform 90ms ease-out,
+      box-shadow 90ms ease-out,
+      background-color 150ms ease-out;
+  }
+  .pressable:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 0 var(--pressable-edge, rgb(22 18 31 / 0.18));
+  }
+
+  .animate-pop {
+    animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .animate-float {
+    animation: float 3.2s ease-in-out infinite;
+  }
+  /* Attention pulse for a live streak or an unread badge. */
+  .animate-throb {
+    animation: throb 2s ease-in-out infinite;
   }
 
   .text-brand-gradient {
@@ -230,6 +283,37 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes throb {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
   }
 }
 

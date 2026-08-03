@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -118,6 +119,18 @@ export async function approveSubmission(
       points,
     });
 
+    await notify({
+      profileId: submission.ambassador_id,
+      type: "submission_approved",
+      title: `Approved — you earned ${points} points`,
+      body: note || "Your screenshot passed review.",
+      href: "/dashboard/campaigns",
+      meta: { submissionId, points },
+    }).catch(() => {
+      // The points are already credited; a failed notification must not undo
+      // that or make the admin think the approval didn't happen.
+    });
+
     revalidatePath("/admin/review");
     revalidatePath("/admin");
     return { ok: true, message: `Approved · +${points} points` };
@@ -151,6 +164,23 @@ export async function rejectSubmission(
     await audit(actorId, "submission.reject", "submission", submissionId, {
       reason,
     });
+
+    const { data: rejected } = await db
+      .from("submissions")
+      .select("ambassador_id")
+      .eq("id", submissionId)
+      .single();
+
+    if (rejected) {
+      await notify({
+        profileId: rejected.ambassador_id,
+        type: "submission_rejected",
+        title: "Screenshot not approved",
+        body: reason.trim(),
+        href: "/dashboard/campaigns",
+        meta: { submissionId },
+      }).catch(() => {});
+    }
 
     revalidatePath("/admin/review");
     revalidatePath("/admin");
@@ -209,6 +239,15 @@ export async function revokeSubmission(
       points,
       reason,
     });
+
+    await notify({
+      profileId: submission.ambassador_id,
+      type: "submission_revoked",
+      title: `${points} points reversed`,
+      body: reason || "A previous approval was reversed after a second look.",
+      href: "/dashboard",
+      meta: { submissionId, points },
+    }).catch(() => {});
 
     revalidatePath("/admin/review");
     revalidatePath("/admin");
@@ -273,6 +312,18 @@ export async function adjustPoints(
 
     await audit(actorId, "points.adjust", "profile", profileId, { delta, note });
 
+    await notify({
+      profileId,
+      type: "points_awarded",
+      title:
+        delta > 0
+          ? `You were given ${delta} points`
+          : `${Math.abs(delta)} points were removed`,
+      body: note.trim(),
+      href: "/dashboard",
+      meta: { delta },
+    }).catch(() => {});
+
     revalidatePath("/admin/ambassadors");
     revalidatePath("/admin");
     return {
@@ -330,6 +381,24 @@ export async function setCampaignStatus(
     if (error) throw error;
 
     await audit(actorId, "campaign.status", "campaign", campaignId, { status });
+
+    // Only a launch is worth interrupting people for. Ending a campaign is
+    // not news anyone wants a push notification about.
+    if (status === "live") {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("title")
+        .eq("id", campaignId)
+        .maybeSingle();
+
+      await notifyMany(await activeAmbassadorIds(), {
+        type: "campaign_live",
+        title: "New campaign is live",
+        body: campaign?.title ?? "There's new work to pick up.",
+        href: "/dashboard/campaigns",
+        meta: { campaignId },
+      });
+    }
 
     revalidatePath("/admin/campaigns");
     revalidatePath("/dashboard/campaigns");
@@ -434,6 +503,24 @@ export async function setSurveyStatus(
     }
 
     await audit(actorId, "survey.status", "survey", surveyId, { status });
+
+    if (status === "live") {
+      const { data: survey } = await supabase
+        .from("surveys")
+        .select("title, points_per_response")
+        .eq("id", surveyId)
+        .maybeSingle();
+
+      await notifyMany(await activeAmbassadorIds(), {
+        type: "survey_live",
+        title: "New survey — your link is ready",
+        body: survey
+          ? `${survey.title} · ${survey.points_per_response} points per response`
+          : "Share your link to start earning.",
+        href: "/dashboard/surveys",
+        meta: { surveyId },
+      });
+    }
 
     revalidatePath("/admin/surveys");
     revalidatePath("/dashboard/surveys");

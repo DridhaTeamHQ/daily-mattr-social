@@ -124,6 +124,38 @@ export const demoDashboard: DashboardData = {
     last_conversion: at(-2),
   },
 
+  streak: 4,
+
+  notifications: [
+    {
+      id: "n1",
+      type: "submission_approved",
+      title: "Approved — you earned 10 points",
+      body: "Your screenshot passed review.",
+      href: "/dashboard/campaigns",
+      read_at: null,
+      created_at: at(-0.1),
+    },
+    {
+      id: "n2",
+      type: "campaign_live",
+      title: "New campaign is live",
+      body: "Monsoon reel — share it everywhere",
+      href: "/dashboard/campaigns",
+      read_at: null,
+      created_at: at(-0.5),
+    },
+    {
+      id: "n3",
+      type: "rank_up",
+      title: "You moved up to #4",
+      body: "Two more people passed this week — keep going.",
+      href: "/dashboard/leaderboard",
+      read_at: at(-1),
+      created_at: at(-1),
+    },
+  ],
+
   recentLedger: [
     {
       id: 9,

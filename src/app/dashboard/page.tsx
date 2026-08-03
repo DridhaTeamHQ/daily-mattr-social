@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Clapperboard, ClipboardList, Gift } from "lucide-react";
+import {
+  ArrowRight,
+  Clapperboard,
+  ClipboardList,
+  Gift,
+  Zap,
+} from "lucide-react";
 
+import { PointsHero, TierTrack } from "@/components/points-hero";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { PointsHero, Stat } from "@/components/ui/stat";
+import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
 import { cn, formatDate, formatDelta, timeRemaining } from "@/lib/utils";
 
@@ -24,7 +31,7 @@ export default async function DashboardPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
 
-  const { standing, campaigns, surveys, referrals, recentLedger } = data;
+  const { standing, campaigns, surveys, referrals, recentLedger, streak } = data;
 
   const openTasks = campaigns
     .flatMap((c) => c.tasks)
@@ -32,13 +39,22 @@ export default async function DashboardPage() {
 
   const surveyResponses = surveys.reduce((n, s) => n + s.valid_responses, 0);
 
+  // Confetti when an approval has landed that they haven't opened yet.
+  const justApproved = data.notifications.some(
+    (n) => n.type === "submission_approved" && !n.read_at,
+  );
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <PointsHero
         points={standing.points}
         rank={standing.position > 0 ? standing.position : null}
         total={standing.total}
+        streak={streak}
+        celebrate={justApproved}
       />
+
+      <TierTrack points={standing.points} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat
@@ -74,7 +90,7 @@ export default async function DashboardPage() {
         <SectionHeader
           title="Campaigns"
           href="/dashboard/campaigns"
-          linkLabel="All campaigns"
+          linkLabel="See all"
           tone="reel"
         />
 
@@ -94,14 +110,16 @@ export default async function DashboardPage() {
                   t.submission_status === "approved" ||
                   t.submission_status === "auto_approved",
               ).length;
+              const up = c.tasks.reduce((n, t) => n + t.points, 0);
+              const pct = Math.round((done / Math.max(1, c.tasks.length)) * 100);
 
               return (
                 <li key={c.id}>
-                  <Card interactive>
+                  <Card interactive className="overflow-hidden">
                     <CardBody className="flex items-start gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-[15px] font-semibold text-ink">
+                          <h3 className="text-[16px] font-bold text-ink">
                             {c.title}
                           </h3>
                           <Badge
@@ -121,10 +139,21 @@ export default async function DashboardPage() {
                           </p>
                         )}
 
-                        <p className="mt-3 text-[12.5px] text-ink-soft">
-                          {done} of {c.tasks.length} tasks approved ·{" "}
-                          {c.tasks.reduce((n, t) => n + t.points, 0)} points
-                          available
+                        <div className="mt-3.5 flex items-center gap-2.5">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-canvas-sunk">
+                            <div
+                              className="h-full rounded-full bg-reel transition-[width] duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="shrink-0 text-[12.5px] font-semibold text-ink-soft">
+                            {done}/{c.tasks.length}
+                          </span>
+                        </div>
+
+                        <p className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-bold text-reel">
+                          <Zap className="size-3.5" />
+                          {up} points up for grabs
                         </p>
                       </div>
 
@@ -158,7 +187,7 @@ export default async function DashboardPage() {
                   className="flex items-center gap-4 px-5 py-3.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13.5px] font-medium text-ink">
+                    <p className="truncate text-[14px] font-semibold text-ink">
                       {entry.note ?? LEDGER_LABELS[entry.reason] ?? entry.reason}
                     </p>
                     <p className="mt-0.5 text-[12px] text-ink-soft">
@@ -167,9 +196,12 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <span
-                    className={`tabular shrink-0 text-[14px] font-semibold ${
-                      entry.delta < 0 ? "text-bad" : "text-ok"
-                    }`}
+                    className={cn(
+                      "tabular shrink-0 rounded-full px-2.5 py-1 text-[13.5px] font-extrabold",
+                      entry.delta < 0
+                        ? "bg-bad-tint text-bad"
+                        : "bg-ok-tint text-ok",
+                    )}
                   >
                     {formatDelta(entry.delta)}
                   </span>
@@ -203,17 +235,17 @@ function SectionHeader({
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-4">
-      <h2 className="flex items-center gap-2 text-[13px] font-semibold tracking-wide text-ink-soft uppercase">
+      <h2 className="flex items-center gap-2 text-[13px] font-extrabold tracking-wide text-ink-soft uppercase">
         <span
           aria-hidden
-          className={cn("h-3.5 w-1 rounded-full", ACCENT_BAR[tone])}
+          className={cn("h-4 w-1.5 rounded-full", ACCENT_BAR[tone])}
         />
         {title}
       </h2>
       {href && (
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-brand hover:text-brand-hover"
+          className="inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:text-brand-hover"
         >
           {linkLabel}
           <ArrowRight className="size-3.5" />

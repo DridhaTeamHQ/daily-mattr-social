@@ -6,21 +6,27 @@ import { cn } from "@/lib/utils";
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet";
 type Size = "sm" | "md" | "lg" | "icon";
 
+/**
+ * `pressable` gives primary/danger a solid bottom edge that collapses on
+ * click. Ghost and quiet stay flat — a whole page of depressible surfaces
+ * reads as noise, so only the things worth pressing get the treatment.
+ */
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-brand text-white shadow-card hover:bg-brand-hover active:bg-brand-press",
+    "pressable [--pressable-edge:var(--color-brand-press)] bg-brand text-white hover:bg-brand-hover",
   secondary:
-    "bg-surface text-ink border border-line shadow-card hover:bg-canvas-sunk active:bg-canvas-sunk",
+    "pressable [--pressable-edge:var(--color-line-strong)] bg-surface text-ink border border-line hover:bg-canvas-sunk",
   ghost: "text-ink-soft hover:bg-canvas-sunk hover:text-ink",
-  danger: "bg-bad text-white shadow-card hover:brightness-95 active:brightness-90",
+  danger:
+    "pressable [--pressable-edge:#991b1b] bg-bad text-white hover:brightness-105",
   quiet: "bg-brand-tint text-brand-press hover:bg-brand-line/60",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-8 px-3 text-[13px] gap-1.5 rounded-sm",
-  md: "h-10 px-4 text-sm gap-2 rounded-sm",
-  lg: "h-12 px-6 text-[15px] gap-2 rounded-md",
-  icon: "h-9 w-9 rounded-sm",
+  sm: "h-9 px-3.5 text-[13px] gap-1.5 rounded-sm",
+  md: "h-11 px-5 text-[14.5px] gap-2 rounded-sm",
+  lg: "h-13 px-7 text-[16px] gap-2 rounded-md",
+  icon: "h-10 w-10 rounded-sm",
 };
 
 export interface ButtonProps
@@ -53,10 +59,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         // `asChild` renders a Link/anchor, which has no disabled attribute.
         disabled={asChild ? undefined : disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center font-medium whitespace-nowrap",
-          "transition-[background-color,color,box-shadow,filter] duration-150 ease-out",
+          "inline-flex items-center justify-center font-semibold whitespace-nowrap",
+          "transition-[background-color,color,filter] duration-150 ease-out",
           "disabled:pointer-events-none disabled:opacity-50",
-          "[&_svg]:size-4 [&_svg]:shrink-0",
+          "[&_svg]:size-4.5 [&_svg]:shrink-0",
           VARIANTS[variant],
           SIZES[size],
           className,
