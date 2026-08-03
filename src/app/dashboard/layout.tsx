@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { BottomNav, TopNav } from "@/components/app-nav";
+import { mustChangePassword } from "@/lib/queries";
 import { CelebrationProvider } from "@/components/celebrate";
 import { Note } from "@/components/ui/feedback";
 import { getDashboard, isDemoMode } from "@/lib/queries";
@@ -15,6 +16,11 @@ export default async function DashboardLayout({
   // `proxy.ts` already bounced signed-out users, but it does optimistic checks
   // only — this is the one that actually matters.
   if (!data) redirect("/login");
+
+  // A student still on an admin-issued password gets nowhere until they
+  // replace it. Checked here rather than in proxy.ts because proxy does
+  // optimistic checks only.
+  if (await mustChangePassword()) redirect("/welcome");
 
   // Read literally so Next can inline it. Null when push isn't configured,
   // which makes the bell hide the opt-in rather than offer something broken.

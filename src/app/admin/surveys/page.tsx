@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
@@ -17,14 +19,20 @@ export default async function AdminSurveysPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold tracking-tight text-ink">
-          Surveys
-        </h1>
-        <p className="mt-1 text-[13.5px] text-ink-soft">
-          Publishing a survey issues a personal link to every active
-          ambassador.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">
+            Surveys
+          </h1>
+          <p className="mt-1 text-[13.5px] text-ink-soft">
+            Publishing a survey issues a personal link to every active
+            ambassador.
+          </p>
+        </div>
+
+        <Button asChild>
+          <Link href="/admin/surveys/new">New survey</Link>
+        </Button>
       </div>
 
       {surveys.length === 0 ? (
@@ -32,7 +40,7 @@ export default async function AdminSurveysPage() {
           <EmptyState
             icon={ClipboardList}
             title="No surveys yet"
-            description="The survey builder isn't built yet — seed one with `npm run seed`, or insert it directly for now."
+            description="Build one with your own questions, then publish it to send links out."
           />
         </Card>
       ) : (

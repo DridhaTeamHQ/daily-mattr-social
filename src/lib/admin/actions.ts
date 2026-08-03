@@ -59,8 +59,22 @@ async function audit(
 }
 
 function fail(err: unknown): ActionResult {
-  const message = err instanceof Error ? err.message : "Something went wrong";
-  return { ok: false, message };
+  // Supabase's PostgrestError is a plain object, not an Error subclass, so an
+  // `instanceof Error` check alone swallows the only useful diagnostic and
+  // reports "Something went wrong" for every database failure.
+  if (err instanceof Error) return { ok: false, message: err.message };
+
+  if (err && typeof err === "object" && "message" in err) {
+    const { message, hint } = err as { message?: unknown; hint?: unknown };
+    if (typeof message === "string" && message) {
+      return {
+        ok: false,
+        message: typeof hint === "string" && hint ? `${message} (${hint})` : message,
+      };
+    }
+  }
+
+  return { ok: false, message: "Something went wrong" };
 }
 
 // ─── Review queue ───────────────────────────────────────────────────────────
@@ -335,30 +349,127 @@ export async function adjustPoints(
   }
 }
 
-export async function inviteAmbassador(
+export type CreatedAmbassador = ActionResult & {
+  credentials?: { email: string; password: string; fullName: string };
+};
+
+/**
+ * Creates an ambassador with a temporary password.
+ *
+ * This replaces invite-by-email. Supabase's built-in SMTP is rate limited to a
+ * handful of messages an hour and often doesn't deliver at all, which left
+ * invited students with an account they could never reach. Handing the admin a
+ * password to pass on removes the mail server from the critical path entirely.
+ *
+ * The account stays `invited` until the student sets their own password, so a
+ * half-onboarded person collects no survey links and doesn't appear on the
+ * leaderboard.
+ */
+export async function createAmbassador(
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<CreatedAmbassador> {
   try {
     const actorId = await assertAdmin();
 
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const fullName = String(formData.get("full_name") ?? "").trim();
     const college = String(formData.get("college") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
 
     if (!email || !fullName) {
       return { ok: false, message: "Name and email are both required." };
     }
+    if (password.length < 8) {
+      return { ok: false, message: "Temporary password must be at least 8 characters." };
+    }
 
     const db = createAdminClient();
-    const { data, error } = await db.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: fullName, college: college || null, role: "ambassador" },
+
+    const { data: created, error } = await db.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName, college: college || null, role: "ambassador" },
+    });
+
+    if (error) {
+      // The most common failure by far, and the generic message is unhelpful.
+      if (/already|registered|exists/i.test(error.message)) {
+        return {
+          ok: false,
+          message: `${email} already has an account. Use "Reset password" on their row instead.`,
+        };
+      }
+      throw error;
+    }
+
+    // The trigger marks anyone created with a password as active. Walk that
+    // back: they haven't chosen their own password yet.
+    const { error: profileError } = await db
+      .from("profiles")
+      .update({ status: "invited", must_change_password: true, full_name: fullName })
+      .eq("id", created.user.id);
+
+    if (profileError) {
+      // Otherwise the address is taken by an account nobody can finish setting
+      // up, and re-adding them just fails with "already registered".
+      await db.auth.admin.deleteUser(created.user.id).catch(() => {});
+      throw profileError;
+    }
+
+    await audit(actorId, "ambassador.create", "profile", created.user.id, { email });
+
+    revalidatePath("/admin/ambassadors");
+    return {
+      ok: true,
+      message: `${fullName} can sign in now`,
+      credentials: { email, password, fullName },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Issues a fresh temporary password, e.g. when a student is locked out. */
+export async function resetAmbassadorPassword(
+  profileId: string,
+  password: string,
+): Promise<CreatedAmbassador> {
+  try {
+    const actorId = await assertAdmin();
+
+    if (password.length < 8) {
+      return { ok: false, message: "Temporary password must be at least 8 characters." };
+    }
+
+    const db = createAdminClient();
+
+    const { error } = await db.auth.admin.updateUserById(profileId, {
+      password,
+      email_confirm: true,
     });
     if (error) throw error;
 
-    await audit(actorId, "ambassador.invite", "profile", data.user.id, { email });
+    const { data: profile, error: profileError } = await db
+      .from("profiles")
+      .update({ must_change_password: true })
+      .eq("id", profileId)
+      .select("email, full_name")
+      .single();
+    if (profileError) throw profileError;
+
+    await audit(actorId, "ambassador.reset_password", "profile", profileId, {});
 
     revalidatePath("/admin/ambassadors");
-    return { ok: true, message: `Invite sent to ${email}` };
+    return {
+      ok: true,
+      message: "New temporary password set",
+      credentials: {
+        email: profile.email,
+        password,
+        fullName: profile.full_name || profile.email,
+      },
+    };
   } catch (err) {
     return fail(err);
   }
@@ -476,6 +587,116 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
 }
 
 // ─── Surveys ────────────────────────────────────────────────────────────────
+
+export type SurveyQuestionInput = {
+  type: Enums<"question_type">;
+  prompt: string;
+  help_text?: string;
+  options?: string[];
+  required: boolean;
+};
+
+/**
+ * Creates a survey and its questions in one go.
+ *
+ * Saved as a draft: publishing is a separate, deliberate step, because that is
+ * what issues a link to every active ambassador and tells them all about it.
+ */
+export async function createSurvey(input: {
+  title: string;
+  description?: string;
+  pointsPerResponse: number;
+  requireEmail: boolean;
+  requirePhone: boolean;
+  questions: SurveyQuestionInput[];
+}): Promise<ActionResult & { surveyId?: string }> {
+  try {
+    const actorId = await assertAdmin();
+    const supabase = await createClient();
+
+    const title = input.title.trim();
+    if (!title) return { ok: false, message: "Give the survey a title." };
+
+    if (!Number.isInteger(input.pointsPerResponse) ||
+        input.pointsPerResponse < 0 ||
+        input.pointsPerResponse > 1000) {
+      return { ok: false, message: "Points per response must be between 0 and 1000." };
+    }
+
+    const questions = input.questions
+      .map((q) => ({ ...q, prompt: q.prompt.trim() }))
+      .filter((q) => q.prompt.length > 0);
+
+    if (questions.length === 0) {
+      return { ok: false, message: "Add at least one question." };
+    }
+
+    // Mirrors the survey_questions_choices_present constraint. Checking here
+    // means a useful message instead of a raw Postgres error.
+    for (const [i, q] of questions.entries()) {
+      if (q.type === "single_choice" || q.type === "multi_choice") {
+        const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
+        if (options.length < 2) {
+          return {
+            ok: false,
+            message: `Question ${i + 1} is a choice question, so it needs at least two options.`,
+          };
+        }
+      }
+    }
+
+    const { data: survey, error } = await supabase
+      .from("surveys")
+      .insert({
+        title,
+        description: input.description?.trim() || null,
+        points_per_response: input.pointsPerResponse,
+        require_email: input.requireEmail,
+        require_phone: input.requirePhone,
+        status: "draft",
+        created_by: actorId,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+
+    const { error: questionError } = await supabase.from("survey_questions").insert(
+      questions.map((q, index) => ({
+        survey_id: survey.id,
+        order_index: index,
+        type: q.type,
+        prompt: q.prompt,
+        help_text: q.help_text?.trim() || null,
+        options:
+          q.type === "single_choice" || q.type === "multi_choice"
+            ? ((q.options ?? []).map((o) => o.trim()).filter(Boolean) as never)
+            : ([] as never),
+        required: q.required,
+      })),
+    );
+
+    if (questionError) {
+      // Without this the survey would linger with no questions and no way to
+      // add any, since there is no edit screen yet.
+      await supabase.from("surveys").delete().eq("id", survey.id);
+      throw questionError;
+    }
+
+    await audit(actorId, "survey.create", "survey", survey.id, {
+      title,
+      questions: questions.length,
+    });
+
+    revalidatePath("/admin/surveys");
+    return {
+      ok: true,
+      message: `"${title}" saved as a draft`,
+      surveyId: survey.id,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
 
 export async function setSurveyStatus(
   surveyId: string,

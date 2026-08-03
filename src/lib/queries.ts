@@ -93,6 +93,28 @@ export type DashboardData = {
   notifications: NotificationRow[];
 };
 
+/**
+ * Whether the signed-in student is still using an admin-issued temporary
+ * password. False in demo mode, where there is no account to speak of.
+ */
+export async function mustChangePassword(): Promise<boolean> {
+  if (isDemoMode()) return false;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("must_change_password")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return data?.must_change_password ?? false;
+}
+
 /** True when the screens are showing fixtures rather than real data. */
 export function isDemoMode(): boolean {
   return !isSupabaseConfigured();

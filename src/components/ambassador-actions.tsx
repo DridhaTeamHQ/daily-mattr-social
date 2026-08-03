@@ -2,16 +2,23 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as React from "react";
+import { CircleCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
-import { adjustPoints, inviteAmbassador } from "@/lib/admin/actions";
+import {
+  adjustPoints,
+  createAmbassador,
+  resetAmbassadorPassword,
+  type CreatedAmbassador,
+} from "@/lib/admin/actions";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
-  "inset-x-0 bottom-0 rounded-t-lg p-5",
+  "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-lg p-5",
   "sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md",
   "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6",
 ].join(" ");
@@ -19,6 +26,303 @@ const PANEL = [
 function Overlay() {
   return (
     <Dialog.Overlay className="animate-fade fixed inset-0 z-40 bg-ink/25 backdrop-blur-[2px]" />
+  );
+}
+
+/**
+ * Readable temporary password.
+ *
+ * An admin reads this out or pastes it into WhatsApp, and the student types it
+ * on a phone, so it avoids characters that are ambiguous in most fonts.
+ */
+function suggestPassword() {
+  const words = ["campus", "mango", "monsoon", "rocket", "coffee", "puzzle", "orbit", "cricket"];
+  const alphabet = "23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  const word = words[bytes[0] % words.length];
+  const digits = [...bytes.slice(1)].map((b) => alphabet[b % alphabet.length]).join("");
+  return `${word.charAt(0).toUpperCase()}${word.slice(1)}-${digits}`;
+}
+
+/** Shown after an account is made, so the admin can pass the details on. */
+function CredentialsPanel({
+  credentials,
+  onDone,
+}: {
+  credentials: NonNullable<CreatedAmbassador["credentials"]>;
+  onDone: () => void;
+}) {
+  const shareText = `Hi ${credentials.fullName}, here's your DailyMattr login.\n\nEmail: ${credentials.email}\nTemporary password: ${credentials.password}\n\nSign in at ${typeof window !== "undefined" ? window.location.origin : ""}/login — you'll be asked to pick your own password straight away.`;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-9 place-items-center rounded-sm bg-ok-tint text-ok">
+          <CircleCheck className="size-5" />
+        </span>
+        <Dialog.Title className="text-[16px] font-bold text-ink">
+          {credentials.fullName} is ready
+        </Dialog.Title>
+      </div>
+
+      <Dialog.Description className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+        Send these over. This password only works once — they&apos;ll be asked to
+        pick their own the moment they sign in.
+      </Dialog.Description>
+
+      <dl className="mt-4 space-y-2 rounded-sm border border-line bg-canvas-sunk p-3.5">
+        <div>
+          <dt className="text-[11.5px] tracking-wide text-ink-faint uppercase">
+            Email
+          </dt>
+          <dd className="font-mono text-[13px] break-all text-ink">
+            {credentials.email}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[11.5px] tracking-wide text-ink-faint uppercase">
+            Temporary password
+          </dt>
+          <dd className="font-mono text-[15px] font-bold text-ink">
+            {credentials.password}
+          </dd>
+        </div>
+      </dl>
+
+      <Note tone="warn" className="mt-3">
+        This is the only time it&apos;s shown. If you lose it, use Reset
+        password on their row.
+      </Note>
+
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <CopyButton
+          value={shareText}
+          variant="secondary"
+          label="Copy message"
+          copiedLabel="Copied"
+          toastMessage="Message copied — paste it to them"
+        />
+        <Button onClick={onDone}>Done</Button>
+      </div>
+    </div>
+  );
+}
+
+/** Create an ambassador with a temporary password. No email involved. */
+export function AddAmbassadorDialog() {
+  const [open, setOpen] = React.useState(false);
+  const [password, setPassword] = React.useState(suggestPassword);
+  const [issued, setIssued] = React.useState<
+    CreatedAmbassador["credentials"] | null
+  >(null);
+  const [pending, startTransition] = React.useTransition();
+
+  function reset() {
+    setOpen(false);
+    setIssued(null);
+    setPassword(suggestPassword());
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    startTransition(async () => {
+      const result = await createAmbassador(formData);
+      if (result.ok && result.credentials) {
+        setIssued(result.credentials);
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    });
+  }
+
+  return (
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => (next ? setOpen(true) : reset())}
+    >
+      <Dialog.Trigger asChild>
+        <Button>Add ambassador</Button>
+      </Dialog.Trigger>
+
+      <Dialog.Portal>
+        <Overlay />
+        <Dialog.Content className={PANEL}>
+          {issued ? (
+            <CredentialsPanel credentials={issued} onDone={reset} />
+          ) : (
+            <>
+              <Dialog.Title className="text-[16px] font-bold text-ink">
+                Add an ambassador
+              </Dialog.Title>
+              <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
+                You set a temporary password and pass it on yourself. No invite
+                email, so nothing depends on a mail server.
+              </Dialog.Description>
+
+              <form onSubmit={submit} className="mt-4 space-y-4">
+                <Field label="Full name" htmlFor="full_name" required>
+                  <Input id="full_name" name="full_name" required autoFocus />
+                </Field>
+
+                <Field label="Email" htmlFor="email" required>
+                  <Input id="email" name="email" type="email" required />
+                </Field>
+
+                <Field label="College" htmlFor="college">
+                  <Input id="college" name="college" placeholder="Optional" />
+                </Field>
+
+                <Field
+                  label="Temporary password"
+                  htmlFor="password"
+                  hint="They'll be forced to change it on first sign-in."
+                  required
+                >
+                  <div className="flex gap-2">
+                    <Input
+                      id="password"
+                      name="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      minLength={8}
+                      required
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      title="Suggest another"
+                      onClick={() => setPassword(suggestPassword())}
+                    >
+                      <RefreshCw aria-hidden />
+                    </Button>
+                  </div>
+                </Field>
+
+                <div className="flex justify-end gap-2">
+                  <Dialog.Close asChild>
+                    <Button type="button" variant="secondary">
+                      Cancel
+                    </Button>
+                  </Dialog.Close>
+                  <Button type="submit" loading={pending}>
+                    Create account
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/** Issue a fresh temporary password for someone locked out. */
+export function ResetPasswordDialog({
+  profileId,
+  name,
+}: {
+  profileId: string;
+  name: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [password, setPassword] = React.useState(suggestPassword);
+  const [issued, setIssued] = React.useState<
+    CreatedAmbassador["credentials"] | null
+  >(null);
+  const [pending, startTransition] = React.useTransition();
+
+  function reset() {
+    setOpen(false);
+    setIssued(null);
+    setPassword(suggestPassword());
+  }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+
+    startTransition(async () => {
+      const result = await resetAmbassadorPassword(profileId, password);
+      if (result.ok && result.credentials) {
+        setIssued(result.credentials);
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    });
+  }
+
+  return (
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => (next ? setOpen(true) : reset())}
+    >
+      <Dialog.Trigger asChild>
+        <Button variant="ghost" size="sm">
+          Reset password
+        </Button>
+      </Dialog.Trigger>
+
+      <Dialog.Portal>
+        <Overlay />
+        <Dialog.Content className={PANEL}>
+          {issued ? (
+            <CredentialsPanel credentials={issued} onDone={reset} />
+          ) : (
+            <>
+              <Dialog.Title className="text-[16px] font-bold text-ink">
+                Reset {name}&apos;s password
+              </Dialog.Title>
+              <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
+                Their current password stops working immediately, and
+                they&apos;ll be asked to choose a new one when they sign in.
+              </Dialog.Description>
+
+              <form onSubmit={submit} className="mt-4 space-y-4">
+                <Field label="New temporary password" htmlFor="reset-password" required>
+                  <div className="flex gap-2">
+                    <Input
+                      id="reset-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      minLength={8}
+                      required
+                      autoFocus
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      title="Suggest another"
+                      onClick={() => setPassword(suggestPassword())}
+                    >
+                      <RefreshCw aria-hidden />
+                    </Button>
+                  </div>
+                </Field>
+
+                <div className="flex justify-end gap-2">
+                  <Dialog.Close asChild>
+                    <Button type="button" variant="secondary">
+                      Cancel
+                    </Button>
+                  </Dialog.Close>
+                  <Button type="submit" variant="danger" loading={pending}>
+                    Reset
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -63,7 +367,7 @@ export function AdjustPointsDialog({
       <Dialog.Portal>
         <Overlay />
         <Dialog.Content className={PANEL}>
-          <Dialog.Title className="text-[16px] font-semibold text-ink">
+          <Dialog.Title className="text-[16px] font-bold text-ink">
             Adjust points
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -113,79 +417,6 @@ export function AdjustPointsDialog({
                 disabled={!delta.trim() || !note.trim()}
               >
                 Record
-              </Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-/** Invite by email. The profile row is created by the auth trigger. */
-export function InviteDialog() {
-  const [open, setOpen] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-
-    startTransition(async () => {
-      const result = await inviteAmbassador(formData);
-      if (result.ok) {
-        toast.success(result.message);
-        setOpen(false);
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
-
-  return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <Button>Invite ambassador</Button>
-      </Dialog.Trigger>
-
-      <Dialog.Portal>
-        <Overlay />
-        <Dialog.Content className={PANEL}>
-          <Dialog.Title className="text-[16px] font-semibold text-ink">
-            Invite an ambassador
-          </Dialog.Title>
-          <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            They get an email with a link to set a password. Their referral code
-            is generated automatically.
-          </Dialog.Description>
-
-          <form onSubmit={submit} className="mt-4 space-y-4">
-            <Field label="Full name" htmlFor="full_name" required>
-              <Input id="full_name" name="full_name" required autoFocus />
-            </Field>
-
-            <Field label="Email" htmlFor="email" required>
-              <Input id="email" name="email" type="email" required />
-            </Field>
-
-            <Field label="College" htmlFor="college">
-              <Input id="college" name="college" placeholder="Optional" />
-            </Field>
-
-            <Note tone="neutral">
-              Invite emails go through whatever SMTP the Supabase project is
-              configured with. On the built-in service they are rate limited to
-              a handful an hour.
-            </Note>
-
-            <div className="flex justify-end gap-2">
-              <Dialog.Close asChild>
-                <Button type="button" variant="secondary">
-                  Cancel
-                </Button>
-              </Dialog.Close>
-              <Button type="submit" loading={pending}>
-                Send invite
               </Button>
             </div>
           </form>

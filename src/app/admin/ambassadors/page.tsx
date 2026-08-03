@@ -2,8 +2,9 @@ import { Users } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import {
+  AddAmbassadorDialog,
   AdjustPointsDialog,
-  InviteDialog,
+  ResetPasswordDialog,
 } from "@/components/ambassador-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -36,7 +37,7 @@ export default async function AmbassadorsPage() {
           </p>
         </div>
 
-        <InviteDialog />
+        <AddAmbassadorDialog />
       </div>
 
       {rows.length === 0 ? (
@@ -44,7 +45,7 @@ export default async function AmbassadorsPage() {
           <EmptyState
             icon={Users}
             title="No ambassadors yet"
-            description="Invite your first student and they'll appear here with their referral code."
+            description="Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
           />
         </Card>
       ) : (
@@ -109,6 +110,11 @@ export default async function AmbassadorsPage() {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <AdjustPointsDialog
+                          profileId={row.id}
+                          name={row.full_name || row.email}
+                        />
+
+                        <ResetPasswordDialog
                           profileId={row.id}
                           name={row.full_name || row.email}
                         />

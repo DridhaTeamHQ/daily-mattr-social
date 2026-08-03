@@ -38,6 +38,8 @@ export type Database = {
           role: Enums<"user_role">;
           status: Enums<"user_status">;
           referral_code: string;
+          /** True while an admin-issued temporary password is still in use. */
+          must_change_password: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -50,6 +52,7 @@ export type Database = {
           role?: Enums<"user_role">;
           status?: Enums<"user_status">;
           referral_code?: string;
+          must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,6 +65,7 @@ export type Database = {
           role?: Enums<"user_role">;
           status?: Enums<"user_status">;
           referral_code?: string;
+          must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
         };
