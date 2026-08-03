@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { SurveyForm, type PublicQuestion } from "./survey-form";
@@ -74,28 +73,17 @@ export default async function PublicSurveyPage({ params }: Params) {
     <div className="min-h-dvh bg-canvas">
       {/* ─── Header ────────────────────────────────────────────────────── */}
       <header className="border-b-[3px] border-ink bg-brand">
-        {/* Doodle band. Purely decorative — `alt=""` and aria-hidden, since
-            nothing in it carries information the text below doesn't already
-            state. Its own black borders make the slightly different yellow
-            read as a deliberate strip rather than a colour mismatch. */}
-        <div className="relative h-16 w-full overflow-hidden border-b-[3px] border-ink sm:h-20 lg:h-24">
-          <Image
-            src="/survey-banner.webp"
-            alt=""
-            aria-hidden
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-center select-none"
-          />
-        </div>
+        {/* Doodle band. Purely decorative, and tiled rather than stretched so
+            each doodle shows whole at band height. Its own black border makes
+            the slightly more acid yellow read as a deliberate strip rather
+            than a mismatch with the brand colour below. */}
+        <div aria-hidden className="doodle-band w-full border-b-[3px] border-ink" />
 
         {/* Scrolling tape masthead. Carries the wordmark, moves on its own,
             and is real text rather than a picture of text. */}
         <Marquee
           items={[
             "DAILYMATTR",
-            "EARN POINTS",
             "REP YOUR CAMPUS",
             "DAILYMATTR",
             "TAKE 60 SECONDS",

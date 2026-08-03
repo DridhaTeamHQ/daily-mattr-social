@@ -295,6 +295,54 @@
     animation: wiggle 500ms ease-in-out;
   }
 
+  /**
+   * Scrolling doodle band.
+   *
+   * `object-cover` on a 1600x679 pattern inside a 4rem-tall strip scales it to
+   * the container width and crops away almost all of it, which is why the
+   * doodles came out enormous and sliced. Tiling with `background-size: auto
+   * 100%` instead shows each doodle whole at band height and repeats along the
+   * width, at any viewport.
+   *
+   * The tile width is height x the image's aspect ratio (1600/679 = 2.356), so
+   * it has to be restated whenever the height changes — animating by exactly
+   * one tile is what makes the loop seamless.
+   */
+  /**
+   * Scrolling doodle band.
+   *
+   * Two things went wrong before this. `object-cover` on a short strip scaled
+   * the artwork to the container width and cropped nearly all of it away, so
+   * the doodles came out enormous and sliced. Tiling the full 1600x679 sheet
+   * fixed the cropping but shrank each doodle to a few pixels — legible as
+   * noise, not as objects. The source is now a single 1600x250 row, so at band
+   * height each doodle reads at its intended size.
+   *
+   * Tile width is height x aspect (1600/250 = 6.4) and must be restated
+   * whenever the height changes: animating by exactly one tile is what makes
+   * the loop seamless.
+   */
+  .doodle-band {
+    --doodle-tile: 409.6px; /* 4rem x 6.4 */
+    height: 4rem;
+    background-image: url("/doodle-band.webp");
+    background-repeat: repeat-x;
+    background-size: auto 100%;
+    animation: doodle-scroll 24s linear infinite;
+  }
+  @media (min-width: 640px) {
+    .doodle-band {
+      --doodle-tile: 512px; /* 5rem */
+      height: 5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .doodle-band {
+      --doodle-tile: 614.4px; /* 6rem */
+      height: 6rem;
+    }
+  }
+
   .animate-pop {
     animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
@@ -420,6 +468,15 @@
   }
 }
 
+@keyframes doodle-scroll {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: calc(-1 * var(--doodle-tile));
+  }
+}
+
 @keyframes marquee {
   from {
     transform: translateX(0);
@@ -444,6 +501,7 @@
   .animate-float,
   .animate-throb,
   .animate-marquee,
+  .doodle-band,
   .stagger > * {
     animation: none !important;
   }
