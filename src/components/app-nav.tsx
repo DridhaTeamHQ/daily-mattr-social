@@ -113,7 +113,7 @@ export function TopNav({
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "rounded-sm px-3 py-1.5 text-[13.5px] font-extrabold text-ink transition-transform",
+                  "tap rounded-sm px-3 py-1.5 text-[13.5px] font-extrabold text-ink",
                   active
                     ? cn("brut-sm", fill)
                     : "border-2 border-transparent hover:border-ink hover:bg-canvas-sunk",
@@ -136,7 +136,7 @@ export function TopNav({
           <span
             aria-hidden
             title={name}
-            className="brut-sm display grid size-9 shrink-0 place-items-center rounded-full bg-reel text-[12px] text-ink"
+            className="brut-sm display tap grid size-9 shrink-0 place-items-center rounded-full bg-reel text-[12px] text-ink"
           >
             {initials(name)}
           </span>
@@ -145,7 +145,7 @@ export function TopNav({
             <button
               type="submit"
               title="Sign out"
-              className="grid size-9 place-items-center rounded-sm border-2 border-transparent text-ink transition-colors hover:border-ink hover:bg-canvas-sunk"
+              className="tap grid size-9 place-items-center rounded-sm border-2 border-transparent text-ink transition-colors hover:border-ink hover:bg-canvas-sunk"
             >
               <LogOut className="size-4.5" />
               <span className="sr-only">Sign out</span>
@@ -176,7 +176,7 @@ export function BottomNav() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className="flex flex-col items-center gap-1 px-1 py-2"
+                className="tap flex flex-col items-center gap-1 px-1 py-2"
               >
                 <span
                   className={cn(

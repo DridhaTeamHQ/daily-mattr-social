@@ -10,7 +10,7 @@ export function Card({
     <div
       className={cn(
         "brut bg-surface rounded-md",
-        interactive && "lift",
+        interactive && "lift tap tap-brut cursor-pointer",
         className,
       )}
       {...props}

@@ -32,7 +32,13 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("brut lift rounded-md p-4", STAT_TONES[tone], className)}>
+    <div
+      className={cn(
+        "brut lift tap tap-brut rounded-md p-4",
+        STAT_TONES[tone],
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-extrabold tracking-wide text-ink uppercase">
           {label}

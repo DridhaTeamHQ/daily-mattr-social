@@ -35,7 +35,7 @@ export default async function SurveysPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       <PageHeader
         icon={ClipboardList}
         tone="poll"

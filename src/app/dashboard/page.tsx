@@ -46,7 +46,7 @@ export default async function DashboardPage() {
   );
 
   return (
-    <div className="space-y-7">
+    <div className="stagger space-y-7">
       <LevelUpWatcher points={standing.points} />
 
       <PointsHero

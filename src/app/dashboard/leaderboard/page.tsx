@@ -18,7 +18,7 @@ export default async function LeaderboardPage() {
   const rows = await getLeaderboard();
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       <PageHeader
         icon={Trophy}
         tone="rank"

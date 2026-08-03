@@ -42,7 +42,7 @@ export default async function AdminOverviewPage() {
   const queue = overview.queue.pending + overview.queue.needsReview;
 
   return (
-    <div className="space-y-7">
+    <div className="stagger space-y-7">
       <div>
         <h1 className="display text-[26px] leading-none text-ink">
           Overview

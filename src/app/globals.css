@@ -243,6 +243,58 @@
     paint-order: stroke fill;
   }
 
+  /**
+   * Tap feedback for anything clickable that isn't a Button.
+   *
+   * Cards, nav items, list rows, badges. Without this the app is only
+   * responsive where a Button happens to be, and every other surface feels
+   * dead under the thumb.
+   */
+  .tap {
+    transition:
+      transform 90ms ease-out,
+      box-shadow 90ms ease-out,
+      background-color 140ms ease-out;
+  }
+  .tap:active {
+    transform: scale(0.97);
+  }
+
+  /* Outlined surfaces press into their own shadow instead of scaling — the
+     shadow is the depth cue, so collapsing it is the honest motion. */
+  .tap-brut:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--color-ink);
+  }
+
+  /**
+   * Staggered entrance.
+   *
+   * Applied to a container; each direct child rises in slightly after the
+   * one before it. The App Router remounts page components on navigation, so
+   * this replays on every route change and gives the app a sense of dealing
+   * cards onto the table.
+   */
+  .stagger > * {
+    animation: rise 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 55ms; }
+  .stagger > *:nth-child(3) { animation-delay: 110ms; }
+  .stagger > *:nth-child(4) { animation-delay: 165ms; }
+  .stagger > *:nth-child(5) { animation-delay: 220ms; }
+  .stagger > *:nth-child(6) { animation-delay: 275ms; }
+  .stagger > *:nth-child(7) { animation-delay: 330ms; }
+  .stagger > *:nth-child(8) { animation-delay: 385ms; }
+  /* Anything past the eighth arrives together — staggering a long list makes
+     the last row wait almost a second, which reads as lag, not polish. */
+  .stagger > *:nth-child(n + 9) { animation-delay: 420ms; }
+
+  /* Icons that react to their own container being hovered. */
+  .group:hover .icon-wiggle {
+    animation: wiggle 500ms ease-in-out;
+  }
+
   .animate-pop {
     animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
@@ -391,7 +443,8 @@
      nothing should drift on its own. */
   .animate-float,
   .animate-throb,
-  .animate-marquee {
+  .animate-marquee,
+  .stagger > * {
     animation: none !important;
   }
 }

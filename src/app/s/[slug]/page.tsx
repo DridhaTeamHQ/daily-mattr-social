@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { SurveyForm, type PublicQuestion } from "./survey-form";
+import { Marquee } from "@/components/marquee";
 import { Card, CardBody } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -71,19 +72,33 @@ export default async function PublicSurveyPage({ params }: Params) {
   return (
     <div className="min-h-dvh bg-canvas">
       {/* ─── Header ────────────────────────────────────────────────────── */}
-      <header className="border-b-[3px] border-ink bg-brand px-5 py-9 sm:px-8 sm:py-12">
-        <div className="mx-auto max-w-2xl">
-          <p className="display text-[15px] text-ink">DailyMattr</p>
-          <h1 className="display mt-3 text-[32px] leading-[0.95] text-ink sm:text-[44px]">
+      <header className="border-b-[3px] border-ink bg-brand">
+        {/* Scrolling tape masthead. Carries the wordmark, moves on its own,
+            and is real text rather than a picture of text. */}
+        <Marquee
+          items={[
+            "DAILYMATTR",
+            "EARN POINTS",
+            "REP YOUR CAMPUS",
+            "DAILYMATTR",
+            "TAKE 60 SECONDS",
+          ]}
+          className="border-t-0"
+        />
+
+        <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
+          <h1 className="display text-[32px] leading-[0.95] text-ink sm:text-[44px]">
             {survey.title}
           </h1>
+
           {survey.description && (
             <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed font-semibold text-ink/80">
               {survey.description}
             </p>
           )}
+
           {ambassador?.full_name && (
-            <p className="sticker mt-5 inline-block rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-extrabold text-ink">
+            <p className="sticker sticker-r mt-5 inline-block rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-extrabold text-ink">
               Shared by {ambassador.full_name}
               {ambassador.college ? ` · ${ambassador.college}` : ""}
             </p>

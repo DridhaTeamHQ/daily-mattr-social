@@ -47,7 +47,7 @@ export default async function CampaignsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="stagger space-y-4">
       <PageHeader
         icon={Clapperboard}
         tone="reel"

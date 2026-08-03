@@ -18,7 +18,7 @@ export default async function ReferralsPage() {
   const { referrals } = data;
 
   return (
-    <div className="space-y-5">
+    <div className="stagger space-y-5">
       <PageHeader
         icon={Gift}
         tone="invite"

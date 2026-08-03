@@ -25,7 +25,7 @@ export default async function AmbassadorsPage() {
   const rows = await getAmbassadors();
 
   return (
-    <div className="space-y-5">
+    <div className="stagger space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-[26px] leading-none text-ink">

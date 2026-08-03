@@ -68,7 +68,7 @@ export function SurveyForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="stagger space-y-4">
       {questions.map((question, index) => (
         <Card key={question.id}>
           <CardBody>
