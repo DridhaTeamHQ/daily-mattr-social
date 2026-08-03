@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Badge, StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -47,9 +48,12 @@ export default async function CampaignsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-[19px] font-semibold tracking-tight text-ink">
-        Campaigns
-      </h1>
+      <PageHeader
+        icon={Clapperboard}
+        tone="reel"
+        title="Campaigns"
+        description="Complete the tasks on a reel, then upload a screenshot as proof."
+      />
 
       {campaigns.map((c) => {
         const ended = timeRemaining(c.ends_at) === "Ended";
@@ -61,7 +65,7 @@ export default async function CampaignsPage() {
                 <h2 className="text-[15px] font-semibold text-ink">
                   {c.title}
                 </h2>
-                <Badge tone={ended ? "neutral" : "brand"}>
+                <Badge tone={ended ? "neutral" : "reel"}>
                   {timeRemaining(c.ends_at)}
                 </Badge>
               </div>
@@ -82,8 +86,8 @@ export default async function CampaignsPage() {
 
                   return (
                     <li key={t.id} className="flex items-start gap-3 p-3.5">
-                      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-sm bg-canvas-sunk">
-                        <Icon className="size-4 text-ink-soft" />
+                      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-sm bg-reel-tint">
+                        <Icon className="size-4 text-reel" />
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -91,7 +95,7 @@ export default async function CampaignsPage() {
                           <p className="text-[13.5px] font-medium text-ink">
                             {meta.label}
                           </p>
-                          <span className="tabular text-[12.5px] font-medium text-brand">
+                          <span className="tabular text-[12.5px] font-medium text-reel">
                             +{t.points}
                           </span>
                           {!t.required && (

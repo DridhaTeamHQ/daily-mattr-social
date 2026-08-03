@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Gift } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
@@ -18,9 +19,12 @@ export default async function ReferralsPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-[19px] font-semibold tracking-tight text-ink">
-        Referrals
-      </h1>
+      <PageHeader
+        icon={Gift}
+        tone="invite"
+        title="Referrals"
+        description="Your code, and every app download it has brought in."
+      />
 
       <Card>
         <CardBody className="text-center">
@@ -55,6 +59,7 @@ export default async function ReferralsPage() {
               : "None yet"
           }
           icon={Gift}
+          tone="invite"
         />
         <Stat label="Points earned" value={referrals.points_earned} />
       </div>

@@ -1,5 +1,6 @@
 import { Trophy } from "lucide-react";
 
+import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { getLeaderboard } from "@/lib/queries";
@@ -22,9 +23,12 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-[19px] font-semibold tracking-tight text-ink">
-        Leaderboard
-      </h1>
+      <PageHeader
+        icon={Trophy}
+        tone="rank"
+        title="Leaderboard"
+        description="Every active ambassador, ranked by points earned."
+      />
 
       <Card>
         {rows.length === 0 ? (
@@ -40,7 +44,7 @@ export default async function LeaderboardPage() {
                 key={row.ambassador_id}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3",
-                  row.is_me && "bg-brand-tint/45",
+                  row.is_me && "bg-rank-tint/60",
                 )}
               >
                 <span
@@ -63,7 +67,7 @@ export default async function LeaderboardPage() {
                   <p className="truncate text-[13.5px] font-medium text-ink">
                     {row.full_name}
                     {row.is_me && (
-                      <span className="ml-1.5 text-[12px] font-normal text-brand">
+                      <span className="ml-1.5 text-[12px] font-normal text-rank">
                         you
                       </span>
                     )}

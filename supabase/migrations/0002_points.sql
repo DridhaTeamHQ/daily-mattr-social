@@ -108,7 +108,7 @@ $$;
 -- expose exactly those columns and nothing more.
 create or replace function public.leaderboard(limit_count integer default 100)
 returns table (
-  position      bigint,
+  "position"    bigint,
   ambassador_id uuid,
   full_name     text,
   college       text,
@@ -133,20 +133,20 @@ as $$
     group by p.id, p.full_name, p.college
   )
   select
-    rank() over (order by points desc),
-    id,
-    full_name,
-    college,
-    points,
-    id = auth.uid()
+    rank() over (order by totals.points desc),
+    totals.id,
+    totals.full_name,
+    totals.college,
+    totals.points,
+    totals.id = auth.uid()
   from totals
-  order by points desc, full_name asc
+  order by totals.points desc, totals.full_name asc
   limit greatest(1, least(limit_count, 500));
 $$;
 
 -- Caller's own standing. Returns rank even when they're outside the top N.
 create or replace function public.my_standing()
-returns table (points integer, position bigint, total bigint)
+returns table (points integer, "position" bigint, total bigint)
 language sql
 stable
 security definer
@@ -155,19 +155,21 @@ as $$
   with totals as (
     select
       p.id,
-      coalesce(sum(l.delta), 0)::integer as points
+      coalesce(sum(l.delta), 0)::integer as pts
     from public.profiles p
     left join public.point_ledger l on l.ambassador_id = p.id
     where p.role = 'ambassador'
       and p.status = 'active'
     group by p.id
   ),
+  -- 'position' is a reserved word in Postgres, so the rank column is aliased
+  -- 'pos' here and only quoted in the RETURNS TABLE signature above.
   ranked as (
-    select id, points, rank() over (order by points desc) as position from totals
+    select totals.id, totals.pts, rank() over (order by totals.pts desc) as pos from totals
   )
   select
-    coalesce((select points   from ranked where id = auth.uid()), 0),
-    coalesce((select position from ranked where id = auth.uid()), 0::bigint),
+    coalesce((select ranked.pts from ranked where ranked.id = auth.uid()), 0),
+    coalesce((select ranked.pos from ranked where ranked.id = auth.uid()), 0::bigint),
     (select count(*) from ranked);
 $$;
 

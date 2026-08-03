@@ -8,7 +8,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PointsHero, Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
-import { formatDate, formatDelta, timeRemaining } from "@/lib/utils";
+import { cn, formatDate, formatDelta, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
 
@@ -46,12 +46,14 @@ export default async function DashboardPage() {
           value={openTasks}
           sub={openTasks === 0 ? "All caught up" : "Waiting on you"}
           icon={Clapperboard}
+          tone="reel"
         />
         <Stat
           label="Survey responses"
           value={surveyResponses}
           sub={`Across ${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
           icon={ClipboardList}
+          tone="poll"
         />
         <Stat
           label="Referrals"
@@ -62,6 +64,7 @@ export default async function DashboardPage() {
               : "None yet"
           }
           icon={Gift}
+          tone="invite"
           className="col-span-2 sm:col-span-1"
         />
       </div>
@@ -72,6 +75,7 @@ export default async function DashboardPage() {
           title="Campaigns"
           href="/dashboard/campaigns"
           linkLabel="All campaigns"
+          tone="reel"
         />
 
         {campaigns.length === 0 ? (
@@ -104,7 +108,7 @@ export default async function DashboardPage() {
                             tone={
                               timeRemaining(c.ends_at) === "Ended"
                                 ? "neutral"
-                                : "brand"
+                                : "reel"
                             }
                           >
                             {timeRemaining(c.ends_at)}
@@ -179,18 +183,31 @@ export default async function DashboardPage() {
   );
 }
 
+const ACCENT_BAR: Record<string, string> = {
+  reel: "bg-reel",
+  poll: "bg-poll",
+  invite: "bg-invite",
+  brand: "bg-brand",
+};
+
 function SectionHeader({
   title,
   href,
   linkLabel,
+  tone = "brand",
 }: {
   title: string;
   href?: string;
   linkLabel?: string;
+  tone?: keyof typeof ACCENT_BAR;
 }) {
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-4">
-      <h2 className="text-[13px] font-semibold tracking-wide text-ink-soft uppercase">
+    <div className="mb-3 flex items-center justify-between gap-4">
+      <h2 className="flex items-center gap-2 text-[13px] font-semibold tracking-wide text-ink-soft uppercase">
+        <span
+          aria-hidden
+          className={cn("h-3.5 w-1 rounded-full", ACCENT_BAR[tone])}
+        />
         {title}
       </h2>
       {href && (

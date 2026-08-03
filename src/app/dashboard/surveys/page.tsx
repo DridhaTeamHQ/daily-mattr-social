@@ -3,6 +3,7 @@ import { ClipboardList, ExternalLink } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
@@ -31,9 +32,12 @@ export default async function SurveysPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-[19px] font-semibold tracking-tight text-ink">
-        Surveys
-      </h1>
+      <PageHeader
+        icon={ClipboardList}
+        tone="poll"
+        title="Surveys"
+        description="Share your link. Every genuine response earns you points."
+      />
 
       <Note tone="neutral">
         Each link below is yours alone — responses collected through it are
@@ -54,7 +58,7 @@ export default async function SurveysPage() {
               <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
                 <Metric label="Clicks" value={s.click_count} />
                 <Metric label="Responses" value={s.valid_responses} />
-                <Metric label="Points" value={s.points_earned} tone="brand" />
+                <Metric label="Points" value={s.points_earned} tone="poll" />
               </dl>
 
               {s.flagged > 0 && (
@@ -107,13 +111,13 @@ function Metric({
 }: {
   label: string;
   value: number;
-  tone?: "neutral" | "brand";
+  tone?: "neutral" | "poll";
 }) {
   return (
     <div className="rounded-sm bg-canvas-sunk py-3">
       <dd
         className={`tabular text-[20px] font-semibold ${
-          tone === "brand" ? "text-brand" : "text-ink"
+          tone === "poll" ? "text-poll" : "text-ink"
         }`}
       >
         {value}

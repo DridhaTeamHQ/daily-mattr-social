@@ -1,7 +1,16 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Tone = "neutral" | "brand" | "ok" | "warn" | "bad";
+type Tone =
+  | "neutral"
+  | "brand"
+  | "ok"
+  | "warn"
+  | "bad"
+  | "reel"
+  | "poll"
+  | "invite"
+  | "rank";
 
 const TONES: Record<Tone, string> = {
   neutral: "bg-canvas-sunk text-ink-soft border-line",
@@ -9,6 +18,10 @@ const TONES: Record<Tone, string> = {
   ok: "bg-ok-tint text-ok border-ok-line",
   warn: "bg-warn-tint text-warn border-warn-line",
   bad: "bg-bad-tint text-bad border-bad-line",
+  reel: "bg-reel-tint text-reel border-reel-line",
+  poll: "bg-poll-tint text-poll border-poll-line",
+  invite: "bg-invite-tint text-invite border-invite-line",
+  rank: "bg-rank-tint text-rank border-rank-line",
 };
 
 export function Badge({

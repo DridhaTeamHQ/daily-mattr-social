@@ -16,7 +16,7 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 
 ### Done
 
-- **Database schema** — six migrations, RLS on every table.
+- **Database schema** — seven migrations, RLS on every table.
   - `0001_identity` — `profiles`, `app_settings`, `audit_log`, `is_admin()`,
     `is_active_ambassador()`, referral-code generation, `handle_new_user()`
     trigger on `auth.users`, privilege-column guard.
@@ -35,9 +35,15 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
     `(code, external_user_ref)`. `my_referral_stats()`.
   - `0006_storage` — private `screenshots` bucket (10 MB, keys are
     `<ambassador_id>/<task_id>/<uuid>.<ext>`), public `campaign-media` (5 MB).
+  - `0007_harden_functions` — revokes the default PUBLIC execute grant and
+    pins search_path. Postgres grants EXECUTE to PUBLIC on every new function,
+    so the earlier `revoke ... from anon, authenticated` lines were no-ops:
+    anonymous callers could reach `ensure_survey_links` and
+    `ambassador_points` over the REST API.
 
 - **Design system** — `src/app/globals.css`. Light-only tokens: warm off-white
-  canvas, single muted indigo brand, semantic colours reserved for status.
+  canvas, indigo brand, four section accents, semantic colours reserved for
+  status.
 - **UI primitives** — `button`, `card`, `badge`, `input`, `stat`, `feedback`.
 - **Root layout** — Inter, sonner `<Toaster>`, metadata template.
 - **Env contract** — `.env.example` documents every variable.
@@ -47,8 +53,8 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 - **Database types** — `src/lib/database.types.ts`, hand-written to match the
   migrations in the shape postgrest-js requires (`Row`/`Insert`/`Update`/
   `Relationships`). Append-only tables use `Update: NoUpdate`, so
-  `.update()` on `point_ledger` or `audit_log` fails to compile. Replace with
-  `supabase gen types` output once the project exists.
+  `.update()` on `point_ledger` or `audit_log` fails to compile. Regenerate
+  with `npx supabase gen types typescript --project-id hqxcinryuiatbybbsrkn`.
 - **Supabase clients** — `src/lib/supabase/{client,server,admin}.ts`.
   `server.ts` is async (`cookies()` is async in Next 16) and exposes
   `getUser()` / `getProfile()`. `admin.ts` is `server-only` and is the sole
@@ -56,46 +62,39 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 - **Session refresh** — `src/proxy.ts`. Next.js 16 renamed Middleware to
   **Proxy**; the file must be `proxy.ts`, not `middleware.ts`.
 
-- **Demo mode** — with no Supabase project configured, `isSupabaseConfigured()`
-  is false: `proxy.ts` passes every request through, `lib/queries.ts` serves
-  fixtures from `lib/demo-data.ts`, and every screen carries a "Demo data"
-  banner. Filling the three Supabase values in `.env.local` switches it off.
-  Pages never touch a Supabase client directly — they read through
-  `lib/queries.ts`, so going live is a change to that one module.
+- **Live Supabase project** — `daily-mattr-social` (`hqxcinryuiatbybbsrkn`,
+  ap-south-1). All seven migrations applied; 14 tables, RLS on every one.
+- **Demo mode** — retained as the no-config fallback. When the Supabase env
+  vars are empty, `proxy.ts` passes requests through and `lib/queries.ts` serves
+  fixtures with a banner. Pages never touch a Supabase client directly.
+- **Auth** — email + password. `login/actions.ts` holds `signIn` / `signOut`;
+  the login page is a two-panel gradient layout. Sign-out lives in the nav.
+- **Seed** — `npm run seed` creates an admin, six ambassadors, three campaigns,
+  a live survey with links, a points ledger and referral conversions.
+  Idempotent; `npm run seed -- --clean` removes it all.
 - **Ambassador screens** — dashboard, campaigns, surveys, referrals,
-  leaderboard, plus a placeholder `/login`. Mobile-first: bottom tab bar under
-  `sm`, top nav above it.
+  leaderboard, all on live data. Mobile-first.
+- **Colour system** — one accent per section (campaigns pink, surveys teal,
+  referrals orange, leaderboard violet), carried by the nav, page headers and
+  stat chips so colour signals location. Status colours stay reserved.
 - **Repo** — https://github.com/DridhaTeamHQ/daily-mattr-social
 
 ### Not started
 
-- Auth: login page is a placeholder — no action, no callback, no sign-out.
 - The public survey route `/s/[slug]`. The "Preview" button on the surveys
-  page currently 404s.
+  page still 404s.
 - Screenshot upload. The Upload buttons on campaigns are inert.
-- The whole `/admin` section.
-
-> **Unverified:** the live-data branches in `lib/queries.ts` are written but
-> have never run against a real database — there isn't one yet. Re-check them
-> against actual results once the project is provisioned.
-- `scripts/seed.ts` — referenced by `npm run seed`, file does not exist.
-- Deterministic screenshot checks + OpenAI adjudication pipeline.
-- CSV referral import.
-
----
+- The whole `/admin` section — admins currently land on the ambassador
+  dashboard, where they read as having no points because `leaderboard()` and
+  `my_standing()` filter to ambassadors.
+- Password reset / invite acceptance.
 
 ## Remaining work, in order
 
-0. **Provision the database.** Blocking everything below. There is no Supabase
-   project for this app yet and all three Supabase vars in `.env.local` are
-   empty. Note the account's existing **DailyMattr CMS** project
-   (`ijnlvyctwgdvsedpejva`) belongs to a *different* app — a content CMS with
-   live data and its own `public.audit_log` — so `0001` must not be applied
-   there. Docker is not installed, so `supabase start` is unavailable.
+0. ~~**Provision the database**~~ — done.
 1. ~~**Supabase plumbing**~~ — done.
-2. **Auth** — `/login`, role-based redirect (admin → `/admin`, ambassador →
-   `/dashboard`), suspended-user handling. Session refresh already lives in
-   `src/proxy.ts`.
+2. ~~**Auth**~~ — done, except role-based redirect and suspended-user
+   handling, which wait on the admin section.
 3. **Ambassador shell** — nav, `/dashboard` with points, standing, and open work.
 4. **Surveys, ambassador side** — `/dashboard/surveys` listing links + stats;
    copy-link and QR (`qrcode` is already a dependency).
@@ -139,8 +138,16 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 
 ---
 
-## Open questions
+## Gotchas found the hard way
 
-- Have the migrations been applied to the live Supabase project, or only
-  written to disk?
-- Is there an existing admin account, or does the first one need seeding?
+- **`position` is a reserved word.** `returns table (position bigint, ...)` is
+  a syntax error; it must be quoted, and a CTE cannot alias to it either.
+  Migration 0002 carried this bug until it was first run.
+- **Postgres grants EXECUTE to PUBLIC.** Revoking from `anon` and
+  `authenticated` leaves the PUBLIC grant intact. See 0007.
+- **Next.js 16 renamed Middleware to Proxy.** `middleware.ts` is ignored.
+- **`lucide-react` v1 removed brand icons** — there is no `Instagram` export.
+- **postgrest-js needs a single string literal in `.select()`.** Building the
+  argument with `+` degrades every row type to `GenericStringError`.
+- **Grid `min-h-dvh` does not stretch an implicit `auto` row** — panels stop
+  short of the viewport unless the row is explicitly `1fr`.
