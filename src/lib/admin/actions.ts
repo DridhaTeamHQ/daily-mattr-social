@@ -475,6 +475,161 @@ export async function resetAmbassadorPassword(
   }
 }
 
+// ─── Referrals ──────────────────────────────────────────────────────────────
+
+/**
+ * Sets an ambassador's confirmed download count by hand.
+ *
+ * The count stays *derived* from `referral_conversions` rather than becoming a
+ * number stored on the profile. Typing 5 creates or voids rows until there are
+ * five counted ones, so the ledger, the audit trail and the ambassador's own
+ * screen all keep agreeing with each other. A second "true" count stored
+ * alongside the real one is how those three drift apart.
+ *
+ * Only manually-created rows are ever voided. A conversion that came from a CSV
+ * import is a record of something that actually happened, and this action will
+ * not quietly delete it.
+ */
+export async function setReferralCount(
+  profileId: string,
+  count: number,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+
+    if (!Number.isInteger(count) || count < 0 || count > 10_000) {
+      return { ok: false, message: "Enter a whole number of downloads." };
+    }
+
+    const db = createAdminClient();
+
+    const { data: profile } = await db
+      .from("profiles")
+      .select("referral_code, full_name")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (!profile) return { ok: false, message: "That ambassador no longer exists." };
+
+    const { data: existing } = await db
+      .from("referral_conversions")
+      .select("id, source, converted_at")
+      .eq("ambassador_id", profileId)
+      .eq("status", "counted")
+      .order("converted_at", { ascending: false });
+
+    const counted = existing ?? [];
+    const perReferral = await referralPoints();
+
+    // ─── Add ────────────────────────────────────────────────────────────────
+    if (count > counted.length) {
+      const toAdd = count - counted.length;
+      const rows = Array.from({ length: toAdd }, (_, i) => ({
+        ambassador_id: profileId,
+        code: profile.referral_code,
+        // Unique per row, and stable enough that re-running can't double up.
+        external_user_ref: `manual-${profileId}-${Date.now()}-${i}`,
+        source: "manual" as const,
+        status: "counted" as const,
+      }));
+
+      const { data: inserted, error } = await db
+        .from("referral_conversions")
+        .insert(rows)
+        .select("id");
+      if (error) throw error;
+
+      if (perReferral > 0 && inserted?.length) {
+        // Same idempotent source pair the rest of the ledger uses.
+        await db.from("point_ledger").insert(
+          inserted.map((row) => ({
+            ambassador_id: profileId,
+            delta: perReferral,
+            reason: "referral" as const,
+            source_type: "referral_conversion",
+            source_id: row.id,
+            note: "App download confirmed",
+            created_by: actorId,
+          })),
+        );
+      }
+
+      await notify({
+        profileId,
+        type: "referral_confirmed",
+        title: `${toAdd} referral${toAdd === 1 ? "" : "s"} confirmed`,
+        body:
+          perReferral > 0
+            ? `That's ${toAdd * perReferral} points.`
+            : "Your download count went up.",
+        href: "/dashboard/referrals",
+        meta: { added: toAdd },
+      }).catch(() => {});
+    }
+
+    // ─── Remove ─────────────────────────────────────────────────────────────
+    if (count < counted.length) {
+      const toRemove = counted.length - count;
+
+      // Newest manual rows first; imported ones are only touched if there is
+      // nothing manual left to void.
+      const ordered = [
+        ...counted.filter((c) => c.source === "manual"),
+        ...counted.filter((c) => c.source !== "manual"),
+      ].slice(0, toRemove);
+
+      const ids = ordered.map((c) => c.id);
+
+      const { error } = await db
+        .from("referral_conversions")
+        .update({ status: "void", notes: "Adjusted by an admin" })
+        .in("id", ids);
+      if (error) throw error;
+
+      if (perReferral > 0) {
+        // Compensating rows, never deletions — the original credit stays in
+        // their history beside its reversal.
+        await db.from("point_ledger").insert(
+          ids.map((id) => ({
+            ambassador_id: profileId,
+            delta: -perReferral,
+            reason: "revoke" as const,
+            source_type: "referral_conversion",
+            source_id: id,
+            note: "Referral count corrected",
+            created_by: actorId,
+          })),
+        );
+      }
+    }
+
+    await audit(actorId, "referral.set_count", "profile", profileId, { count });
+
+    revalidatePath("/admin/referrals");
+    revalidatePath("/dashboard/referrals");
+    return {
+      ok: true,
+      message:
+        count === counted.length
+          ? "No change"
+          : `${profile.full_name || "Ambassador"} now shows ${count} download${count === 1 ? "" : "s"}`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Points per confirmed download, from settings. */
+async function referralPoints(): Promise<number> {
+  const { data } = await createAdminClient()
+    .from("app_settings")
+    .select("value")
+    .eq("key", "points.referral")
+    .maybeSingle();
+
+  const parsed = Number(data?.value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 100;
+}
+
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
 export async function setCampaignStatus(

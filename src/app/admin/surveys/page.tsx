@@ -86,6 +86,13 @@ export default async function AdminSurveysPage() {
                 </CardBody>
 
                 <CardFooter className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link href={`/admin/surveys/${s.id}/responses`}>
+                      Read {s.responseCount > 0 ? `${s.responseCount} ` : ""}
+                      response{s.responseCount === 1 ? "" : "s"}
+                    </Link>
+                  </Button>
+
                   {s.status === "draft" && (
                     <ActionButton
                       size="sm"

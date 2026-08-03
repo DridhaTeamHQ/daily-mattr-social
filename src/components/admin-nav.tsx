@@ -9,6 +9,7 @@ import {
   Inbox,
   LayoutDashboard,
   LogOut,
+  TrendingUp,
   Users,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ import { cn, initials } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
   { href: "/admin/review", label: "Review", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },

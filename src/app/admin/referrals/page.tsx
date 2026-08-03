@@ -1,5 +1,6 @@
 import { Coins, Gift, TrendingUp, Users } from "lucide-react";
 
+import { DownloadsCell } from "@/components/downloads-cell";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
@@ -80,9 +81,8 @@ export default async function AdminReferralsPage({
 
       {summary.totals.confirmed === 0 && (
         <Note tone="warn" title="No conversions yet">
-          Downloads are credited by importing a CSV from the DailyMattr app
-          that pairs each referral code with the new user it brought in. Until
-          that import runs, every code here reads zero.
+          Click any download number to set it by hand. Points are credited
+          automatically, and the ambassador is notified.
         </Note>
       )}
 
@@ -106,7 +106,7 @@ export default async function AdminReferralsPage({
                 <tr className="text-[11.5px] font-extrabold tracking-wide text-ink uppercase">
                   <th className="px-4 py-3">Ambassador</th>
                   <th className="px-4 py-3">Code</th>
-                  <th className="px-4 py-3 text-right">Downloads</th>
+                  <th className="px-4 py-3 text-right">Downloads (editable)</th>
                   <th className="px-4 py-3 text-right">Points paid</th>
                   <th className="px-4 py-3">Last one</th>
                   <th className="px-4 py-3">Status</th>
@@ -158,20 +158,13 @@ export default async function AdminReferralsPage({
                       </code>
                     </td>
 
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={cn(
-                          "tabular display inline-block text-[18px]",
-                          row.confirmed > 0 ? "text-ink" : "text-ink-faint",
-                        )}
-                      >
-                        {formatNumber(row.confirmed)}
-                      </span>
-                      {row.voided > 0 && (
-                        <p className="text-[11.5px] font-bold text-bad">
-                          {row.voided} voided
-                        </p>
-                      )}
+                    <td className="px-4 py-3">
+                      <DownloadsCell
+                        profileId={row.id}
+                        name={row.full_name || row.email}
+                        value={row.confirmed}
+                        voided={row.voided}
+                      />
                     </td>
 
                     <td className="tabular px-4 py-3 text-right text-[13.5px] font-extrabold text-ink">

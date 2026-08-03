@@ -395,3 +395,271 @@ export async function getReferralSummary(): Promise<ReferralSummary> {
     },
   };
 }
+
+// ─── Survey responses ───────────────────────────────────────────────────────
+
+export type ResponseAnswer = {
+  questionId: string;
+  prompt: string;
+  type: Enums<"question_type">;
+  /** Already flattened for display — arrays joined, numbers stringified. */
+  answer: string;
+};
+
+export type SurveyResponseRow = {
+  id: string;
+  status: Enums<"response_status">;
+  submittedAt: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  flagReason: string | null;
+  ambassador: string;
+  answers: ResponseAnswer[];
+};
+
+export type SurveyWithResponses = {
+  survey: Tables<"surveys">;
+  questions: Tables<"survey_questions">[];
+  responses: SurveyResponseRow[];
+  counts: { valid: number; duplicate: number; flagged: number; rejected: number };
+};
+
+/** Renders any stored answer shape as something a person can read. */
+function readable(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+export async function getSurveyResponses(
+  surveyId: string,
+): Promise<SurveyWithResponses | null> {
+  const supabase = await createClient();
+
+  const { data: survey } = await supabase
+    .from("surveys")
+    .select("*")
+    .eq("id", surveyId)
+    .maybeSingle();
+  if (!survey) return null;
+
+  const [{ data: questions }, { data: responses }] = await Promise.all([
+    supabase
+      .from("survey_questions")
+      .select("*")
+      .eq("survey_id", surveyId)
+      .order("order_index", { ascending: true }),
+    supabase
+      .from("survey_responses")
+      .select("id, status, submitted_at, respondent_name, respondent_email, respondent_phone, flag_reason, profiles(full_name)")
+      .eq("survey_id", surveyId)
+      .order("submitted_at", { ascending: false }),
+  ]);
+
+  const ids = (responses ?? []).map((r) => r.id);
+
+  // One query for every answer, then grouped in memory — a per-response query
+  // would be a round trip each and this page shows hundreds at a time.
+  const { data: answers } = ids.length
+    ? await supabase
+        .from("survey_answers")
+        .select("response_id, question_id, value")
+        .in("response_id", ids)
+    : { data: [] };
+
+  const byResponse = new Map<string, Map<string, unknown>>();
+  for (const a of answers ?? []) {
+    if (!byResponse.has(a.response_id)) byResponse.set(a.response_id, new Map());
+    byResponse.get(a.response_id)!.set(a.question_id, a.value);
+  }
+
+  const ordered = questions ?? [];
+
+  const rows: SurveyResponseRow[] = (responses ?? []).map((r) => ({
+    id: r.id,
+    status: r.status,
+    submittedAt: r.submitted_at,
+    name: r.respondent_name,
+    email: r.respondent_email,
+    phone: r.respondent_phone,
+    flagReason: r.flag_reason,
+    ambassador: r.profiles?.full_name ?? "—",
+    // Every question, in order, even the ones this person skipped — a gap is
+    // itself a finding, and hiding it makes responses look inconsistent.
+    answers: ordered.map((q) => ({
+      questionId: q.id,
+      prompt: q.prompt,
+      type: q.type,
+      answer: readable(byResponse.get(r.id)?.get(q.id)),
+    })),
+  }));
+
+  return {
+    survey,
+    questions: ordered,
+    responses: rows,
+    counts: {
+      valid: rows.filter((r) => r.status === "valid").length,
+      duplicate: rows.filter((r) => r.status === "duplicate").length,
+      flagged: rows.filter((r) => r.status === "flagged").length,
+      rejected: rows.filter((r) => r.status === "rejected").length,
+    },
+  };
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+export type DayPoint = { day: string; value: number };
+export type NamedValue = { label: string; value: number; sub?: string };
+
+export type Analytics = {
+  pointsByDay: DayPoint[];
+  submissionsByStatus: NamedValue[];
+  topAmbassadors: NamedValue[];
+  responsesBySurvey: NamedValue[];
+  earningsBySource: NamedValue[];
+  totals: {
+    issued: number;
+    reversed: number;
+    activeEarners: number;
+    /** Share of reviewed submissions that were approved. */
+    approvalRate: number | null;
+  };
+};
+
+const DAY_MS = 86_400_000;
+
+/** ISO date (YYYY-MM-DD) in IST, matching how streaks are counted. */
+function istDay(iso: string): string {
+  return new Date(new Date(iso).getTime() + 5.5 * 3600_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export async function getAnalytics(days = 30): Promise<Analytics> {
+  const supabase = await createClient();
+  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+
+  const [ledgerRes, subsRes, profilesRes, surveysRes, responsesRes] =
+    await Promise.all([
+      supabase
+        .from("point_ledger")
+        .select("ambassador_id, delta, reason, created_at")
+        .gte("created_at", since),
+      supabase.from("submissions").select("status"),
+      supabase
+        .from("profiles")
+        .select("id, full_name, college")
+        .eq("role", "ambassador"),
+      supabase.from("surveys").select("id, title"),
+      supabase.from("survey_responses").select("survey_id, status"),
+    ]);
+
+  const ledger = ledgerRes.data ?? [];
+  const names = new Map(
+    (profilesRes.data ?? []).map((p) => [p.id, { name: p.full_name, college: p.college }]),
+  );
+
+  // ── Points per day ────────────────────────────────────────────────────────
+  // Every day in the window is present, including the empty ones. Dropping
+  // zero days silently compresses a quiet week into a busy-looking line.
+  const perDay = new Map<string, number>();
+  for (let i = days - 1; i >= 0; i--) {
+    perDay.set(new Date(Date.now() - i * DAY_MS).toISOString().slice(0, 10), 0);
+  }
+  for (const row of ledger) {
+    if (row.delta <= 0) continue;
+    const key = istDay(row.created_at);
+    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + row.delta);
+  }
+
+  // ── Where points came from ────────────────────────────────────────────────
+  const REASON_LABEL: Record<string, string> = {
+    survey_response: "Surveys",
+    instagram_task: "Campaigns",
+    referral: "Referrals",
+    manual_adjust: "Manual",
+  };
+  const bySource = new Map<string, number>();
+  for (const row of ledger) {
+    if (row.delta <= 0) continue;
+    const label = REASON_LABEL[row.reason] ?? "Other";
+    bySource.set(label, (bySource.get(label) ?? 0) + row.delta);
+  }
+
+  // ── Top ambassadors ───────────────────────────────────────────────────────
+  const perAmbassador = new Map<string, number>();
+  for (const row of ledger) {
+    perAmbassador.set(
+      row.ambassador_id,
+      (perAmbassador.get(row.ambassador_id) ?? 0) + row.delta,
+    );
+  }
+
+  const topAmbassadors: NamedValue[] = [...perAmbassador.entries()]
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([id, value]) => ({
+      label: names.get(id)?.name ?? "Unknown",
+      value,
+      sub: names.get(id)?.college ?? undefined,
+    }));
+
+  // ── Submissions ───────────────────────────────────────────────────────────
+  const STATUS_LABEL: Record<string, string> = {
+    auto_approved: "Auto-approved",
+    approved: "Approved",
+    needs_review: "Needs review",
+    pending: "Checking",
+    rejected: "Rejected",
+    revoked: "Revoked",
+  };
+  const statusCount = new Map<string, number>();
+  for (const s of subsRes.data ?? []) {
+    statusCount.set(s.status, (statusCount.get(s.status) ?? 0) + 1);
+  }
+
+  const submissionsByStatus: NamedValue[] = Object.keys(STATUS_LABEL)
+    .map((key) => ({ label: STATUS_LABEL[key], value: statusCount.get(key) ?? 0 }))
+    .filter((row) => row.value > 0);
+
+  const approved =
+    (statusCount.get("approved") ?? 0) + (statusCount.get("auto_approved") ?? 0);
+  const reviewed = approved + (statusCount.get("rejected") ?? 0);
+
+  // ── Responses per survey ──────────────────────────────────────────────────
+  const surveyTitles = new Map(
+    (surveysRes.data ?? []).map((s) => [s.id, s.title]),
+  );
+  const perSurvey = new Map<string, number>();
+  for (const r of responsesRes.data ?? []) {
+    if (r.status !== "valid") continue;
+    perSurvey.set(r.survey_id, (perSurvey.get(r.survey_id) ?? 0) + 1);
+  }
+
+  const responsesBySurvey: NamedValue[] = [...surveyTitles.entries()]
+    .map(([id, title]) => ({ label: title, value: perSurvey.get(id) ?? 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  const deltas = ledger.map((r) => r.delta);
+
+  return {
+    pointsByDay: [...perDay.entries()].map(([day, value]) => ({ day, value })),
+    submissionsByStatus,
+    topAmbassadors,
+    responsesBySurvey,
+    earningsBySource: [...bySource.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value),
+    totals: {
+      issued: deltas.filter((d) => d > 0).reduce((a, b) => a + b, 0),
+      reversed: Math.abs(deltas.filter((d) => d < 0).reduce((a, b) => a + b, 0)),
+      activeEarners: [...perAmbassador.values()].filter((v) => v > 0).length,
+      approvalRate: reviewed > 0 ? approved / reviewed : null,
+    },
+  };
+}
