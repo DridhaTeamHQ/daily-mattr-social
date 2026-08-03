@@ -37,6 +37,15 @@ export default async function DashboardLayout({
         />
 
         <main className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pb-12">
+          {data.profile.role === "admin" && (
+            <Note tone="brand" title="You're signed in as an admin" className="mb-5">
+              This is the ambassador view. Admins have no referral code, no
+              survey links and no points, so most of these screens will look
+              empty — that is expected, not a fault. Sign in as an ambassador
+              to see what students see.
+            </Note>
+          )}
+
           {isDemoMode() && (
             <Note tone="warn" title="Demo data" className="mb-5">
               No Supabase project is connected yet, so these screens are showing

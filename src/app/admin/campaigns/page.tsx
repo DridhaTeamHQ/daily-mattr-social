@@ -72,6 +72,12 @@ export default async function AdminCampaignsPage() {
                     </p>
                   )}
 
+                  {c.status === "draft" && (
+                    <p className="mt-2.5 text-[12.5px] font-medium text-warn">
+                      Not visible to ambassadors yet — press Publish.
+                    </p>
+                  )}
+
                   <ul className="mt-3.5 flex flex-wrap gap-1.5">
                     {c.tasks.map((t) => (
                       <li key={t.id}>

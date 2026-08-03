@@ -715,12 +715,21 @@ export async function setSurveyStatus(
     let extra = "";
     if (status === "live") {
       // Going live is what issues links, so every active ambassador has one
-      // the moment the survey appears on their dashboard.
-      const { data: created } = await createAdminClient().rpc(
+      // the moment the survey appears on their dashboard. A failure here has
+      // to surface: a live survey nobody has a link to looks like the feature
+      // is broken, and the admin would never know why.
+      const { data: created, error: linkError } = await createAdminClient().rpc(
         "ensure_survey_links",
         { target_survey: surveyId },
       );
-      if (created) extra = ` · ${created} new links issued`;
+
+      if (linkError) {
+        return {
+          ok: false,
+          message: `Published, but issuing links failed: ${linkError.message}. Use "Issue missing links".`,
+        };
+      }
+      if (created) extra = ` · ${created} links issued`;
     }
 
     await audit(actorId, "survey.status", "survey", surveyId, { status });
