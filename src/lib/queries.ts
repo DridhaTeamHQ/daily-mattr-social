@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/database.types";
@@ -10,7 +12,29 @@ import type { Enums } from "@/lib/database.types";
  * Every page reads through this module, never through a Supabase client
  * directly. That keeps the demo-mode fallback in one place and means the
  * switch to live data is a change here alone.
+ *
+ * Everything exported here is wrapped in React's `cache()`. A layout and the
+ * page inside it both need the dashboard payload, and without deduping,
+ * `getDashboard()` ran twice per navigation — each run being a profile read,
+ * four RPCs, the ledger, notifications, and `getCampaigns()` on top. Roughly
+ * thirty round trips to a database in ap-south-1 for one page view, which is
+ * exactly the lag you feel on a nav click. `cache()` collapses repeat calls
+ * within a single render to one.
  */
+
+/**
+ * The signed-in user, fetched at most once per request.
+ *
+ * `auth.getUser()` is a network call to the auth server, not a cookie read,
+ * so calling it from every query is the single most expensive habit in here.
+ */
+const currentUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});
 
 export type TaskCard = {
   id: string;
@@ -77,6 +101,7 @@ export type DashboardData = {
     referral_code: string;
     role: Enums<"user_role">;
     status: Enums<"user_status">;
+    must_change_password: boolean;
   };
   standing: { points: number; position: number; total: number };
   surveys: SurveyStat[];
@@ -100,19 +125,10 @@ export type DashboardData = {
 export async function mustChangePassword(): Promise<boolean> {
   if (isDemoMode()) return false;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("must_change_password")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return data?.must_change_password ?? false;
+  // Reads from the cached dashboard payload rather than issuing its own
+  // profile query — the flag now travels with the profile it belongs to.
+  const data = await getDashboard();
+  return data?.profile.must_change_password ?? false;
 }
 
 /** True when the screens are showing fixtures rather than real data. */
@@ -120,7 +136,7 @@ export function isDemoMode(): boolean {
   return !isSupabaseConfigured();
 }
 
-export async function getDashboard(): Promise<DashboardData | null> {
+export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   if (isDemoMode()) {
     const { demoDashboard } = await import("@/lib/demo-data");
     return demoDashboard;
@@ -128,9 +144,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
 
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) return null;
 
   const [
@@ -144,7 +158,7 @@ export async function getDashboard(): Promise<DashboardData | null> {
   ] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, full_name, college, referral_code, role, status")
+        .select("id, full_name, college, referral_code, role, status, must_change_password")
         .eq("id", user.id)
         .maybeSingle(),
       supabase.rpc("my_standing"),
@@ -191,9 +205,9 @@ export async function getDashboard(): Promise<DashboardData | null> {
     streak: streakRes.data ?? 0,
     notifications: notificationsRes.data ?? [],
   };
-}
+});
 
-export async function getCampaigns(): Promise<CampaignCard[]> {
+export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   if (isDemoMode()) {
     const { demoDashboard } = await import("@/lib/demo-data");
     return demoDashboard.campaigns;
@@ -201,9 +215,7 @@ export async function getCampaigns(): Promise<CampaignCard[]> {
 
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) return [];
 
   const { data: campaigns } = await supabase
@@ -251,11 +263,11 @@ export async function getCampaigns(): Promise<CampaignCard[]> {
         submission_status: latest.get(t.id) ?? null,
       })),
   }));
-}
+});
 
-export async function getLeaderboard(
+export const getLeaderboard = cache(async (
   limit = 100,
-): Promise<LeaderboardRow[]> {
+): Promise<LeaderboardRow[]> => {
   if (isDemoMode()) {
     const { demoLeaderboard } = await import("@/lib/demo-data");
     return demoLeaderboard;
@@ -264,4 +276,4 @@ export async function getLeaderboard(
   const supabase = await createClient();
   const { data } = await supabase.rpc("leaderboard", { limit_count: limit });
   return data ?? [];
-}
+});

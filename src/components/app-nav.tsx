@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Clapperboard,
@@ -55,6 +55,25 @@ const ITEMS = [
     fill: "bg-rank",
   },
 ];
+
+/**
+ * Inline acknowledgement that a tap registered.
+ *
+ * `loading.tsx` covers the destination, but on a slow connection there is
+ * still a gap between the tap and the route committing. `useLinkStatus` fills
+ * exactly that gap, so the button never looks ignored.
+ */
+function PendingDot() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+
+  return (
+    <span
+      aria-hidden
+      className="ml-1.5 inline-block size-2 animate-ping rounded-full bg-ink align-middle"
+    />
+  );
+}
 
 function useIsActive() {
   const pathname = usePathname();
@@ -120,6 +139,7 @@ export function TopNav({
                 )}
               >
                 {label}
+                <PendingDot />
               </Link>
             );
           })}
@@ -180,7 +200,7 @@ export function BottomNav() {
               >
                 <span
                   className={cn(
-                    "grid size-9 place-items-center rounded-sm transition-transform",
+                    "relative grid size-9 place-items-center rounded-sm transition-transform",
                     active
                       ? cn("brut-sm animate-pop", fill)
                       : "border-2 border-transparent",
@@ -192,6 +212,9 @@ export function BottomNav() {
                       active ? "text-ink" : "text-ink-faint",
                     )}
                   />
+                  <span className="absolute -top-0.5 -right-0.5">
+                    <PendingDot />
+                  </span>
                 </span>
                 <span
                   className={cn(

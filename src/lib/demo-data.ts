@@ -28,6 +28,7 @@ export const demoDashboard: DashboardData = {
     referral_code: "DMTR7K9Q",
     role: "ambassador",
     status: "active",
+    must_change_password: false,
   },
 
   standing: { points: 340, position: 4, total: 62 },
