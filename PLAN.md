@@ -56,10 +56,28 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 - **Session refresh** — `src/proxy.ts`. Next.js 16 renamed Middleware to
   **Proxy**; the file must be `proxy.ts`, not `middleware.ts`.
 
+- **Demo mode** — with no Supabase project configured, `isSupabaseConfigured()`
+  is false: `proxy.ts` passes every request through, `lib/queries.ts` serves
+  fixtures from `lib/demo-data.ts`, and every screen carries a "Demo data"
+  banner. Filling the three Supabase values in `.env.local` switches it off.
+  Pages never touch a Supabase client directly — they read through
+  `lib/queries.ts`, so going live is a change to that one module.
+- **Ambassador screens** — dashboard, campaigns, surveys, referrals,
+  leaderboard, plus a placeholder `/login`. Mobile-first: bottom tab bar under
+  `sm`, top nav above it.
+- **Repo** — https://github.com/DridhaTeamHQ/daily-mattr-social
+
 ### Not started
 
-- Auth: login page, callback, role-based redirect, sign-out.
-- Every route. `src/app/page.tsx` is still the create-next-app template.
+- Auth: login page is a placeholder — no action, no callback, no sign-out.
+- The public survey route `/s/[slug]`. The "Preview" button on the surveys
+  page currently 404s.
+- Screenshot upload. The Upload buttons on campaigns are inert.
+- The whole `/admin` section.
+
+> **Unverified:** the live-data branches in `lib/queries.ts` are written but
+> have never run against a real database — there isn't one yet. Re-check them
+> against actual results once the project is provisioned.
 - `scripts/seed.ts` — referenced by `npm run seed`, file does not exist.
 - Deterministic screenshot checks + OpenAI adjudication pipeline.
 - CSV referral import.
