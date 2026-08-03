@@ -911,3 +911,201 @@ export async function getAmbassadorDetail(
     },
   };
 }
+
+// ─── One campaign ───────────────────────────────────────────────────────────
+
+export type CampaignTaskStat = {
+  id: string;
+  type: Enums<"task_type">;
+  points: number;
+  required: boolean;
+  submitted: number;
+  approved: number;
+  rejected: number;
+  waiting: number;
+  pointsPaid: number;
+};
+
+export type CampaignParticipant = {
+  id: string;
+  name: string;
+  college: string | null;
+  done: number;
+  approved: number;
+  pointsEarned: number;
+};
+
+export type CampaignDetail = {
+  campaign: Tables<"campaigns">;
+  tasks: CampaignTaskStat[];
+  participants: CampaignParticipant[];
+  /** Active ambassadors who have submitted nothing at all. */
+  untouched: CampaignParticipant[];
+  submissionsByDay: DayPoint[];
+  statusBreakdown: NamedValue[];
+  totals: {
+    submissions: number;
+    pointsPaid: number;
+    pointsAvailable: number;
+    participants: number;
+    cohort: number;
+    approvalRate: number | null;
+  };
+};
+
+export async function getCampaignDetail(
+  campaignId: string,
+  days = 30,
+): Promise<CampaignDetail | null> {
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("id", campaignId)
+    .maybeSingle();
+  if (!campaign) return null;
+
+  const { data: tasks } = await supabase
+    .from("campaign_tasks")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("order_index", { ascending: true });
+
+  const taskIds = (tasks ?? []).map((t) => t.id);
+
+  const [submissionsRes, cohortRes, ledgerRes] = await Promise.all([
+    taskIds.length
+      ? supabase
+          .from("submissions")
+          .select("id, campaign_task_id, ambassador_id, status, uploaded_at, profiles!submissions_ambassador_id_fkey(full_name, college)")
+          .in("campaign_task_id", taskIds)
+      : Promise.resolve({ data: [] as never[] }),
+    supabase
+      .from("profiles")
+      .select("id, full_name, college")
+      .eq("role", "ambassador")
+      .eq("status", "active"),
+    // Points actually paid for this campaign, read from the ledger rather than
+    // inferred from task values — an approval that was later revoked must not
+    // still be counted as paid.
+    supabase
+      .from("point_ledger")
+      .select("ambassador_id, delta, source_id, source_type")
+      .eq("source_type", "submission"),
+  ]);
+
+  const submissions = submissionsRes.data ?? [];
+  const submissionIds = new Set(submissions.map((s) => s.id));
+
+  const paidBySubmission = new Map<string, number>();
+  for (const row of ledgerRes.data ?? []) {
+    if (!row.source_id || !submissionIds.has(row.source_id)) continue;
+    paidBySubmission.set(
+      row.source_id,
+      (paidBySubmission.get(row.source_id) ?? 0) + row.delta,
+    );
+  }
+
+  const APPROVED = new Set(["approved", "auto_approved"]);
+  const WAITING = new Set(["pending", "needs_review"]);
+
+  // ── Per task ──────────────────────────────────────────────────────────────
+  const taskStats: CampaignTaskStat[] = (tasks ?? []).map((task) => {
+    const mine = submissions.filter((s) => s.campaign_task_id === task.id);
+    return {
+      id: task.id,
+      type: task.type,
+      points: task.points,
+      required: task.required,
+      submitted: mine.length,
+      approved: mine.filter((s) => APPROVED.has(s.status)).length,
+      rejected: mine.filter((s) => s.status === "rejected" || s.status === "revoked").length,
+      waiting: mine.filter((s) => WAITING.has(s.status)).length,
+      pointsPaid: mine.reduce((n, s) => n + (paidBySubmission.get(s.id) ?? 0), 0),
+    };
+  });
+
+  // ── Per person ────────────────────────────────────────────────────────────
+  const byPerson = new Map<string, CampaignParticipant>();
+  for (const s of submissions) {
+    const existing = byPerson.get(s.ambassador_id) ?? {
+      id: s.ambassador_id,
+      name: s.profiles?.full_name ?? "Unknown",
+      college: s.profiles?.college ?? null,
+      done: 0,
+      approved: 0,
+      pointsEarned: 0,
+    };
+
+    existing.done += 1;
+    if (APPROVED.has(s.status)) existing.approved += 1;
+    existing.pointsEarned += paidBySubmission.get(s.id) ?? 0;
+    byPerson.set(s.ambassador_id, existing);
+  }
+
+  const participants = [...byPerson.values()].sort(
+    (a, b) => b.pointsEarned - a.pointsEarned || b.done - a.done,
+  );
+
+  // Who has done nothing is the actionable half of participation — a list of
+  // only the people who took part cannot tell you who to chase.
+  const untouched: CampaignParticipant[] = (cohortRes.data ?? [])
+    .filter((p) => !byPerson.has(p.id))
+    .map((p) => ({
+      id: p.id,
+      name: p.full_name,
+      college: p.college,
+      done: 0,
+      approved: 0,
+      pointsEarned: 0,
+    }));
+
+  // ── Over time ─────────────────────────────────────────────────────────────
+  const perDay = new Map<string, number>();
+  for (let i = days - 1; i >= 0; i--) {
+    perDay.set(new Date(Date.now() - i * DAY_MS).toISOString().slice(0, 10), 0);
+  }
+  for (const s of submissions) {
+    const key = istDay(s.uploaded_at);
+    if (perDay.has(key)) perDay.set(key, (perDay.get(key) ?? 0) + 1);
+  }
+
+  const STATUS_LABEL: Record<string, string> = {
+    auto_approved: "Auto-approved",
+    approved: "Approved",
+    needs_review: "Needs review",
+    pending: "Checking",
+    rejected: "Rejected",
+    revoked: "Revoked",
+  };
+  const statusCount = new Map<string, number>();
+  for (const s of submissions) {
+    statusCount.set(s.status, (statusCount.get(s.status) ?? 0) + 1);
+  }
+
+  const approvedTotal = submissions.filter((s) => APPROVED.has(s.status)).length;
+  const decided =
+    approvedTotal + submissions.filter((s) => s.status === "rejected").length;
+
+  const cohort = (cohortRes.data ?? []).length;
+
+  return {
+    campaign,
+    tasks: taskStats,
+    participants,
+    untouched,
+    submissionsByDay: [...perDay.entries()].map(([day, value]) => ({ day, value })),
+    statusBreakdown: Object.keys(STATUS_LABEL)
+      .map((key) => ({ label: STATUS_LABEL[key], value: statusCount.get(key) ?? 0 }))
+      .filter((row) => row.value > 0),
+    totals: {
+      submissions: submissions.length,
+      pointsPaid: [...paidBySubmission.values()].reduce((a, b) => a + b, 0),
+      pointsAvailable: (tasks ?? []).reduce((n, t) => n + t.points, 0),
+      participants: byPerson.size,
+      cohort,
+      approvalRate: decided > 0 ? approvedTotal / decided : null,
+    },
+  };
+}

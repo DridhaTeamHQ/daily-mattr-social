@@ -1,5 +1,7 @@
 import { Clapperboard, ExternalLink } from "lucide-react";
 
+import Link from "next/link";
+
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { SearchBox } from "@/components/search-box";
@@ -70,9 +72,12 @@ export default async function AdminCampaignsPage({
               <Card className="flex h-full flex-col">
                 <CardBody className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[15px] font-semibold text-ink">
+                    <Link
+                      href={`/admin/campaigns/${c.id}`}
+                      className="display text-[19px] text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
+                    >
                       {c.title}
-                    </h2>
+                    </Link>
                     <Badge tone={STATUS_TONE[c.status]} dot>
                       {c.status}
                     </Badge>
@@ -123,6 +128,10 @@ export default async function AdminCampaignsPage({
                 </CardBody>
 
                 <CardFooter className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link href={`/admin/campaigns/${c.id}`}>Analytics</Link>
+                  </Button>
+
                   {c.status === "draft" && (
                     <ActionButton
                       size="sm"
