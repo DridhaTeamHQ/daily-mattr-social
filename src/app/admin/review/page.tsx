@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CircleAlert, Inbox, Sparkles } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { SearchBox } from "@/components/search-box";
+import { matches } from "@/lib/search";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,11 +30,16 @@ const TASK_LABEL: Record<string, string> = {
 export default async function ReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string }>;
 }) {
-  const { filter } = await searchParams;
+  const { filter, q } = await searchParams;
   const showAll = filter === "all";
-  const items = await getReviewQueue(showAll ? "all" : "open");
+  const all = await getReviewQueue(showAll ? "all" : "open");
+
+  const query = q ?? "";
+  const items = all.filter((item) =>
+    matches(query, item.ambassador.full_name, item.ambassador.college, item.campaign.title),
+  );
 
   return (
     <div className="stagger space-y-5">
@@ -52,6 +59,11 @@ export default async function ReviewPage({
           <FilterTab href="/admin/review?filter=all" active={showAll} label="All" />
         </div>
       </div>
+
+      <SearchBox
+        placeholder="Search by ambassador, college or campaign…"
+        className="max-w-md"
+      />
 
       {items.length === 0 ? (
         <Card>

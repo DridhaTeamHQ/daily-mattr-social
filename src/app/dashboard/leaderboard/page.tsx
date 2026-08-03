@@ -1,6 +1,8 @@
 import { Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { SearchBox } from "@/components/search-box";
+import { matches } from "@/lib/search";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { getLeaderboard } from "@/lib/queries";
@@ -14,8 +16,14 @@ export const metadata = { title: "Leaderboard" };
  */
 const MEDALS = ["bg-brand", "bg-canvas-sunk", "bg-invite-tint"];
 
-export default async function LeaderboardPage() {
-  const rows = await getLeaderboard();
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const [{ q }, all] = await Promise.all([searchParams, getLeaderboard()]);
+  const query = q ?? "";
+  const rows = all.filter((r) => matches(query, r.full_name, r.college));
 
   return (
     <div className="stagger space-y-4">
@@ -26,12 +34,18 @@ export default async function LeaderboardPage() {
         description="Every active ambassador, ranked by points earned."
       />
 
+      <SearchBox placeholder="Find someone by name or college…" />
+
       <Card>
         {rows.length === 0 ? (
           <EmptyState
             icon={Trophy}
-            title="No rankings yet"
-            description="Once ambassadors start earning points, the leaderboard fills up here."
+            title={query ? "Nobody matches that" : "No rankings yet"}
+            description={
+              query
+                ? "Try a different name or college."
+                : "Once ambassadors start earning points, the leaderboard fills up here."
+            }
           />
         ) : (
           <ul className="divide-y-[3px] divide-ink">

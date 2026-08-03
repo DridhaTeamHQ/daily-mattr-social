@@ -300,3 +300,98 @@ export async function getRecentActivity(limit = 12) {
     .limit(limit);
   return data ?? [];
 }
+
+// ─── Referrals ──────────────────────────────────────────────────────────────
+
+export type ReferralRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  college: string | null;
+  referral_code: string;
+  status: Enums<"user_status">;
+  /** Downloads credited to this code. */
+  confirmed: number;
+  /** Voided after the fact — kept visible so a drop in totals is explainable. */
+  voided: number;
+  lastConversion: string | null;
+  /** Points actually paid out for referrals, from the ledger. */
+  pointsPaid: number;
+};
+
+export type ReferralSummary = {
+  rows: ReferralRow[];
+  totals: {
+    confirmed: number;
+    voided: number;
+    ambassadorsWithAny: number;
+    pointsPaid: number;
+  };
+};
+
+/**
+ * Referral performance per ambassador.
+ *
+ * Everyone is listed, including ambassadors on zero — a referral page that
+ * hides the people who haven't converted anyone is a page that can't tell you
+ * who needs help.
+ */
+export async function getReferralSummary(): Promise<ReferralSummary> {
+  const supabase = await createClient();
+
+  const [{ data: profiles }, { data: conversions }, { data: ledger }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, email, college, referral_code, status")
+        .eq("role", "ambassador")
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("referral_conversions")
+        .select("ambassador_id, status, converted_at"),
+      supabase
+        .from("point_ledger")
+        .select("ambassador_id, delta")
+        .eq("reason", "referral"),
+    ]);
+
+  const counted = new Map<string, number>();
+  const voided = new Map<string, number>();
+  const last = new Map<string, string>();
+
+  for (const c of conversions ?? []) {
+    const bucket = c.status === "counted" ? counted : voided;
+    bucket.set(c.ambassador_id, (bucket.get(c.ambassador_id) ?? 0) + 1);
+
+    if (c.status === "counted") {
+      const seen = last.get(c.ambassador_id);
+      if (!seen || c.converted_at > seen) last.set(c.ambassador_id, c.converted_at);
+    }
+  }
+
+  const paid = new Map<string, number>();
+  for (const l of ledger ?? []) {
+    paid.set(l.ambassador_id, (paid.get(l.ambassador_id) ?? 0) + l.delta);
+  }
+
+  const rows: ReferralRow[] = (profiles ?? []).map((p) => ({
+    ...p,
+    confirmed: counted.get(p.id) ?? 0,
+    voided: voided.get(p.id) ?? 0,
+    lastConversion: last.get(p.id) ?? null,
+    pointsPaid: paid.get(p.id) ?? 0,
+  }));
+
+  // Best performers first — the ranking is the point of the page.
+  rows.sort((a, b) => b.confirmed - a.confirmed || a.full_name.localeCompare(b.full_name));
+
+  return {
+    rows,
+    totals: {
+      confirmed: rows.reduce((n, r) => n + r.confirmed, 0),
+      voided: rows.reduce((n, r) => n + r.voided, 0),
+      ambassadorsWithAny: rows.filter((r) => r.confirmed > 0).length,
+      pointsPaid: rows.reduce((n, r) => n + r.pointsPaid, 0),
+    },
+  };
+}

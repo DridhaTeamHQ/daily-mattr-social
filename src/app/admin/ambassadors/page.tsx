@@ -1,6 +1,8 @@
 import { Users } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { SearchBox } from "@/components/search-box";
+import { matches } from "@/lib/search";
 import {
   AddAmbassadorDialog,
   AdjustPointsDialog,
@@ -21,8 +23,16 @@ const STATUS_TONE = {
   suspended: "bad",
 } as const;
 
-export default async function AmbassadorsPage() {
-  const rows = await getAmbassadors();
+export default async function AmbassadorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const [{ q }, all] = await Promise.all([searchParams, getAmbassadors()]);
+  const query = q ?? "";
+  const rows = all.filter((r) =>
+    matches(query, r.full_name, r.email, r.college, r.referral_code),
+  );
 
   return (
     <div className="stagger space-y-5">
@@ -32,20 +42,30 @@ export default async function AmbassadorsPage() {
             Ambassadors
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            {rows.length} {rows.length === 1 ? "person" : "people"} on the
-            programme.
+            {query
+              ? `${rows.length} of ${all.length} matching "${query}"`
+              : `${all.length} ${all.length === 1 ? "person" : "people"} on the programme.`}
           </p>
         </div>
 
         <AddAmbassadorDialog />
       </div>
 
+      <SearchBox
+        placeholder="Search by name, email, college or code…"
+        className="max-w-md"
+      />
+
       {rows.length === 0 ? (
         <Card>
           <EmptyState
             icon={Users}
-            title="No ambassadors yet"
-            description="Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
+            title={query ? "Nobody matches that" : "No ambassadors yet"}
+            description={
+              query
+                ? "Try a different name, email or code."
+                : "Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
+            }
           />
         </Card>
       ) : (

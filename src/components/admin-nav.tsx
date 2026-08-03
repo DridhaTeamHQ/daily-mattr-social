@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   ClipboardList,
   Clapperboard,
+  Gift,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -26,6 +27,7 @@ const ITEMS = [
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
+  { href: "/admin/referrals", label: "Referrals", icon: Gift },
 ];
 
 export function AdminNav({

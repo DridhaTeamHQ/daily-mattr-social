@@ -2,6 +2,8 @@ import { Clapperboard, ExternalLink } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
+import { SearchBox } from "@/components/search-box";
+import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
@@ -22,8 +24,16 @@ const TASK_LABEL: Record<string, string> = {
   story: "Story",
 };
 
-export default async function AdminCampaignsPage() {
-  const campaigns = await getAdminCampaigns();
+export default async function AdminCampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const [{ q }, all] = await Promise.all([searchParams, getAdminCampaigns()]);
+  const query = q ?? "";
+  const campaigns = all.filter((c) =>
+    matches(query, c.title, c.description, c.expected_handle, c.status),
+  );
 
   return (
     <div className="stagger space-y-5">
@@ -39,6 +49,11 @@ export default async function AdminCampaignsPage() {
 
         <CreateCampaignDialog aiEnabled={aiEnabled()} />
       </div>
+
+      <SearchBox
+        placeholder="Search campaigns by title, handle or status…"
+        className="max-w-md"
+      />
 
       {campaigns.length === 0 ? (
         <Card>
