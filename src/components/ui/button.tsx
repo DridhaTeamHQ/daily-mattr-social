@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet" | "outline-blue";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet" | "outline-blue" | "brand";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
@@ -15,6 +15,7 @@ const VARIANTS: Record<Variant, string> = {
     "border border-transparent text-ink-soft hover:bg-gray-100 hover:text-ink transition-colors",
   "outline-blue":
     "border border-blue-200 text-blue-600 bg-white hover:bg-blue-50 transition-colors shadow-sm",
+  brand: "bg-blue-600 text-white hover:bg-blue-700 transition-transform hover:scale-[1.02] active:scale-[0.98]",
 };
 
 const SIZES: Record<Size, string> = {
