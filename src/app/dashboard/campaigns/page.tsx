@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   Clapperboard,
   ExternalLink,
@@ -6,6 +7,9 @@ import {
   MessageCircle,
   Play,
   Share2,
+  Megaphone,
+  Video,
+  Sparkles,
 } from "lucide-react";
 
 import { Badge, StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
@@ -61,21 +65,27 @@ export default async function CampaignsPage() {
 
         return (
           <Card key={c.id} id={c.id} className="scroll-mt-20">
-            <CardBody>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="display text-[19px] text-ink">{c.title}</h2>
-                <Badge tone={ended ? "neutral" : "reel"}>
-                  {timeRemaining(c.ends_at)}
-                </Badge>
+            <CardBody className="p-6">
+              <div className="flex items-start gap-4">
+                <div className={cn("grid size-12 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-800")}>
+                  {c.title.includes("CLIP") ? <Video className="size-6" /> : <Megaphone className="size-6" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[16px] font-extrabold uppercase tracking-wide text-ink">{c.title}</h2>
+                    <Badge tone={ended ? "neutral" : "reel"}>
+                      {timeRemaining(c.ends_at)}
+                    </Badge>
+                  </div>
+                  {c.description && (
+                    <p className="mt-1.5 text-[13.5px] leading-relaxed font-medium text-ink-soft">
+                      {c.description}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {c.description && (
-                <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                  {c.description}
-                </p>
-              )}
-
-              <ul className="brut mt-4 divide-y-[3px] divide-ink overflow-hidden rounded-sm">
+              <ul className="mt-5 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 {c.tasks.map((t) => {
                   const meta = TASK_META[t.type];
                   const Icon = meta.icon;
@@ -84,9 +94,9 @@ export default async function CampaignsPage() {
                     : null;
 
                   return (
-                    <li key={t.id} className="flex items-start gap-3 p-3.5">
-                      <div className="brut-sm mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm bg-reel-tint">
-                        <Icon className="size-4.5 text-ink" />
+                    <li key={t.id} className="flex items-center gap-4 p-4">
+                      <div className={cn("grid size-11 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-800")}>
+                        <Icon className="size-5" />
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -94,24 +104,24 @@ export default async function CampaignsPage() {
                           <p className="text-[14px] font-extrabold text-ink">
                             {meta.label}
                           </p>
-                          <span className="brut-sm tabular rounded-full bg-brand px-2 py-0.5 text-[12px] font-extrabold text-ink">
+                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[12px] font-extrabold text-gray-800">
                             +{t.points}
                           </span>
                           {!t.required && (
-                            <span className="text-[12px] text-ink-faint">
+                            <span className="text-[12px] font-medium text-ink-soft">
                               Optional
                             </span>
                           )}
                         </div>
 
                         {t.instructions && (
-                          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">
+                          <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
                             {t.instructions}
                           </p>
                         )}
 
                         {help && (
-                          <p className="mt-1.5 text-[12px] text-ink-soft">
+                          <p className="mt-1.5 text-[12px] font-medium text-ink-soft">
                             {help}
                           </p>
                         )}
@@ -143,11 +153,12 @@ export default async function CampaignsPage() {
               </ul>
             </CardBody>
 
-            <CardFooter className="flex items-center justify-between gap-3">
-              <p className="text-[12.5px] text-ink-soft">
+            <CardFooter className={cn("flex items-center justify-between gap-3 px-6 py-4 border-t-0 rounded-b-xl", c.title.includes("CLIP") ? "bg-blue-50/50" : "bg-gray-50/50")}>
+              <p className="text-[13px] font-medium text-ink-soft flex items-center gap-2">
+                <Sparkles className={cn("size-4", c.title.includes("CLIP") ? "text-blue-600" : "text-gray-600")} />
                 Open the reel, complete the task, then upload your screenshot.
               </p>
-              <Button size="sm" variant="secondary" asChild>
+              <Button size="sm" className={cn("text-white border-0 shadow-sm transition-transform hover:scale-[1.02]", c.title.includes("CLIP") ? "bg-blue-600 hover:bg-blue-700" : "bg-black hover:bg-gray-800")} asChild>
                 <a href={c.instagram_url} target="_blank" rel="noopener noreferrer">
                   Open reel
                   <ExternalLink aria-hidden />

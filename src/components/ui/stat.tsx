@@ -1,19 +1,22 @@
-import * as React from "react";
+import { ChevronRight } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 
 type StatTone = "brand" | "reel" | "poll" | "invite" | "rank";
 
-/**
- * The whole tile takes the section colour, not just an icon chip. At the size
- * these render on a phone, a small tinted square is invisible — the block of
- * colour is what makes the row scannable.
- */
-const STAT_TONES: Record<StatTone, string> = {
-  brand: "bg-brand",
-  reel: "bg-reel-tint",
-  poll: "bg-poll-tint",
-  invite: "bg-invite-tint",
-  rank: "bg-rank-tint",
+const STAT_BG = {
+  brand: "bg-gray-50/50 border-gray-100",
+  reel: "bg-gray-50/50 border-gray-100",
+  poll: "bg-gray-50/50 border-gray-100",
+  invite: "bg-gray-50/50 border-gray-100",
+  rank: "bg-gray-50/50 border-gray-100",
+};
+
+const STAT_ICON_BG = {
+  brand: "bg-blue-600",
+  reel: "bg-[#0b5cff]",
+  poll: "bg-[#008f6b]",
+  invite: "bg-[#6432ff]",
+  rank: "bg-black",
 };
 
 export function Stat({
@@ -21,48 +24,55 @@ export function Stat({
   value,
   sub,
   icon: Icon,
+  cornerIcon: CornerIcon,
   tone = "brand",
+  interactive = true,
   className,
 }: {
   label: string;
   value: string | number;
   sub?: string;
   icon?: React.ComponentType<{ className?: string }>;
+  cornerIcon?: React.ComponentType<{ className?: string }>;
   tone?: StatTone;
+  interactive?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "brut lift tap tap-brut rounded-md p-4",
-        STAT_TONES[tone],
+        "relative flex items-center gap-5 rounded-2xl border p-5 sm:p-6 shadow-sm",
+        interactive && "transition-all hover:scale-[1.02] hover:bg-gray-50 cursor-pointer",
+        STAT_BG[tone],
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[12px] font-extrabold tracking-wide text-ink uppercase">
+      {CornerIcon && (
+        <div className="absolute top-4 right-4 rounded-md border border-gray-200 bg-white p-1.5 shadow-sm text-ink-soft">
+          <CornerIcon className="size-4" />
+        </div>
+      )}
+      {Icon && (
+        <div className={cn("flex size-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-md", STAT_ICON_BG[tone])}>
+          <Icon className="size-7" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-bold tracking-wide text-ink uppercase">
           {label}
         </p>
-        {Icon && (
-          <span className="brut-sm grid size-8 shrink-0 place-items-center rounded-xs bg-surface">
-            <Icon className="size-4 text-ink" />
-          </span>
+        <p className="mt-0.5 text-[28px] font-extrabold leading-tight text-ink">
+          {typeof value === "number" ? formatNumber(value) : value}
+        </p>
+        {sub && (
+          <p className="mt-0.5 text-[12px] font-medium text-gray-500">{sub}</p>
         )}
       </div>
-
-      <p className="display tabular mt-2.5 text-[32px] leading-none text-ink">
-        {typeof value === "number" ? formatNumber(value) : value}
-      </p>
-
-      {sub && (
-        <p className="mt-2 text-[12.5px] font-semibold text-ink/70">{sub}</p>
-      )}
+      {interactive && <ChevronRight className="size-5 shrink-0 text-gray-400" />}
     </div>
   );
 }
 
-/** Chunky outlined progress bar. The fill has its own right-hand border so it
- *  reads as a solid block sliding along a track, not a coloured gradient. */
 export function ProgressBar({
   value,
   max,
@@ -88,7 +98,7 @@ export function ProgressBar({
   return (
     <div
       className={cn(
-        "h-4 overflow-hidden rounded-full border-[3px] border-ink bg-surface",
+        "h-3 w-full overflow-hidden rounded-full border border-gray-200 bg-surface",
         className,
       )}
       role="progressbar"
@@ -99,7 +109,6 @@ export function ProgressBar({
       <div
         className={cn(
           "h-full transition-[width] duration-500 ease-out",
-          pct > 0 && pct < 100 && "border-r-[3px] border-ink",
           fill,
         )}
         style={{ width: `${pct}%` }}

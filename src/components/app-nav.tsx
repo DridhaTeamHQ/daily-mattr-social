@@ -115,15 +115,13 @@ export function TopNav({
   const isActive = useIsActive();
 
   return (
-    // White, not yellow: the points hero directly below is a full yellow
-    // block, and two adjacent yellow bands read as one shape.
-    <header className="sticky top-0 z-20 border-b-[3px] border-ink bg-surface">
+    <header className="sticky top-0 z-20 bg-ink text-white">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4 sm:px-6">
         <Link href="/dashboard" className="shrink-0">
-          <span className="display text-[20px] text-ink">DailyMattr</span>
+          <span className="display text-[22px] font-extrabold text-blue-600 lowercase tracking-tight">dailymattr</span>
         </Link>
 
-        <nav className="hidden flex-1 items-center gap-1.5 sm:flex">
+        <nav className="hidden flex-1 items-center justify-center gap-2 sm:flex">
           {ITEMS.map(({ href, label, fill }) => {
             const active = isActive(href);
             return (
@@ -132,10 +130,10 @@ export function TopNav({
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "tap rounded-sm px-3 py-1.5 text-[13.5px] font-extrabold text-ink",
+                  "tap rounded-full px-4 py-1.5 text-[13.5px] font-bold transition-colors",
                   active
-                    ? cn("brut-sm", fill)
-                    : "border-2 border-transparent hover:border-ink hover:bg-canvas-sunk",
+                    ? cn("text-white", fill)
+                    : "text-gray-300 hover:text-white hover:bg-white/10",
                 )}
               >
                 {label}
@@ -156,7 +154,7 @@ export function TopNav({
           <span
             aria-hidden
             title={name}
-            className="brut-sm display tap grid size-9 shrink-0 place-items-center rounded-full bg-reel text-[12px] text-ink"
+            className="tap grid size-9 shrink-0 place-items-center rounded-full bg-gray-800 text-[12px] font-bold text-white border border-gray-700"
           >
             {initials(name)}
           </span>
@@ -165,7 +163,7 @@ export function TopNav({
             <button
               type="submit"
               title="Sign out"
-              className="tap grid size-9 place-items-center rounded-sm border-2 border-transparent text-ink transition-colors hover:border-ink hover:bg-canvas-sunk"
+              className="tap grid size-9 place-items-center rounded-full text-gray-300 transition-colors hover:text-white hover:bg-white/10"
             >
               <LogOut className="size-4.5" />
               <span className="sr-only">Sign out</span>
@@ -183,7 +181,7 @@ export function BottomNav() {
   return (
     <nav
       className={cn(
-        "fixed inset-x-0 bottom-0 z-20 border-t-[3px] border-ink bg-surface sm:hidden",
+        "fixed inset-x-0 bottom-0 z-20 bg-ink text-white sm:hidden",
         // Clear the iOS home indicator.
         "pb-[env(safe-area-inset-bottom)]",
       )}
@@ -200,16 +198,16 @@ export function BottomNav() {
               >
                 <span
                   className={cn(
-                    "relative grid size-9 place-items-center rounded-sm transition-transform",
+                    "relative grid size-9 place-items-center rounded-full transition-transform",
                     active
-                      ? cn("brut-sm animate-pop", fill)
-                      : "border-2 border-transparent",
+                      ? cn("text-white", fill)
+                      : "text-gray-400 hover:text-white hover:bg-white/10",
                   )}
                 >
                   <Icon
                     className={cn(
                       "size-5",
-                      active ? "text-ink" : "text-ink-faint",
+                      active ? "text-white" : "text-gray-400",
                     )}
                   />
                   <span className="absolute -top-0.5 -right-0.5">

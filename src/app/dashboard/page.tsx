@@ -3,8 +3,13 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Clapperboard,
+  ClipboardCheck,
   ClipboardList,
   Gift,
+  Megaphone,
+  TrendingDown,
+  TrendingUp,
+  Video,
   Zap,
 } from "lucide-react";
 
@@ -59,12 +64,12 @@ export default async function DashboardPage() {
 
       <TierTrack points={standing.points} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat
           label="Open tasks"
           value={openTasks}
           sub={openTasks === 0 ? "All caught up" : "Waiting on you"}
-          icon={Clapperboard}
+          icon={ClipboardCheck}
           tone="reel"
         />
         <Stat
@@ -84,7 +89,6 @@ export default async function DashboardPage() {
           }
           icon={Gift}
           tone="invite"
-          className="col-span-2 sm:col-span-1"
         />
       </div>
 
@@ -94,11 +98,10 @@ export default async function DashboardPage() {
           title="Campaigns"
           href="/dashboard/campaigns"
           linkLabel="See all"
-          fill="bg-reel"
         />
 
         {campaigns.length === 0 ? (
-          <Card>
+          <Card className="rounded-2xl border border-gray-200 shadow-sm">
             <EmptyState
               icon={Clapperboard}
               title="No live campaigns"
@@ -106,7 +109,7 @@ export default async function DashboardPage() {
             />
           </Card>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {campaigns.slice(0, 2).map((c) => {
               const done = c.tasks.filter(
                 (t) =>
@@ -118,45 +121,61 @@ export default async function DashboardPage() {
 
               return (
                 <li key={c.id}>
-                  <Card interactive>
-                    <CardBody className="flex items-start gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="display text-[17px] text-ink">
+                  <Card interactive className="rounded-2xl border-gray-200 shadow-sm overflow-hidden">
+                    <CardBody className="flex flex-col sm:flex-row items-start gap-5 p-6 sm:p-7 relative">
+                      
+                      {/* Top Right Action Button */}
+                      <Button size="sm" variant={ended ? "secondary" : "brand"} asChild className={cn(
+                        "absolute top-6 right-6 z-20",
+                        ended && "bg-white border border-gray-200 text-ink shadow-sm"
+                      )}>
+                        <Link href={`/dashboard/campaigns#${c.id}`}>Open</Link>
+                      </Button>
+
+                      {/* Icon */}
+                      <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm relative z-10">
+                        {c.title.includes("CLIP") ? (
+                          <Video className="size-6 text-white" />
+                        ) : (
+                          <Megaphone className="size-6 text-white" />
+                        )}
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="min-w-0 flex-1 sm:pr-[240px] relative z-10">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-[15px] font-extrabold uppercase tracking-wide text-ink">
                             {c.title}
                           </h3>
-                          <Badge tone={ended ? "neutral" : "reel"}>
+                          <span className={cn(
+                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-bold",
+                            ended ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"
+                          )}>
                             {timeRemaining(c.ends_at)}
-                          </Badge>
+                          </span>
                         </div>
 
                         {c.description && (
-                          <p className="mt-1.5 line-clamp-2 text-[13.5px] leading-relaxed font-medium text-ink-soft">
+                          <p className="mt-2 text-[14px] leading-relaxed font-medium text-gray-600 max-w-lg">
                             {c.description}
                           </p>
                         )}
 
-                        <div className="mt-3.5 flex items-center gap-3">
-                          <ProgressBar
-                            value={done}
-                            max={c.tasks.length}
-                            tone="reel"
-                            className="flex-1"
-                          />
-                          <span className="shrink-0 text-[12.5px] font-extrabold text-ink">
+                        <div className="mt-5 flex items-center gap-3 max-w-xl">
+                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                             <div className="h-full bg-ink rounded-full" style={{ width: `${(done / c.tasks.length) * 100}%` }} />
+                          </div>
+                          <span className="shrink-0 text-[13px] font-extrabold text-ink">
                             {done}/{c.tasks.length}
                           </span>
                         </div>
 
-                        <p className="brut-sm mt-3 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[12px] font-extrabold text-ink">
+                        <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm">
                           <Zap className="size-3.5" fill="currentColor" />
                           {up} points up for grabs
-                        </p>
+                        </div>
                       </div>
 
-                      <Button size="sm" variant="secondary" asChild>
-                        <Link href={`/dashboard/campaigns#${c.id}`}>Open</Link>
-                      </Button>
                     </CardBody>
                   </Card>
                 </li>
@@ -168,38 +187,47 @@ export default async function DashboardPage() {
 
       {/* ─── Recent activity ───────────────────────────────────────────── */}
       <section>
-        <SectionHeader title="Recent points" fill="bg-brand" />
+        <SectionHeader title="Recent points" />
 
-        <Card>
+        <Card className="rounded-2xl border-gray-200 shadow-sm overflow-hidden">
           {recentLedger.length === 0 ? (
             <EmptyState
               title="Nothing yet"
               description="Finish a task or share a survey link and your points show up here."
             />
           ) : (
-            <ul className="divide-y-[3px] divide-ink">
+            <ul className="divide-y divide-gray-100">
               {recentLedger.map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-center gap-4 px-5 py-3.5"
+                  className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-extrabold text-ink">
-                      {entry.note ?? LEDGER_LABELS[entry.reason] ?? entry.reason}
-                    </p>
-                    <p className="mt-0.5 text-[12px] font-semibold text-ink-soft">
-                      {LEDGER_LABELS[entry.reason] ?? entry.reason} ·{" "}
-                      {formatDate(entry.created_at)}
-                    </p>
-                  </div>
                   <span
                     className={cn(
-                      "tabular brut-sm shrink-0 rounded-full px-2.5 py-1 text-[13.5px] font-extrabold text-ink",
-                      entry.delta < 0 ? "bg-bad-tint" : "bg-ok-tint",
+                      "tabular rounded-full px-3 py-1 text-[13px] font-extrabold min-w-[50px] text-center",
+                      entry.delta < 0 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700",
                     )}
                   >
                     {formatDelta(entry.delta)}
                   </span>
+                  
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-extrabold text-ink">
+                      {entry.note ?? LEDGER_LABELS[entry.reason] ?? entry.reason}
+                    </p>
+                    <p className="mt-0.5 text-[13px] font-medium text-gray-500">
+                      {LEDGER_LABELS[entry.reason] ?? entry.reason} ·{" "}
+                      {formatDate(entry.created_at)}
+                    </p>
+                  </div>
+                  
+                  <div className="shrink-0 flex items-center justify-center size-8 rounded-full border border-gray-100 bg-white shadow-sm">
+                     {entry.delta < 0 ? (
+                       <TrendingDown className="size-4 text-red-500" />
+                     ) : (
+                       <TrendingUp className="size-4 text-green-500" />
+                     )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -214,35 +242,27 @@ function SectionHeader({
   title,
   href,
   linkLabel,
-  fill = "bg-brand",
 }: {
   title: string;
   href?: string;
   linkLabel?: string;
-  fill?: string;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-4">
-      {/* The heading is a filled outlined block, not a label — it anchors the
-          section the way a poster headline does. */}
-      <h2
-        className={cn(
-          "brut-sm display rounded-sm px-3 py-1 text-[13px] text-ink",
-          fill,
-        )}
-      >
+    <div className="mb-4 flex items-center justify-between gap-4 px-1">
+      <h2 className="text-[14px] font-black uppercase tracking-widest text-ink">
         {title}
       </h2>
 
       {href && (
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-[13px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
+          className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-ink hover:text-blue-600 transition-colors"
         >
           {linkLabel}
-          <ArrowRight className="size-3.5" />
+          <ArrowRight className="size-4" />
         </Link>
       )}
     </div>
   );
 }
+

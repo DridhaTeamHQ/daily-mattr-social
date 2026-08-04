@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Flame, Star, Trophy, Zap } from "lucide-react";
+import { Flame, Lock, Star, Trophy, Zap, Sparkles } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { cn, formatNumber } from "@/lib/utils";
@@ -12,11 +12,11 @@ import { cn, formatNumber } from "@/lib/utils";
  */
 export const TIERS = [
   { at: 0, name: "Rookie", fill: "bg-surface" },
-  { at: 100, name: "Warmed up", fill: "bg-poll-tint" },
-  { at: 300, name: "Regular", fill: "bg-rank-tint" },
-  { at: 750, name: "Campus star", fill: "bg-invite-tint" },
-  { at: 1500, name: "Legend", fill: "bg-reel-tint" },
-  { at: 3000, name: "Hall of fame", fill: "bg-brand" },
+  { at: 100, name: "Warmed up", fill: "bg-blue-50" },
+  { at: 300, name: "Regular", fill: "bg-blue-100 border-blue-300" },
+  { at: 750, name: "Campus star", fill: "bg-gray-50 text-ink-faint" },
+  { at: 1500, name: "Legend", fill: "bg-gray-50 text-ink-faint" },
+  { at: 3000, name: "Hall of fame", fill: "bg-gray-50 text-ink-faint" },
 ];
 
 export function tierFor(points: number) {
@@ -31,14 +31,11 @@ export function tierFor(points: number) {
     }
   }
   return { current, next };
-}
-
-export function PointsHero({
+}export function PointsHero({
   points,
   rank,
   total,
   streak,
-  /** Fire confetti on mount — set when an approval landed since last visit. */
   celebrate = false,
 }: {
   points: number;
@@ -53,8 +50,6 @@ export function PointsHero({
   React.useEffect(() => {
     if (celebrate && !fired.current) {
       fired.current = true;
-      // Let the count-up get going first, so the confetti lands with the
-      // number rather than before it means anything.
       const t = setTimeout(fireConfetti, 420);
       return () => clearTimeout(t);
     }
@@ -66,58 +61,101 @@ export function PointsHero({
   const pct = next ? Math.min(100, Math.round((into / span) * 100)) : 100;
 
   return (
-    <div className="brut-lg relative rounded-lg bg-brand p-5 sm:p-7">
-      {/* Sticker badges, tilted just enough to look applied rather than
-          laid out. Absolute on desktop, inline on phones where there is no
-          room to float anything. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 sm:absolute sm:top-5 sm:right-6 sm:mb-0 sm:flex-col sm:items-end">
-        <span className="sticker inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-extrabold text-ink">
-          <Star className="size-3.5" fill="currentColor" />
-          {current.name}
-        </span>
+    <div className="space-y-4">
+      {/* Top 4 Stat Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Points */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              Total Points
+            </span>
+            <div className="size-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+              <Zap className="size-4 fill-current" />
+            </div>
+          </div>
+          <div>
+            <CountUp
+              value={points}
+              className="text-3xl font-black text-black tracking-tight"
+            />
+            <p className="text-xs font-semibold text-gray-500 mt-0.5">Active Balance</p>
+          </div>
+        </div>
 
-        {streak > 0 && (
-          <span className="sticker sticker-r inline-flex items-center gap-1.5 rounded-full bg-flame-tint px-3 py-1.5 text-[12.5px] font-extrabold text-ink">
-            <Flame className="size-3.5 text-flame" fill="currentColor" />
-            {streak} day{streak === 1 ? "" : "s"}
-          </span>
-        )}
+        {/* Card 2: Current Tier */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              Current Tier
+            </span>
+            <div className="size-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+              <Star className="size-4 fill-current text-amber-300" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-black tracking-tight">
+              {current.name}
+            </h3>
+            <p className="text-xs font-semibold text-blue-600 mt-0.5">Unlocked Member</p>
+          </div>
+        </div>
+
+        {/* Card 3: Leaderboard Rank */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              Leaderboard Rank
+            </span>
+            <div className="size-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700">
+              <Trophy className="size-4 text-blue-600" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-3xl font-black text-black tracking-tight">
+              #{rank !== null ? rank : "-"}
+            </h3>
+            <p className="text-xs font-semibold text-gray-500 mt-0.5">
+              Out of {total} Ambassadors
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Daily Streak */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              Daily Streak
+            </span>
+            <div className="size-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-500">
+              <Flame className="size-4 fill-current" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-3xl font-black text-black tracking-tight">
+              {streak} Days
+            </h3>
+            <p className="text-xs font-semibold text-red-500 mt-0.5">Active Streak</p>
+          </div>
+        </div>
       </div>
 
-      <p className="text-[13px] font-extrabold tracking-widest text-ink uppercase">
-        Your points
-      </p>
-
-      <CountUp
-        value={points}
-        className="display tabular block text-[68px] leading-[0.9] text-ink sm:text-[92px]"
-      />
-
-      {rank !== null && total > 0 && (
-        <span className="brut-sm mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-extrabold text-ink">
-          <Trophy className="size-4" />
-          Rank #{rank} of {total}
-        </span>
-      )}
-
-      {/* Progress to the next tier. The number that matters is "how many
-          more", not the percentage — nobody grinds toward 62%. */}
+      {/* Bottom Progress Card - Large & Prominent */}
       {next && (
-        <div className="mt-5 max-w-md">
-          <div className="flex items-baseline justify-between text-[12.5px] font-extrabold text-ink uppercase">
-            <span>Next: {next.name}</span>
-            <span className="inline-flex items-center gap-1">
-              <Zap className="size-3.5" fill="currentColor" />
-              {formatNumber(next.at - points)} to go
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 sm:p-7 shadow-xs space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-bold">
+            <div className="flex items-center gap-2.5">
+              <span className="size-3 rounded-full bg-blue-600 animate-pulse" />
+              <span className="text-gray-700">Next Milestone: <strong className="text-black font-black">{next.name}</strong> <span className="text-xs text-gray-500 font-semibold">({next.at} pts)</span></span>
+            </div>
+            <span className="text-blue-600 font-black text-sm sm:text-base">
+              {formatNumber(next.at - points)} pts needed ({pct}%)
             </span>
           </div>
 
-          <div className="mt-2 h-5 overflow-hidden rounded-full border-[3px] border-ink bg-surface">
+          <div className="h-4 sm:h-5 w-full rounded-full bg-gray-100 overflow-hidden p-0.5 border border-gray-200/60">
             <div
-              className={cn(
-                "h-full bg-reel transition-[width] duration-700 ease-out",
-                pct > 0 && pct < 100 && "border-r-[3px] border-ink",
-              )}
+              className="h-full bg-blue-600 rounded-full transition-all duration-500 shadow-xs"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -129,23 +167,29 @@ export function PointsHero({
 
 /** Tier chips, shown under the hero as something to aim at. */
 export function TierTrack({ points }: { points: number }) {
+  const { current } = tierFor(points);
+
   return (
-    <ul className="flex gap-2 overflow-x-auto pb-2">
+    <ul className="flex gap-2 overflow-x-auto pb-4 pt-1 no-scrollbar">
       {TIERS.map((tier) => {
         const reached = points >= tier.at;
+        const isCurrent = tier === current;
+
         return (
           <li key={tier.name} className="shrink-0">
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border-[3px] border-ink px-3 py-1.5 text-[12.5px] font-extrabold whitespace-nowrap",
-                reached
-                  ? cn("text-ink shadow-[3px_3px_0_var(--color-ink)]", tier.fill)
-                  : "bg-surface text-ink-faint opacity-60",
+                "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold whitespace-nowrap transition-colors",
+                isCurrent
+                  ? "border-yellow-200 bg-yellow-50 text-ink"
+                  : reached
+                    ? "border-gray-200 bg-white text-ink"
+                    : "border-gray-100 bg-gray-50 text-gray-500"
               )}
             >
-              {reached && <Star className="size-3.5" fill="currentColor" />}
+              {reached ? <Star className="size-3.5" fill={isCurrent ? "currentColor" : "none"} /> : <Lock className="size-3.5 text-gray-400" />}
               {tier.name}
-              <span className="tabular opacity-70">
+              <span className={cn("tabular ml-1", isCurrent ? "text-ink" : reached ? "text-gray-500" : "text-gray-400")}>
                 {formatNumber(tier.at)}
               </span>
             </span>

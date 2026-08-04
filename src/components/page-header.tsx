@@ -12,44 +12,55 @@ const FILL: Record<Tone, string> = {
   rank: "bg-rank",
 };
 
-/**
- * The title block at the top of each section.
- *
- * The whole strip takes the section's colour rather than a small icon chip —
- * arriving on a page should be unmistakable before you read the heading, which
- * is the entire point of giving each section a colour in the first place.
- */
+const TEXT_TONE: Record<Tone, string> = {
+  brand: "text-brand",
+  reel: "text-reel",
+  poll: "text-poll",
+  invite: "text-invite",
+  rank: "text-rank",
+};
+
 export function PageHeader({
   title,
   description,
   icon: Icon,
   tone,
   action,
+  variant = "solid",
+  className,
 }: {
   title: string;
   description?: string;
   icon: React.ComponentType<{ className?: string }>;
   tone: Tone;
   action?: React.ReactNode;
+  variant?: "solid" | "outline";
+  className?: string;
 }) {
   return (
     <div
       className={cn(
-        "brut flex flex-wrap items-center gap-3.5 rounded-md p-4",
-        FILL[tone],
+        "flex flex-wrap items-center gap-4 rounded-[14px] p-5 shadow-sm",
+        variant === "solid" ? cn("text-white", FILL[tone]) : "bg-white border border-gray-200 text-ink",
+        className
       )}
     >
       <span
         aria-hidden
-        className="brut-sm grid size-11 shrink-0 place-items-center rounded-sm bg-surface"
+        className={cn(
+          "grid shrink-0 place-items-center",
+          variant === "solid"
+            ? cn("size-12 rounded-xl bg-white", TEXT_TONE[tone])
+            : cn("size-14 rounded-full text-white", FILL[tone])
+        )}
       >
-        <Icon className="size-5.5 text-ink" />
+        <Icon className={cn(variant === "solid" ? "size-6" : "size-7")} />
       </span>
 
       <div className="min-w-0 flex-1">
-        <h1 className="display text-[22px] leading-none text-ink">{title}</h1>
+        <h1 className="text-[22px] font-extrabold uppercase tracking-wide leading-none">{title}</h1>
         {description && (
-          <p className="mt-1.5 text-[13px] leading-relaxed font-semibold text-ink/75">
+          <p className={cn("mt-1.5 text-[13.5px] leading-relaxed font-medium", variant === "solid" ? "text-white/90" : "text-ink-soft")}>
             {description}
           </p>
         )}

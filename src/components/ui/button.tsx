@@ -3,22 +3,18 @@ import { Loader2 } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet" | "outline-blue";
 type Size = "sm" | "md" | "lg" | "icon";
 
-/**
- * Every filled variant is a LIGHT fill with BLACK text and a black border, so
- * contrast holds without checking each pairing, and so the outline reads at
- * any size. `ghost` is the one thing without a border — it exists precisely
- * for the cases where another outlined box would be noise.
- */
 const VARIANTS: Record<Variant, string> = {
-  primary: "pressable bg-brand text-ink hover:bg-brand-hover",
-  secondary: "pressable bg-surface text-ink hover:bg-canvas-sunk",
-  danger: "pressable bg-bad text-white hover:brightness-110",
-  quiet: "pressable bg-poll text-ink hover:brightness-105",
+  primary: "bg-brand text-ink hover:brightness-95 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]",
+  secondary: "bg-gray-100 text-ink hover:bg-gray-200 transition-transform hover:scale-[1.02] active:scale-[0.98]",
+  danger: "bg-bad text-white hover:brightness-110 transition-transform hover:scale-[1.02] active:scale-[0.98]",
+  quiet: "bg-poll text-ink hover:brightness-105 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   ghost:
-    "border-2 border-transparent text-ink-soft hover:border-ink hover:bg-canvas-sunk hover:text-ink",
+    "border border-transparent text-ink-soft hover:bg-gray-100 hover:text-ink transition-colors",
+  "outline-blue":
+    "border border-blue-200 text-blue-600 bg-white hover:bg-blue-50 transition-colors shadow-sm",
 };
 
 const SIZES: Record<Size, string> = {

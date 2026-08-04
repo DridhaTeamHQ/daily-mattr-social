@@ -119,7 +119,7 @@ export function UploadTask({
   return (
     <Dialog.Root open={open} onOpenChange={(next) => (next ? setOpen(true) : reset())}>
       <Dialog.Trigger asChild>
-        <Button size="sm" variant="quiet" disabled={disabled}>
+        <Button size="sm" variant="outline-blue" disabled={disabled}>
           <Upload aria-hidden />
           Upload
         </Button>

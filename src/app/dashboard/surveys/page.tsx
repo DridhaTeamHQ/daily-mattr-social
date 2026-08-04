@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ClipboardList, ExternalLink } from "lucide-react";
+import { ClipboardList, ExternalLink, Flag, Link as LinkIcon, Pointer, MessageSquare, Star } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Surveys" };
 
@@ -41,6 +42,17 @@ export default async function SurveysPage() {
         tone="poll"
         title="Surveys"
         description="Share your link. Every genuine response earns you points."
+        variant="outline"
+        action={
+          <div className="relative size-16 shrink-0 md:size-20 bg-blue-50 rounded-xl hidden sm:block">
+            {/* Simple CSS clipboard illustration to match the space */}
+            <div className="absolute inset-2 bg-white rounded-md border-2 border-blue-200 shadow-sm" />
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-3 bg-gray-200 rounded-sm border-2 border-blue-200" />
+            <div className="absolute top-6 left-4 w-6 h-1.5 bg-blue-100 rounded-full" />
+            <div className="absolute top-9 left-4 w-4 h-1.5 bg-blue-100 rounded-full" />
+            <div className="absolute top-12 left-4 w-8 h-1.5 bg-blue-100 rounded-full" />
+          </div>
+        }
       />
 
       <Note tone="neutral">
@@ -53,41 +65,44 @@ export default async function SurveysPage() {
         const url = `${siteUrl}/s/${s.slug}`;
 
         return (
-          <Card key={s.survey_id}>
-            <CardBody>
-              <h2 className="display text-[19px] text-ink">{s.survey_title}</h2>
+          <Card key={s.survey_id} className="p-6">
+            <h2 className="text-[16px] font-extrabold uppercase tracking-wide text-ink">{s.survey_title}</h2>
 
-              <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
-                <Metric label="Clicks" value={s.click_count} />
-                <Metric label="Responses" value={s.valid_responses} />
-                <Metric label="Points" value={s.points_earned} tone="poll" />
-              </dl>
+            <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Metric label="Clicks" value={s.click_count} tone="clicks" />
+              <Metric label="Responses" value={s.valid_responses} tone="responses" />
+              <Metric label="Points" value={s.points_earned} tone="points" />
+            </dl>
 
-              {s.flagged > 0 && (
-                <p className="mt-3 text-[12.5px] text-warn">
-                  {s.flagged} {s.flagged === 1 ? "response" : "responses"}{" "}
-                  flagged for review — these don&apos;t earn points until
-                  cleared.
-                </p>
-              )}
+            {s.flagged > 0 && (
+              <p className="mt-4 text-[13px] font-medium text-ink-soft flex items-center gap-2">
+                <Flag className="size-4 text-red-500" />
+                <span>
+                  <strong className="text-ink font-semibold">{s.flagged} {s.flagged === 1 ? "response" : "responses"} flagged for review</strong> — these don&apos;t earn points until cleared.
+                </span>
+              </p>
+            )}
 
-              <div className="brut-sm mt-4 flex items-center gap-2 rounded-sm bg-canvas-sunk px-3 py-2.5">
-                <code className="min-w-0 flex-1 truncate font-mono text-[12.5px] font-bold text-ink">
+            <div className="mt-4 flex items-center gap-3">
+              <div className="flex flex-1 items-center gap-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <LinkIcon className="size-4 text-ink-soft shrink-0" />
+                <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
                   {url}
                 </code>
               </div>
-            </CardBody>
+            </div>
 
-            <CardFooter className="flex flex-wrap items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <CopyButton
                 value={url}
-                size="sm"
+                size="md"
                 variant="primary"
+                className="bg-blue-600 text-white hover:bg-blue-700 border-0 shadow-sm"
                 label="Copy link"
                 copiedLabel="Link copied"
                 toastMessage="Survey link copied"
               />
-              <Button size="sm" variant="secondary" asChild>
+              <Button size="md" variant="secondary" className="bg-white border border-gray-200 text-ink shadow-sm" asChild>
                 <a href={url} target="_blank" rel="noopener noreferrer">
                   Preview
                   <ExternalLink aria-hidden />
@@ -98,7 +113,7 @@ export default async function SurveysPage() {
                   Not shared yet
                 </Badge>
               )}
-            </CardFooter>
+            </div>
           </Card>
         );
       })}
@@ -109,22 +124,33 @@ export default async function SurveysPage() {
 function Metric({
   label,
   value,
-  tone = "neutral",
+  tone = "clicks",
 }: {
   label: string;
   value: number;
-  tone?: "neutral" | "poll";
+  tone?: "clicks" | "responses" | "points";
 }) {
+  const METRIC_BG = {
+    clicks: "bg-gray-100",
+    responses: "bg-blue-50",
+    points: "bg-gray-100",
+  };
+  const METRIC_ICON_BG = {
+    clicks: "bg-gray-800",
+    responses: "bg-blue-600",
+    points: "bg-black",
+  };
+  const Icon = tone === "clicks" ? Pointer : tone === "responses" ? MessageSquare : Star;
+
   return (
-    <div
-      className={`brut-sm rounded-sm py-3 ${
-        tone === "poll" ? "bg-poll-tint" : "bg-canvas-sunk"
-      }`}
-    >
-      <dd className="tabular display text-[24px] text-ink">{value}</dd>
-      <dt className="mt-0.5 text-[11.5px] font-extrabold tracking-wide text-ink/70 uppercase">
-        {label}
-      </dt>
+    <div className={cn("flex items-center gap-4 rounded-xl px-6 py-5", METRIC_BG[tone])}>
+       <div className={cn("grid size-12 shrink-0 place-items-center rounded-full text-white", METRIC_ICON_BG[tone])}>
+         <Icon className="size-5" />
+       </div>
+       <div className="text-left flex-1 min-w-0">
+         <dd className="text-[28px] font-extrabold text-ink leading-none">{value}</dd>
+         <dt className="mt-1 text-[12px] font-bold tracking-wide text-ink uppercase">{label}</dt>
+       </div>
     </div>
   );
 }

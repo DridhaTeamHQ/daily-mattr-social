@@ -72,11 +72,10 @@ export function SearchBox({
         placeholder={placeholder}
         aria-label={placeholder}
         className={[
-          "h-11 w-full rounded-sm border-[3px] border-ink bg-surface pr-10 pl-11",
+          "h-11 w-full rounded-xl border border-gray-200 bg-white pr-10 pl-11 shadow-sm",
           "text-[14.5px] font-medium text-ink",
-          "shadow-[3px_3px_0_var(--color-ink)]",
-          "transition-[box-shadow,transform] duration-100 ease-out",
-          "focus:-translate-x-px focus:-translate-y-px focus:shadow-[5px_5px_0_var(--color-ink)] focus:outline-none",
+          "transition-colors duration-100 ease-out",
+          "focus:border-gray-300 focus:outline-none",
           // Safari draws its own clear button on type=search; ours is the one
           // that matches everything else here.
           "[&::-webkit-search-cancel-button]:appearance-none",
@@ -92,7 +91,7 @@ export function SearchBox({
             window.clearTimeout(timer.current);
             commit("");
           }}
-          className="absolute top-1/2 right-2.5 grid size-7 -translate-y-1/2 place-items-center rounded-xs border-2 border-transparent text-ink transition-colors hover:border-ink hover:bg-canvas-sunk"
+          className="absolute top-1/2 right-2.5 grid size-7 -translate-y-1/2 place-items-center rounded-md text-ink-soft transition-colors hover:bg-gray-100 hover:text-ink"
         >
           <X className="size-4" />
         </button>

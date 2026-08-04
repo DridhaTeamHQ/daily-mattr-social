@@ -1,4 +1,5 @@
 import * as React from "react";
+import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Tone =
@@ -39,8 +40,9 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-xs border-2 border-ink px-2 py-0.5",
-        "text-[12px] font-extrabold text-ink whitespace-nowrap",
+        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1",
+        "text-[12px] font-bold whitespace-nowrap",
+        tone === "brand" ? "text-white" : "text-ink",
         TONES[tone],
         className,
       )}
@@ -59,7 +61,7 @@ export function Badge({
  */
 export const SUBMISSION_STATUS: Record<
   string,
-  { label: string; tone: Tone; help: string }
+  { label: string; tone: Tone; help: string; icon?: React.ComponentType<{ className?: string }> }
 > = {
   pending: {
     label: "Checking",
@@ -70,26 +72,31 @@ export const SUBMISSION_STATUS: Record<
     label: "Approved",
     tone: "ok",
     help: "Verified automatically. Points credited.",
+    icon: CheckCircle2,
   },
   approved: {
     label: "Approved",
     tone: "ok",
     help: "Verified by our team. Points credited.",
+    icon: CheckCircle2,
   },
   needs_review: {
     label: "In review",
     tone: "warn",
     help: "A human is taking a look. This usually takes under a day.",
+    icon: Clock,
   },
   rejected: {
     label: "Rejected",
     tone: "bad",
     help: "This screenshot didn't pass verification.",
+    icon: XCircle,
   },
   revoked: {
     label: "Revoked",
     tone: "bad",
     help: "Previously approved, then reversed. Points removed.",
+    icon: XCircle,
   },
 };
 
@@ -98,9 +105,41 @@ export function StatusBadge({ status }: { status: string }) {
     label: status,
     tone: "neutral" as Tone,
   };
+  const Icon = meta.icon;
+
+  const STATUS_TEXT: Record<Tone, string> = {
+    neutral: "text-ink",
+    brand: "text-blue-800",
+    ok: "text-blue-800",
+    warn: "text-red-800",
+    bad: "text-red-800",
+    reel: "text-gray-800",
+    poll: "text-gray-800",
+    invite: "text-blue-800",
+    rank: "text-gray-800",
+  };
+  const STATUS_BG: Record<Tone, string> = {
+    neutral: "bg-gray-100 border border-gray-200",
+    brand: "bg-blue-100 border border-blue-200",
+    ok: "bg-blue-100 border border-blue-200",
+    warn: "bg-red-100 border border-red-200",
+    bad: "bg-red-100 border border-red-200",
+    reel: "bg-gray-100 border border-gray-200",
+    poll: "bg-gray-100 border border-gray-200",
+    invite: "bg-blue-100 border border-blue-200",
+    rank: "bg-gray-100 border border-gray-200",
+  };
+
   return (
-    <Badge tone={meta.tone} dot>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-bold whitespace-nowrap",
+        STATUS_BG[meta.tone],
+        STATUS_TEXT[meta.tone]
+      )}
+    >
+      {Icon && <Icon className="size-3.5" />}
       {meta.label}
-    </Badge>
+    </span>
   );
 }

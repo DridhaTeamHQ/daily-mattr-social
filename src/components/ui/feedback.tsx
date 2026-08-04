@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Skeleton({
@@ -8,7 +9,7 @@ export function Skeleton({
   return (
     <div
       className={cn(
-        "bg-canvas-sunk border-2 border-ink rounded-sm animate-sheen",
+        "bg-gray-100 rounded-md animate-sheen",
         className,
       )}
       {...props}
@@ -37,8 +38,8 @@ export function EmptyState({
       )}
     >
       {Icon && (
-        <div className="brut animate-float mb-5 grid size-16 place-items-center rounded-md bg-brand">
-          <Icon className="size-7 text-ink" />
+        <div className="mb-5 grid size-16 place-items-center rounded-xl bg-gray-50 border border-gray-200 text-ink">
+          <Icon className="size-7" />
         </div>
       )}
       <p className="display text-[18px] text-ink">{title}</p>
@@ -52,42 +53,56 @@ export function EmptyState({
   );
 }
 
-/** Inline explanatory note. `tone="bad"` for errors, `warn` for caveats. */
 export function Note({
   tone = "neutral",
   title,
   children,
   className,
 }: {
-  tone?: "neutral" | "brand" | "warn" | "bad" | "ok";
+  tone?: "neutral" | "brand" | "warn" | "bad" | "ok" | "invite";
   title?: string;
   children: React.ReactNode;
   className?: string;
 }) {
-  const tones = {
-    neutral: "bg-canvas-sunk",
-    brand: "bg-brand",
-    warn: "bg-warn-tint",
-    bad: "bg-bad-tint",
-    ok: "bg-ok-tint",
+  const NOTE_BG = {
+    neutral: "bg-gray-50",
+    brand: "bg-blue-50 border border-blue-100",
+    warn: "bg-red-50 border border-red-100",
+    bad: "bg-red-50 border border-red-100",
+    ok: "bg-blue-50 border border-blue-100",
+    invite: "bg-blue-50 border border-blue-100",
+  };
+
+  const ICON_BG = {
+    neutral: "bg-gray-600 text-white",
+    brand: "bg-blue-600 text-white",
+    warn: "bg-red-500 text-white",
+    bad: "bg-red-500 text-white",
+    ok: "bg-blue-600 text-white",
+    invite: "bg-blue-600 text-white",
   };
 
   return (
     <div
       className={cn(
-        // Text stays ink on every tone — the fill carries the meaning, and
-        // black on a light fill never needs a contrast check.
-        "brut rounded-sm px-4 py-3 text-[13px] leading-relaxed font-medium text-ink",
-        tones[tone],
+        "flex items-start gap-4 rounded-xl px-5 py-4",
+        NOTE_BG[tone],
         className,
       )}
     >
-      {title && (
-        <p className="mb-1 text-[13px] font-extrabold tracking-wide uppercase">
-          {title}
-        </p>
-      )}
-      {children}
+      <div className={cn("shrink-0 grid place-items-center rounded-full size-6 mt-0.5", ICON_BG[tone])}>
+         <Info className="size-4" />
+      </div>
+      <div>
+        {title && (
+          <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-ink">
+            {title}
+          </p>
+        )}
+        <div className="text-[13px] leading-relaxed font-medium text-ink-soft">
+           {children}
+        </div>
+      </div>
     </div>
   );
 }

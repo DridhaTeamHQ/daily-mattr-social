@@ -9,8 +9,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "brut bg-surface rounded-md",
-        interactive && "lift tap tap-brut cursor-pointer",
+        "bg-surface rounded-xl border border-gray-200 shadow-sm",
+        interactive && "hover:shadow-md transition-shadow cursor-pointer",
         className,
       )}
       {...props}
@@ -65,10 +65,8 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      // A solid 3px rule, not a hairline — the divider has to hold its own
-      // against the card's own border.
       className={cn(
-        "px-5 py-3.5 border-t-[3px] border-ink bg-canvas-sunk rounded-b-[13px]",
+        "px-5 py-3.5 border-t border-gray-200 bg-gray-50 rounded-b-xl",
         className,
       )}
       {...props}

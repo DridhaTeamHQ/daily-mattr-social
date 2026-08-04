@@ -187,7 +187,7 @@ export function NotificationBell({
         <button
           type="button"
           aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
-          className="relative grid size-10 place-items-center rounded-sm text-ink-soft transition-colors hover:bg-canvas-sunk hover:text-ink"
+          className="relative grid size-10 place-items-center rounded-full text-white transition-colors hover:bg-white/10 hover:text-white"
         >
           {unread > 0 ? (
             <BellRing className="size-5" />
