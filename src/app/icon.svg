@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    App icon: the wordmark's quote pair on the brand fill.
+
+    Reversed to white rather than the black used everywhere else in the app —
+    at 16px in a browser tab the black outline and the black glyphs merge into
+    one dark blob, and the shape stops being readable. The outline is kept
+    because a borderless tile is the one thing that would look imported from a
+    different app.
+  -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#3979ff" stroke="#0a0a0a" stroke-width="4"/>
+  <g fill="#ffffff" transform="translate(14.25 15.4) scale(0.0906)">
+    <path d="M170.94 599.546V430.039H0V660.11C0.716732 669.248 6.27132 725.153 55.905 764.215C105.897 803.456 161.981 795.214 170.94 793.781V727.662C164.669 727.304 125.249 724.257 98.5506 690.213C66.8352 649.896 81.3491 601.876 82.6034 597.934C106.435 598.472 147.109 599.008 170.94 599.546Z" transform="translate(0 -430)"/>
+    <path d="M392.054 599.546V430.039H221.113V660.11C221.83 669.248 227.385 725.153 277.018 764.215C327.01 803.456 383.095 795.214 392.054 793.781V727.662C385.782 727.304 346.362 724.257 319.664 690.213C287.949 649.896 302.462 601.876 303.717 597.934C327.548 598.472 368.222 599.008 392.054 599.546Z" transform="translate(0 -430)"/>
+  </g>
+</svg>

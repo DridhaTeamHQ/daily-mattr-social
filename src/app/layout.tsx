@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffd400",
+  themeColor: "#3979ff",
   width: "device-width",
   initialScale: 1,
   // Students are on phones all day; let them zoom.

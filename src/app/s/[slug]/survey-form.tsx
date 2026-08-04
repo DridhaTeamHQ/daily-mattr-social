@@ -6,6 +6,7 @@ import { CircleCheck, Star } from "lucide-react";
 import * as React from "react";
 
 import { submitSurvey, type SubmitState } from "./actions";
+import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
@@ -62,6 +63,15 @@ export function SurveyForm({
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
             You can close this page now.
           </p>
+
+          {/* Quiet sign-off. This is the last thing a respondent sees, and
+              they have no other reason to remember whose survey it was — the
+              compact mark rather than the wordmark, because at this size it
+              should read as a stamp, not a second masthead. */}
+          <LogoMark
+            label="DailyMattr"
+            className="mx-auto mt-8 block h-4 w-auto text-brand"
+          />
         </CardBody>
       </Card>
     );

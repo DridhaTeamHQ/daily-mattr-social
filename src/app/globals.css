@@ -12,9 +12,10 @@
    surface, a soft shadow, or a translucent border — the moment you add one,
    the style collapses into the same generic SaaS look everything else has.
 
-   Contrast rule: every accent is a LIGHT fill with BLACK text on top. That
-   keeps text at 4.5:1 without having to check each pairing, and it is why the
-   palette can be this loud without becoming unreadable.
+   Contrast rule: every accent is a fill that clears 4.5:1 against BLACK text.
+   Most are light; brand blue is the one mid-tone, and it lands at 5.4:1, so the
+   rule still holds and the palette can be this loud without becoming
+   unreadable. White text on any accent is the thing that breaks it.
    ============================================================================ */
 
 @theme {
@@ -36,11 +37,15 @@
   /* One per section, carried by the nav, page headers and stat chips so
      colour tells you where you are before you read anything. */
 
-  /* Points / home */
-  --color-brand: #ffd400;
-  --color-brand-hover: #ffdf3d;
-  --color-brand-press: #e6bf00;
-  --color-brand-tint: #fff2b8;
+  /* Points / home — and the brand itself.
+     `brand` is the logo blue, unmodified. `press` is dark enough to double as
+     a text colour on `tint` or white (5.5:1 and 6.9:1), which is what the two
+     places that set `text-brand-*` actually need; the raw blue on a light tint
+     is only 3.1:1 and must not be used for text. */
+  --color-brand: #3979ff;
+  --color-brand-hover: #5b91ff;
+  --color-brand-press: #1e4fcc;
+  --color-brand-tint: #d9e6ff;
   --color-brand-line: #0a0a0a;
 
   /* Campaigns */

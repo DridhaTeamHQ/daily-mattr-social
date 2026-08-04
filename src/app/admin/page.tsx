@@ -241,7 +241,7 @@ function StateRow({
       </span>
 
       <dt className="w-28 shrink-0 text-[13.5px] font-medium text-ink">
-        <Link href={href} className="hover:text-brand">
+        <Link href={href} className="hover:text-brand-press">
           {label}
         </Link>
       </dt>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { signOut } from "@/app/login/actions";
+import { Wordmark } from "@/components/logo";
 import { cn, initials } from "@/lib/utils";
 
 /**
@@ -46,9 +47,14 @@ export function AdminNav({
   return (
     <header className="sticky top-0 z-20 border-b border-ink/10 bg-ink text-white">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-5 px-4 sm:px-6">
-        <Link href="/admin" className="shrink-0 text-[15px] font-semibold tracking-tight">
-          DailyMattr
-          <span className="ml-1.5 rounded-xs bg-white/15 px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide uppercase">
+        {/* White mark, not blue: brand blue on the near-black bar is 5.4:1,
+            which is fine for a heading but thin for letterforms this small.
+            The blue is spent on the Admin chip instead, where it does more
+            work — it's the one thing that has to say "you are not in the
+            ambassador app" from across a desk. */}
+        <Link href="/admin" className="flex shrink-0 items-center gap-2">
+          <Wordmark label="DailyMattr admin" className="h-4 w-auto text-white" />
+          <span className="rounded-xs bg-brand px-1.5 py-0.5 text-[10.5px] font-bold tracking-wide text-ink uppercase">
             Admin
           </span>
         </Link>

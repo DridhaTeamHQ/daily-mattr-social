@@ -218,7 +218,7 @@ export function NotificationBell({
                   await markAllNotificationsRead();
                   router.refresh();
                 }}
-                className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:text-brand-hover"
+                className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand-press hover:text-brand"
               >
                 <CheckCheck className="size-3.5" />
                 Mark all read
@@ -234,9 +234,12 @@ export function NotificationBell({
               type="button"
               onClick={enablePush}
               disabled={pushState === "working" || pushState === "denied"}
-              className="flex w-full items-start gap-2.5 border-b border-line bg-brand-tint px-4 py-3 text-left transition-colors hover:bg-brand-line/40 disabled:opacity-60"
+              // Hover deepens the tint. It used to go to `bg-brand-line/40`,
+              // which is 40% black — the dark blue label on top of it was
+              // unreadable for as long as the pointer was over the button.
+              className="flex w-full items-start gap-2.5 border-b border-line bg-brand-tint px-4 py-3 text-left transition-[filter] hover:brightness-95 disabled:opacity-60"
             >
-              <BellRing className="mt-0.5 size-4 shrink-0 text-brand" />
+              <BellRing className="mt-0.5 size-4 shrink-0 text-brand-press" />
               <span>
                 <span className="block text-[13px] font-semibold text-brand-press">
                   {pushState === "denied"

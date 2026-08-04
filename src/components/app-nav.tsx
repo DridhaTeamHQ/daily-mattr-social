@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { signOut } from "@/app/login/actions";
+import { Wordmark } from "@/components/logo";
 import {
   NotificationBell,
   type NotificationItem,
@@ -115,12 +116,18 @@ export function TopNav({
   const isActive = useIsActive();
 
   return (
-    // White, not yellow: the points hero directly below is a full yellow
-    // block, and two adjacent yellow bands read as one shape.
+    // White, not brand blue: the points hero directly below is a full blue
+    // block, and two adjacent blue bands read as one shape.
     <header className="sticky top-0 z-20 border-b-[3px] border-ink bg-surface">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/dashboard" className="shrink-0">
-          <span className="display text-[20px] text-ink">DailyMattr</span>
+        {/* The mark carries the brand blue here because the bar behind it is
+            white — this is the one shell surface where it can, and it is worth
+            spending, since it's the first thing on screen. */}
+        <Link href="/dashboard" className="tap shrink-0">
+          <Wordmark
+            label="DailyMattr — home"
+            className="h-5 w-auto text-brand sm:h-6"
+          />
         </Link>
 
         <nav className="hidden flex-1 items-center gap-1.5 sm:flex">

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 
 import { WelcomeForm } from "./welcome-form";
+import { Wordmark } from "@/components/logo";
 import { Card, CardBody } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,6 +31,13 @@ export default async function WelcomePage() {
     <div className="grid min-h-dvh place-items-center bg-canvas px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
+          {/* This is the first screen a new ambassador ever sees, and the only
+              one with no nav — the mark is how they know whose app this is. */}
+          <Wordmark
+            label="DailyMattr"
+            className="mx-auto mb-7 block h-5 w-auto text-brand"
+          />
+
           <span
             aria-hidden
             className="brut animate-wiggle mx-auto grid size-16 place-items-center rounded-md bg-brand text-ink"

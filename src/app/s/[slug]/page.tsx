@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { SurveyForm, type PublicQuestion } from "./survey-form";
+import { Wordmark } from "@/components/logo";
 import { Marquee } from "@/components/marquee";
 import { Card, CardBody } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -74,9 +75,10 @@ export default async function PublicSurveyPage({ params }: Params) {
       {/* ─── Header ────────────────────────────────────────────────────── */}
       <header className="border-b-[3px] border-ink bg-brand">
         {/* Doodle band. Purely decorative, and tiled rather than stretched so
-            each doodle shows whole at band height. Its own black border makes
-            the slightly more acid yellow read as a deliberate strip rather
-            than a mismatch with the brand colour below. */}
+            each doodle shows whole at band height. Its acid yellow used to sit
+            a shade off the yellow header below it and read as a mismatch;
+            against brand blue it reads as what it is — a strip of tape stuck
+            across the top. */}
         <div aria-hidden className="doodle-band w-full border-b-[3px] border-ink" />
 
         {/* Scrolling tape masthead. Carries the wordmark, moves on its own,
@@ -92,6 +94,11 @@ export default async function PublicSurveyPage({ params }: Params) {
         />
 
         <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
+          {/* The tape above spells the name, but only in caps and only as
+              decoration. This is the one page a stranger lands on, so the
+              actual mark goes on it. */}
+          <Wordmark label="DailyMattr" className="mb-5 h-5 w-auto text-ink" />
+
           <h1 className="display text-[32px] leading-[0.95] text-ink sm:text-[44px]">
             {survey.title}
           </h1>
