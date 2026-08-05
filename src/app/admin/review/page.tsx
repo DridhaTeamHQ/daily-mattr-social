@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CircleAlert, Inbox, Sparkles } from "lucide-react";
+import { CircleAlert, ExternalLink, Inbox, Sparkles } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
@@ -90,8 +90,12 @@ export default async function ReviewPage({
                   <CardBody className="grid gap-5 md:grid-cols-[minmax(0,15rem)_1fr]">
                     {/* ─── Evidence ─────────────────────────────────────── */}
                     <div>
-                      <div className="brut-sm relative aspect-[9/16] overflow-hidden rounded-sm bg-canvas-sunk">
-                        {item.signedUrl ? (
+                      {/* Not every task is evidenced by an image. A LinkedIn
+                          post is a URL and a quiz answer is prose, so the
+                          panel renders whichever one this submission carries
+                          rather than an empty 9:16 box. */}
+                      {item.signedUrl ? (
+                        <div className="brut-sm relative aspect-[9/16] overflow-hidden rounded-sm bg-canvas-sunk">
                           <Image
                             src={item.signedUrl}
                             alt={`Screenshot from ${item.ambassador.full_name}`}
@@ -100,14 +104,41 @@ export default async function ReviewPage({
                             className="object-contain"
                             unoptimized
                           />
-                        ) : (
-                          <div className="grid h-full place-items-center px-4 text-center">
-                            <p className="text-[12.5px] text-ink-faint">
-                              Screenshot unavailable
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : item.proof_url ? (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                            Link submitted
+                          </p>
+                          {/* noreferrer as well as noopener: the destination
+                              is a URL a student typed, and it does not need
+                              to know which admin screen sent the traffic. */}
+                          <a
+                            href={item.proof_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 flex items-start gap-1.5 text-[13px] font-bold break-all text-blue-600 hover:underline"
+                          >
+                            <ExternalLink className="mt-0.5 size-3.5 shrink-0" />
+                            {item.proof_url}
+                          </a>
+                        </div>
+                      ) : item.proof_text ? (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                            Written answer
+                          </p>
+                          <p className="mt-2 text-[13.5px] leading-relaxed font-medium whitespace-pre-wrap text-ink">
+                            {item.proof_text}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="brut-sm grid aspect-[9/16] place-items-center rounded-sm bg-canvas-sunk px-4 text-center">
+                          <p className="text-[12.5px] text-ink-faint">
+                            No evidence attached
+                          </p>
+                        </div>
+                      )}
 
                       <p className="mt-2 text-[11.5px] text-ink-faint">
                         Uploaded {formatDate(item.uploaded_at, true)}

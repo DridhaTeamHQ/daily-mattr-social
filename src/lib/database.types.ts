@@ -560,8 +560,8 @@ export type Database = {
           ambassador_id: string;
           attempt: number;
           /** Object key in the private 'screenshots' bucket. */
-          screenshot_path: string;
-          sha256: string;
+          screenshot_path: string | null;
+          sha256: string | null;
           /** 64-bit difference hash, as a bit-string. */
           phash: string | null;
           width: number | null;
@@ -587,8 +587,8 @@ export type Database = {
           campaign_task_id: string;
           ambassador_id: string;
           attempt?: number;
-          screenshot_path: string;
-          sha256: string;
+          screenshot_path?: string | null;
+          sha256?: string | null;
           phash?: string | null;
           width?: number | null;
           height?: number | null;

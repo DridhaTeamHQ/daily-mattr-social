@@ -10,6 +10,7 @@ import {
   Megaphone,
   Video,
   Sparkles,
+  Upload,
 } from "lucide-react";
 
 import { Badge, StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
@@ -87,8 +88,10 @@ export default async function CampaignsPage() {
 
               <ul className="mt-5 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 {c.tasks.map((t) => {
-                  const meta = TASK_META[t.type];
-                  const Icon = meta.icon;
+                  // A library task has no enum type, so fall back to its own
+                  // label and a neutral icon rather than indexing with null.
+                  const meta = t.type ? TASK_META[t.type] : undefined;
+                  const Icon = meta?.icon ?? Upload;
                   const help = t.submission_status
                     ? SUBMISSION_STATUS[t.submission_status]?.help
                     : null;
@@ -102,7 +105,7 @@ export default async function CampaignsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-[14px] font-extrabold text-ink">
-                            {meta.label}
+                            {t.label}
                           </p>
                           <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[12px] font-extrabold text-gray-800">
                             +{t.points}
@@ -139,7 +142,7 @@ export default async function CampaignsPage() {
                             )}
                             <UploadTask
                               taskId={t.id}
-                              taskLabel={meta.label}
+                              taskLabel={t.label}
                               points={t.points}
                               expectedHandle={expectedHandle}
                               disabled={ended}

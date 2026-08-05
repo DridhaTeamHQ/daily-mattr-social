@@ -12,6 +12,7 @@ import {
   House,
   LogOut,
   Trophy,
+  Upload,
 } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
@@ -40,6 +41,12 @@ const ITEMS = [
     fill: "bg-reel",
   },
   {
+    href: "/dashboard/submit",
+    label: "Submit",
+    icon: Upload,
+    fill: "bg-reel",
+  },
+  {
     href: "/dashboard/surveys",
     label: "Surveys",
     icon: ClipboardList,
@@ -52,16 +59,18 @@ const ITEMS = [
     fill: "bg-invite",
   },
   {
+    // Off the phone bar for the same reason Stipend is: adding Submit took it
+    // back to seven targets. Ranks is the one people check occasionally rather
+    // than act on, and it is still one tap from Home and the top bar.
     href: "/dashboard/leaderboard",
     label: "Ranks",
     icon: Trophy,
     fill: "bg-rank",
+    desktopOnly: true,
   },
   {
-    // Reachable from the top bar, the Rewards page and Home, but kept off the
-    // phone bottom bar. Seven thumb targets across a 375px screen is about
-    // 53px each, which is under the comfortable minimum — and of the two
-    // money screens, Rewards is the one students open repeatedly.
+    // Also off the phone bar. Of the two money screens, Rewards is the one
+    // students open repeatedly.
     href: "/dashboard/stipend",
     label: "Stipend",
     icon: BadgeIndianRupee,

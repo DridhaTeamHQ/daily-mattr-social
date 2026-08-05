@@ -147,8 +147,11 @@ export type ReviewItem = {
   status: Enums<"submission_status">;
   attempt: number;
   uploaded_at: string;
-  screenshot_path: string;
+  screenshot_path: string | null;
   signedUrl: string | null;
+  /** Set instead of a screenshot when the task asks for a link or an answer. */
+  proof_url: string | null;
+  proof_text: string | null;
   checks: unknown;
   ai_confidence: number | null;
   ai_model: string | null;
@@ -165,7 +168,7 @@ export async function getReviewQueue(
   let query = supabase
     .from("submissions")
     .select(
-      "id, status, attempt, uploaded_at, screenshot_path, checks, ai_confidence, ai_model, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, campaigns(id, title, expected_handle))",
+      "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, campaigns(id, title, expected_handle))",
     )
     .order("uploaded_at", { ascending: true });
 
@@ -177,7 +180,11 @@ export async function getReviewQueue(
   if (!data?.length) return [];
 
   // Screenshots live in a private bucket; hand out short-lived URLs only.
-  const paths = data.map((r) => r.screenshot_path);
+  // Link and text submissions have no path at all, so they are filtered out
+  // before signing — passing a null through would fail the whole batch.
+  const paths = data
+    .map((r) => r.screenshot_path)
+    .filter((path): path is string => Boolean(path));
   const { data: signed } = await supabase.storage
     .from("screenshots")
     .createSignedUrls(paths, 60 * 10);
@@ -185,6 +192,9 @@ export async function getReviewQueue(
   const urlByPath = new Map(
     (signed ?? []).map((s) => [s.path ?? "", s.signedUrl]),
   );
+
+  const signedFor = (path: string | null) =>
+    path ? (urlByPath.get(path) ?? null) : null;
 
   return data.flatMap((row) => {
     const task = row.campaign_tasks;
@@ -199,7 +209,9 @@ export async function getReviewQueue(
         attempt: row.attempt,
         uploaded_at: row.uploaded_at,
         screenshot_path: row.screenshot_path,
-        signedUrl: urlByPath.get(row.screenshot_path) ?? null,
+        signedUrl: signedFor(row.screenshot_path),
+        proof_url: row.proof_url,
+        proof_text: row.proof_text,
         checks: row.checks,
         ai_confidence: row.ai_confidence,
         ai_model: row.ai_model,

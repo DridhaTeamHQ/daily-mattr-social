@@ -36,12 +36,25 @@ const currentUser = cache(async () => {
   return user;
 });
 
+const TASK_LABEL: Record<string, string> = {
+  like: "Like the reel",
+  comment: "Leave a comment",
+  share: "Share it",
+  story: "Post to story",
+};
+
 export type TaskCard = {
   id: string;
-  type: Enums<"task_type">;
+  /** Null when the task came from the library rather than the fixed enum. */
+  type: Enums<"task_type"> | null;
   points: number;
   instructions: string | null;
   required: boolean;
+  /** What the student has to send back: an image, a URL, or prose. */
+  proof_type: Enums<"proof_type">;
+  /** Library label, an explicit override, or the enum name — in that order. */
+  label: string;
+  platform: string | null;
   /** The caller's own submission for this task, if any. */
   submission_status: Enums<"submission_status"> | null;
 };
@@ -225,7 +238,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     // Must stay a single string literal — postgrest-js infers the row shape
     // from it, and a concatenated expression degrades to `GenericStringError`.
     .select(
-      "id, title, description, instagram_url, expected_handle, thumbnail_path, ends_at, campaign_tasks(id, type, points, instructions, required, order_index)",
+      "id, title, description, instagram_url, expected_handle, thumbnail_path, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
     )
     .eq("status", "live")
     .order("starts_at", { ascending: false });
@@ -263,6 +276,20 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
         points: t.points,
         instructions: t.instructions,
         required: t.required,
+        // A library task knows its own name and proof; an enum task is an
+        // Instagram action and its proof has always been a screenshot.
+        proof_type:
+          t.proof_type ??
+          (t.task_library as unknown as { proof_type: Enums<"proof_type"> } | null)
+            ?.proof_type ??
+          "screenshot",
+        label:
+          t.label_override ??
+          (t.task_library as unknown as { label: string } | null)?.label ??
+          (t.type ? TASK_LABEL[t.type] : "Task"),
+        platform:
+          (t.task_library as unknown as { platform: string | null } | null)
+            ?.platform ?? (t.type ? "Instagram" : null),
         submission_status: latest.get(t.id) ?? null,
       })),
   }));

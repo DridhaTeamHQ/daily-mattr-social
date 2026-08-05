@@ -68,6 +68,9 @@ export const demoDashboard: DashboardData = {
         {
           id: "t1",
           type: "like",
+        proof_type: "screenshot" as const,
+        label: "Like the reel",
+        platform: "Instagram",
           points: 10,
           instructions: "Like the reel from your own account.",
           required: true,
@@ -76,6 +79,9 @@ export const demoDashboard: DashboardData = {
         {
           id: "t2",
           type: "comment",
+        proof_type: "screenshot" as const,
+        label: "Leave a comment",
+        platform: "Instagram",
           points: 20,
           instructions: "Leave a comment that isn't just an emoji.",
           required: true,
@@ -84,6 +90,9 @@ export const demoDashboard: DashboardData = {
         {
           id: "t3",
           type: "story",
+        proof_type: "screenshot" as const,
+        label: "Post to story",
+        platform: "Instagram",
           points: 30,
           instructions: "Share to your story and tag @dailymattr.",
           required: false,
@@ -103,6 +112,9 @@ export const demoDashboard: DashboardData = {
         {
           id: "t4",
           type: "like",
+        proof_type: "screenshot" as const,
+        label: "Like the reel",
+        platform: "Instagram",
           points: 10,
           instructions: null,
           required: true,
@@ -111,6 +123,9 @@ export const demoDashboard: DashboardData = {
         {
           id: "t5",
           type: "share",
+        proof_type: "screenshot" as const,
+        label: "Share it",
+        platform: "Instagram",
           points: 15,
           instructions: "Send it to at least three friends.",
           required: false,
