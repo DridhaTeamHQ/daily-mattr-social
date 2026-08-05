@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
  * Sub-navigation for a grouped admin section.
  *
  * The top bar carries six destinations; everything else hangs off one of them.
- * Campaigns owns the task library, and Ambassadors owns referrals, stipend and
- * the leaderboard — all of which are views of the same people, and none of
- * which earned a permanent slot in a bar that has to stay readable on a laptop.
+ * Campaigns owns the task library. The Ambassadors section has six views and
+ * uses a dropdown instead (see `ambassador-nav.tsx`) — six tabs wrap on a
+ * laptop and are unusable on a phone.
  */
 export type SectionTab = { href: string; label: string };
 
@@ -54,11 +54,4 @@ export function SectionTabs({ tabs }: { tabs: SectionTab[] }) {
 export const CAMPAIGN_TABS: SectionTab[] = [
   { href: "/admin/campaigns", label: "Campaigns" },
   { href: "/admin/library", label: "Task library" },
-];
-
-export const AMBASSADOR_TABS: SectionTab[] = [
-  { href: "/admin/ambassadors", label: "Ambassadors" },
-  { href: "/admin/leaderboard", label: "Leaderboard" },
-  { href: "/admin/referrals", label: "Referrals" },
-  { href: "/admin/stipend", label: "Stipend & payouts" },
 ];
