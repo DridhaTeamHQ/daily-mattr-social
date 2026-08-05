@@ -1,6 +1,5 @@
-import { Users } from "lucide-react";
-
 import Link from "next/link";
+import { Upload, Users } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
@@ -11,6 +10,7 @@ import {
   ResetPasswordDialog,
 } from "@/components/ambassador-actions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
@@ -50,7 +50,15 @@ export default async function AmbassadorsPage({
           </p>
         </div>
 
-        <AddAmbassadorDialog />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" asChild>
+            <Link href="/admin/ambassadors/import">
+              <Upload aria-hidden />
+              Import CSV
+            </Link>
+          </Button>
+          <AddAmbassadorDialog />
+        </div>
       </div>
 
       <SearchBox
