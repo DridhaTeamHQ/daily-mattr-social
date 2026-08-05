@@ -140,6 +140,41 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   return (profiles ?? []).map((p) => ({ ...p, points: totals.get(p.id) ?? 0 }));
 }
 
+/**
+ * What a task is called, wherever it came from.
+ *
+ * A task is either one of the four Instagram enum actions or a row in the
+ * library. Every caller used to index a hard-coded map with `type`, which is
+ * null for library tasks — so a Reddit comment rendered as `undefined`.
+ */
+export const ENUM_TASK_LABEL: Record<string, string> = {
+  like: "Like the reel",
+  comment: "Leave a comment",
+  share: "Share it",
+  story: "Post to story",
+};
+
+export function taskLabel(task: {
+  type: string | null;
+  label_override?: string | null;
+  task_library?: { label: string } | null;
+}): string {
+  return (
+    task.label_override ??
+    task.task_library?.label ??
+    (task.type ? (ENUM_TASK_LABEL[task.type] ?? task.type) : "Task")
+  );
+}
+
+export function taskPlatform(task: {
+  type: string | null;
+  platform?: string | null;
+  task_library?: { platform: string | null } | null;
+}): string | null {
+  // An enum task is an Instagram action by definition.
+  return task.platform ?? task.task_library?.platform ?? (task.type ? "Instagram" : null);
+}
+
 // ─── Review queue ───────────────────────────────────────────────────────────
 
 export type ReviewItem = {
@@ -156,7 +191,13 @@ export type ReviewItem = {
   ai_confidence: number | null;
   ai_model: string | null;
   ambassador: { id: string; full_name: string; college: string | null };
-  task: { id: string; type: Enums<"task_type">; points: number };
+  task: {
+    id: string;
+    type: Enums<"task_type"> | null;
+    points: number;
+    label: string;
+    platform: string | null;
+  };
   campaign: { id: string; title: string; expected_handle: string };
 };
 
@@ -168,7 +209,7 @@ export async function getReviewQueue(
   let query = supabase
     .from("submissions")
     .select(
-      "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, campaigns(id, title, expected_handle))",
+      "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, label_override, platform, task_library(label, platform), campaigns(id, title, expected_handle))",
     )
     .order("uploaded_at", { ascending: true });
 
@@ -220,7 +261,13 @@ export async function getReviewQueue(
           full_name: person.full_name,
           college: person.college,
         },
-        task: { id: task.id, type: task.type, points: task.points },
+        task: {
+          id: task.id,
+          type: task.type,
+          points: task.points,
+          label: taskLabel(task as never),
+          platform: taskPlatform(task as never),
+        },
         campaign: {
           id: campaign.id,
           title: campaign.title,
@@ -233,8 +280,13 @@ export async function getReviewQueue(
 
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
+export type AdminCampaignTask = Tables<"campaign_tasks"> & {
+  label: string;
+  platform: string | null;
+};
+
 export type AdminCampaign = Tables<"campaigns"> & {
-  tasks: Tables<"campaign_tasks">[];
+  tasks: AdminCampaignTask[];
   submissionCount: number;
 };
 
@@ -244,7 +296,7 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   const [{ data: campaigns }, { data: subs }] = await Promise.all([
     supabase
       .from("campaigns")
-      .select("*, campaign_tasks(*)")
+      .select("*, campaign_tasks(*, task_library(label, platform))")
       .order("created_at", { ascending: false }),
     supabase.from("submissions").select("campaign_task_id"),
   ]);
@@ -255,9 +307,13 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   }
 
   return (campaigns ?? []).map((c) => {
-    const tasks = [...(c.campaign_tasks ?? [])].sort(
-      (a, b) => a.order_index - b.order_index,
-    );
+    const tasks = [...(c.campaign_tasks ?? [])]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((t) => ({
+        ...t,
+        label: taskLabel(t as never),
+        platform: taskPlatform(t as never),
+      }));
     return {
       ...c,
       tasks,
@@ -685,7 +741,8 @@ export type AmbassadorSubmission = {
   status: Enums<"submission_status">;
   uploadedAt: string;
   points: number;
-  taskType: Enums<"task_type">;
+  taskType: Enums<"task_type"> | null;
+  taskLabel: string;
   campaign: string;
 };
 
@@ -801,7 +858,7 @@ export async function getAmbassadorDetail(
       .eq("ambassador_id", profileId),
     supabase
       .from("submissions")
-      .select("id, status, uploaded_at, campaign_tasks(type, points, campaigns(title))")
+      .select("id, status, uploaded_at, campaign_tasks(type, points, label_override, platform, task_library(label, platform), campaigns(title))")
       .eq("ambassador_id", profileId)
       .order("uploaded_at", { ascending: false }),
     supabase
@@ -887,6 +944,7 @@ export async function getAmbassadorDetail(
             uploadedAt: s.uploaded_at,
             points: s.campaign_tasks.points,
             taskType: s.campaign_tasks.type,
+            taskLabel: taskLabel(s.campaign_tasks as never),
             campaign: s.campaign_tasks.campaigns?.title ?? "-",
           },
         ]
@@ -930,7 +988,9 @@ export async function getAmbassadorDetail(
 
 export type CampaignTaskStat = {
   id: string;
-  type: Enums<"task_type">;
+  type: Enums<"task_type"> | null;
+  label: string;
+  platform: string | null;
   points: number;
   required: boolean;
   submitted: number;
@@ -1028,6 +1088,8 @@ export async function getCampaignDetail(
   const taskStats: CampaignTaskStat[] = (tasks ?? []).map((task) => {
     const mine = submissions.filter((s) => s.campaign_task_id === task.id);
     return {
+      label: taskLabel(task as never),
+      platform: taskPlatform(task as never),
       id: task.id,
       type: task.type,
       points: task.points,

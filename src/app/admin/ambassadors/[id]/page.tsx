@@ -15,6 +15,8 @@ import {
   ResetPasswordDialog,
 } from "@/components/ambassador-actions";
 import { ActionButton } from "@/components/action-button";
+import { ReasonDialog } from "@/components/reason-dialog";
+import { Button } from "@/components/ui/button";
 import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
@@ -38,13 +40,6 @@ const LEDGER_LABEL: Record<string, string> = {
   referral: "Referral",
   manual_adjust: "Adjustment",
   revoke: "Reversed",
-};
-
-const TASK_LABEL: Record<string, string> = {
-  like: "Like",
-  comment: "Comment",
-  share: "Share",
-  story: "Story",
 };
 
 export default async function AmbassadorDetailPage({
@@ -109,7 +104,21 @@ export default async function AmbassadorDetailPage({
                 {profile.referral_code}
               </code>{" "}
               · joined {formatDate(profile.created_at)}
+              {[profile.city, profile.batch].filter(Boolean).length > 0
+                ? ` · ${[profile.city, profile.batch].filter(Boolean).join(" · ")}`
+                : ""}
             </p>
+
+            {/* The reason travels with the status. A suspension nobody can
+                explain is one nobody can fairly reverse. */}
+            {profile.status === "suspended" && profile.status_reason && (
+              <p className="mt-2 rounded-lg bg-bad-tint px-3 py-2 text-[12.5px] font-semibold text-bad">
+                Suspended: {profile.status_reason}
+                {profile.status_changed_at
+                  ? ` · ${formatDate(profile.status_changed_at)}`
+                  : ""}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -124,14 +133,19 @@ export default async function AmbassadorDetailPage({
                 Reinstate
               </ActionButton>
             ) : (
-              <ActionButton
-                size="sm"
-                variant="secondary"
+              <ReasonDialog
+                title={`Suspend ${name}`}
+                description="They keep their login and history but stop earning. The reason is sent to them and stays on their record."
+                label="Reason"
+                placeholder="Screenshots did not match the campaign"
+                confirmLabel="Suspend"
                 action={setAmbassadorStatus.bind(null, profile.id, "suspended")}
-                confirmMessage={`Suspend ${name}? They keep their login and history but stop earning.`}
-              >
-                Suspend
-              </ActionButton>
+                trigger={
+                  <Button size="sm" variant="secondary">
+                    Suspend
+                  </Button>
+                }
+              />
             )}
           </div>
         </CardBody>
@@ -165,7 +179,7 @@ export default async function AmbassadorDetailPage({
           tone="poll"
         />
         <Stat
-          label="Referrals"
+          label="Installs"
           value={referrals.counted}
           sub={
             referrals.last
@@ -248,7 +262,7 @@ export default async function AmbassadorDetailPage({
                       {s.campaign}
                     </p>
                     <p className="text-[12px] font-semibold text-ink-soft">
-                      {TASK_LABEL[s.taskType] ?? s.taskType} · +{s.points} ·{" "}
+                      {s.taskLabel} · +{s.points} ·{" "}
                       {formatDate(s.uploadedAt)}
                     </p>
                   </div>

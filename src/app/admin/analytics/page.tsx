@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Clapperboard,
   ClipboardList,
@@ -33,6 +34,7 @@ import {
   getSurveyTotals,
 } from "@/lib/admin/participation";
 import { formatNumber } from "@/lib/utils";
+import { PLATFORM_TONE } from "@/lib/platforms";
 
 export const metadata = { title: "Analytics" };
 
@@ -85,7 +87,12 @@ type Dimension = (typeof DIMENSIONS)[number]["key"];
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; by?: string; cat?: string }>;
+  searchParams: Promise<{
+    days?: string;
+    by?: string;
+    cat?: string;
+    net?: string;
+  }>;
 }) {
   await requireAdmin();
 
@@ -100,6 +107,7 @@ export default async function AnalyticsPage({
   const cat: Category = CATEGORIES.some((c) => c.key === params.cat)
     ? (params.cat as Category)
     : "downloads";
+  const net = params.net?.trim() || "";
 
   const [
     data,
@@ -141,11 +149,19 @@ export default async function AnalyticsPage({
     ],
   }));
 
-  const campaignLeague: LeagueRow[] = campaignRows.map((c) => ({
+  const campaignNetworks = [
+    ...new Set(campaignRows.map((c) => c.platform).filter(Boolean)),
+  ].sort();
+
+  const visibleCampaigns = net
+    ? campaignRows.filter((c) => c.platform === net)
+    : campaignRows;
+
+  const campaignLeague: LeagueRow[] = visibleCampaigns.map((c) => ({
     id: c.id,
     name: c.title,
     href: `/admin/campaigns/${c.id}`,
-    meta: `${c.status} · ${c.participants} took part`,
+    meta: `${c.platform} · ${c.status} · ${c.participants} took part`,
     columns: [
       { label: "Submitted", ...num(c.submitted) },
       { label: "Approved", ...num(c.approved) },
@@ -217,6 +233,8 @@ export default async function AnalyticsPage({
 
   const href = (next: Record<string, string>) => {
     const sp = new URLSearchParams({ days: String(days), by, cat, ...next });
+    // An empty network means "all", and a stray `net=` in the URL is noise.
+    if (!sp.get("net")) sp.delete("net");
     return `/admin/analytics?${sp.toString()}`;
   };
 
@@ -436,6 +454,22 @@ export default async function AnalyticsPage({
           </ChartCard>
 
           <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
+                Network
+              </span>
+              <NetChip label="All" active={net === ""} href={href({ net: "" })} />
+              {campaignNetworks.map((platform) => (
+                <NetChip
+                  key={platform}
+                  label={platform}
+                  active={net === platform}
+                  href={href({ net: platform })}
+                  tone={PLATFORM_TONE[platform]}
+                />
+              ))}
+            </div>
+
             <h2 className="display text-[16px] text-ink">Each campaign</h2>
             <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
               Every campaign, all time. A high submitted count with few approvals is usually a badly worded ask rather than badly done work.
@@ -635,5 +669,38 @@ function MoneyRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+/**
+ * A network filter chip.
+ *
+ * Only networks that actually have campaigns are offered — a filter that can
+ * return nothing is a filter nobody trusts a second time.
+ */
+function NetChip({
+  label,
+  active,
+  href,
+  tone,
+}: {
+  label: string;
+  active: boolean;
+  href: string;
+  tone?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "true" : undefined}
+      className={[
+        "rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors",
+        active
+          ? "bg-brand-strong text-white"
+          : (tone ?? "bg-gray-100 text-ink-soft") + " hover:opacity-80",
+      ].join(" ")}
+    >
+      {label}
+    </Link>
   );
 }

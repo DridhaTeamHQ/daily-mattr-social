@@ -79,7 +79,7 @@ export default async function DashboardPage() {
           tone="poll"
         />
         <Stat
-          label="Referrals"
+          label="Installs"
           value={referrals.total_confirmed}
           sub={
             referrals.last_conversion

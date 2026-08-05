@@ -45,6 +45,9 @@ export type Database = {
           city: string | null;
           batch: string | null;
           joined_as: Enums<"joined_as">;
+          status_reason: string | null;
+          status_changed_at: string | null;
+          status_changed_by: string | null;
         };
         Insert: {
           id: string;
@@ -61,6 +64,9 @@ export type Database = {
           city?: string | null;
           batch?: string | null;
           joined_as?: Enums<"joined_as">;
+          status_reason?: string | null;
+          status_changed_at?: string | null;
+          status_changed_by?: string | null;
         };
         Update: {
           id?: string;
@@ -77,6 +83,9 @@ export type Database = {
           city?: string | null;
           batch?: string | null;
           joined_as?: Enums<"joined_as">;
+          status_reason?: string | null;
+          status_changed_at?: string | null;
+          status_changed_by?: string | null;
         };
         Relationships: [
           {
@@ -461,6 +470,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           phase: Enums<"program_phase">;
+          platform: string;
         };
         Insert: {
           id?: string;
@@ -477,6 +487,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           phase?: Enums<"program_phase">;
+          platform?: string;
         };
         Update: {
           id?: string;
@@ -493,6 +504,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           phase?: Enums<"program_phase">;
+          platform?: string;
         };
         Relationships: [
           {
@@ -509,7 +521,7 @@ export type Database = {
         Row: {
           id: string;
           campaign_id: string;
-          type: Enums<"task_type">;
+          type: Enums<"task_type"> | null;
           points: number;
           instructions: string | null;
           required: boolean;
@@ -517,11 +529,12 @@ export type Database = {
           library_id: string | null;
           label_override: string | null;
           proof_type: Enums<"proof_type"> | null;
+          platform: string | null;
         };
         Insert: {
           id?: string;
           campaign_id: string;
-          type: Enums<"task_type">;
+          type: Enums<"task_type"> | null;
           points?: number;
           instructions?: string | null;
           required?: boolean;
@@ -529,11 +542,12 @@ export type Database = {
           library_id?: string | null;
           label_override?: string | null;
           proof_type?: Enums<"proof_type"> | null;
+          platform?: string | null;
         };
         Update: {
           id?: string;
           campaign_id?: string;
-          type?: Enums<"task_type">;
+          type?: Enums<"task_type"> | null;
           points?: number;
           instructions?: string | null;
           required?: boolean;
@@ -541,6 +555,7 @@ export type Database = {
           library_id?: string | null;
           label_override?: string | null;
           proof_type?: Enums<"proof_type"> | null;
+          platform?: string | null;
         };
         Relationships: [
           {

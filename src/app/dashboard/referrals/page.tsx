@@ -7,7 +7,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 
-export const metadata = { title: "Referrals" };
+export const metadata = { title: "Installs" };
 
 export default async function ReferralsPage() {
   const data = await getDashboard();
@@ -27,7 +27,7 @@ export default async function ReferralsPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide text-gray-900">
-                Referrals
+                Installs
               </h1>
               <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-600">
                 Share your code and earn bonus points for every app download.

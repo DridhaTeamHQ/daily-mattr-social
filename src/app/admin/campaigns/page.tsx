@@ -25,13 +25,6 @@ const STATUS_TONE = {
   archived: "neutral",
 } as const;
 
-const TASK_LABEL: Record<string, string> = {
-  like: "Like",
-  comment: "Comment",
-  share: "Share",
-  story: "Story",
-};
-
 export default async function AdminCampaignsPage({
   searchParams,
 }: {
@@ -110,7 +103,7 @@ export default async function AdminCampaignsPage({
                     {c.tasks.map((t) => (
                       <li key={t.id}>
                         <Badge tone="neutral">
-                          {TASK_LABEL[t.type] ?? t.type} +{t.points}
+                          {t.label} +{t.points}
                           {!t.required && " · optional"}
                         </Badge>
                       </li>

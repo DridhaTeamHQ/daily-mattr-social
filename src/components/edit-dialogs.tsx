@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import { updateCampaign, updateSurvey } from "@/lib/admin/edit-actions";
+import { SOCIAL_PLATFORMS } from "@/lib/platforms";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -40,6 +41,7 @@ export function CampaignEditDialog({
     caption_hint: string | null;
     ends_at: string | null;
     status: string;
+    platform: string;
   };
 }) {
   const [open, setOpen] = React.useState(false);
@@ -62,15 +64,14 @@ export function CampaignEditDialog({
             Edit campaign
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            Wording and deadline. Tasks and points are fixed once a campaign
-            exists.
+            Wording, network and deadline. Tasks and points are managed on the
+            campaign page below.
           </Dialog.Description>
 
           {live && (
             <Note tone="warn" className="mt-3">
-              This campaign is live. Students see these changes immediately, so
-              anything that changes what you are asking for needs a new
-              campaign rather than an edit.
+              This campaign is live, so students see these changes
+              immediately.
             </Note>
           )}
 
@@ -116,6 +117,21 @@ export function CampaignEditDialog({
                 defaultValue={campaign.caption_hint ?? ""}
                 placeholder="Optional"
               />
+            </Field>
+
+            <Field label="Social network" htmlFor="c-platform">
+              <select
+                id="c-platform"
+                name="platform"
+                defaultValue={campaign.platform}
+                className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
+              >
+                {SOCIAL_PLATFORMS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field label="Ends at" htmlFor="c-ends">

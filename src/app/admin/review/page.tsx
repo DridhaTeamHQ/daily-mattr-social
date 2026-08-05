@@ -21,13 +21,6 @@ import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Review" };
 
-const TASK_LABEL: Record<string, string> = {
-  like: "Like",
-  comment: "Comment",
-  share: "Share",
-  story: "Story",
-};
-
 export default async function ReviewPage({
   searchParams,
 }: {
@@ -174,7 +167,7 @@ export default async function ReviewPage({
                         <Row label="Campaign" value={item.campaign.title} />
                         <Row
                           label="Task"
-                          value={`${TASK_LABEL[item.task.type] ?? item.task.type} · +${item.task.points} points`}
+                          value={`${item.task.label} · +${item.task.points} points`}
                         />
                         <Row
                           label="Expected handle"

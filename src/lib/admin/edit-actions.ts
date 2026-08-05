@@ -28,6 +28,7 @@ export async function updateCampaign(
     const description = String(formData.get("description") ?? "").trim();
     const captionHint = String(formData.get("caption_hint") ?? "").trim();
     const endsAt = String(formData.get("ends_at") ?? "").trim();
+    const platform = String(formData.get("platform") ?? "").trim();
 
     if (title.length < 3) {
       return { ok: false, message: "Give the campaign a title." };
@@ -44,6 +45,7 @@ export async function updateCampaign(
         title,
         description: description || null,
         caption_hint: captionHint || null,
+        platform: platform || "Instagram",
         ends_at: endsAt ? new Date(endsAt).toISOString() : null,
       })
       .eq("id", campaignId);

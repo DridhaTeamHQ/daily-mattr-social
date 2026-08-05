@@ -247,6 +247,7 @@ export type CampaignTotals = {
   id: string;
   title: string;
   status: string;
+  platform: string;
   participants: number;
   submitted: number;
   approved: number;
@@ -262,7 +263,7 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
     await Promise.all([
       db
         .from("campaigns")
-        .select("id, title, status, campaign_tasks(id)")
+        .select("id, title, status, platform, campaign_tasks(id)")
         .order("created_at", { ascending: false }),
       db
         .from("submissions")
@@ -287,6 +288,7 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
       id: c.id,
       title: c.title,
       status: c.status,
+      platform: c.platform,
       participants: 0,
       submitted: 0,
       approved: 0,

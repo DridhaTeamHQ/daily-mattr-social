@@ -119,7 +119,7 @@ export default async function AdminOverviewPage() {
           tone="poll"
         />
         <Stat
-          label="Referrals"
+          label="Installs"
           value={overview.referrals}
           sub="Confirmed downloads"
           icon={Gift}

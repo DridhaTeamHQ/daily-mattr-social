@@ -3,6 +3,7 @@ import { Upload, Users } from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
+import { ReasonDialog } from "@/components/reason-dialog";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import {
@@ -165,18 +166,23 @@ export default async function AmbassadorsPage({
                             Reinstate
                           </ActionButton>
                         ) : (
-                          <ActionButton
-                            variant="ghost"
-                            size="sm"
+<ReasonDialog
+                            title={`Suspend ${row.full_name || row.email}`}
+                            description="They keep their login and history but stop earning. The reason is sent to them and stays on their record."
+                            label="Reason"
+                            placeholder="Screenshots did not match the campaign"
+                            confirmLabel="Suspend"
                             action={setAmbassadorStatus.bind(
                               null,
                               row.id,
                               "suspended",
                             )}
-                            confirmMessage={`Suspend ${row.full_name || row.email}? They keep their login and history but stop earning.`}
-                          >
-                            Suspend
-                          </ActionButton>
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                Suspend
+                              </Button>
+                            }
+                          />
                         )}
                       </div>
                     </td>

@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Stepper } from "@/components/ui/stepper";
+import { SOCIAL_PLATFORMS } from "@/lib/platforms";
 import { cn } from "@/lib/utils";
 import { createCampaign } from "@/lib/admin/actions";
 import { draftCampaign } from "@/lib/admin/ai-actions";
@@ -185,6 +186,21 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
               />
+            </Field>
+
+            <Field label="Social network" htmlFor="platform">
+              <select
+                id="platform"
+                name="platform"
+                defaultValue="Instagram"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
+              >
+                {SOCIAL_PLATFORMS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <fieldset>

@@ -211,7 +211,12 @@ export async function uploadSubmission(
     let aiVerdictRaw: Json | null = null;
     let aiModel: string | null = null;
 
-    if (config.aiOn && aiEnabled()) {
+    // Only the four Instagram enum actions are adjudicated. The prompt asks
+    // about an Instagram handle and a filled like control, so pointing it at a
+    // Snapchat story or a Reddit screenshot would confidently reject real
+    // work — the exact failure mode that sent a genuine upload to review
+    // before. Library tasks go straight to a human instead.
+    if (config.aiOn && aiEnabled() && task.type) {
       const result = await adjudicateScreenshot({
         imageDataUrl: `data:${file.type};base64,${buffer.toString("base64")}`,
         taskType: task.type,

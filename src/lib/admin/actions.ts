@@ -247,19 +247,48 @@ export async function revokeSubmission(
 export async function setAmbassadorStatus(
   profileId: string,
   status: Enums<"user_status">,
+  reason?: string,
 ): Promise<ActionResult> {
   try {
     const actorId = await assertAdmin();
     const supabase = await createClient();
 
+    const note = (reason ?? "").trim();
+
+    // Required when taking access away, optional when giving it back.
+    // "Suspended" with no reason is unanswerable six months later — the
+    // student cannot be told why and whoever reverses it cannot tell what
+    // they are reversing.
+    if (status === "suspended" && note.length < 3) {
+      return { ok: false, message: "Give a reason for the suspension." };
+    }
+
     // Admins can write profiles under RLS, so no service-role needed here.
     const { error } = await supabase
       .from("profiles")
-      .update({ status })
+      .update({
+        status,
+        status_reason: note || null,
+        status_changed_at: new Date().toISOString(),
+        status_changed_by: actorId,
+      })
       .eq("id", profileId);
     if (error) throw error;
 
-    await audit(actorId, "ambassador.status", "profile", profileId, { status });
+    await audit(actorId, "ambassador.status", "profile", profileId, {
+      status,
+      reason: note || null,
+    });
+
+    if (status === "suspended") {
+      await notify({
+        profileId,
+        type: "account",
+        title: "Your account has been paused",
+        body: note,
+        href: "/dashboard",
+      }).catch(() => {});
+    }
 
     revalidatePath("/admin/ambassadors");
     return { ok: true, message: `Marked ${status}` };
@@ -719,9 +748,10 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
     const handle = String(formData.get("expected_handle") ?? "dailymattr")
       .trim()
       .replace(/^@/, "");
+    const platform = String(formData.get("platform") ?? "Instagram").trim();
 
     if (!title || !instagramUrl) {
-      return { ok: false, message: "Title and Instagram URL are required." };
+      return { ok: false, message: "Title and post URL are required." };
     }
 
     const { data: campaign, error } = await supabase
@@ -731,6 +761,7 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
         instagram_url: instagramUrl,
         description: description || null,
         expected_handle: handle || "dailymattr",
+        platform: platform || "Instagram",
         created_by: actorId,
         status: "draft",
       })

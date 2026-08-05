@@ -17,7 +17,7 @@ const VIEWS: NavOption[] = [
   { value: "/admin/ambassadors/campaigns", label: "Campaigns" },
   { value: "/admin/ambassadors/surveys", label: "Surveys" },
   { value: "/admin/leaderboard", label: "Leaderboard" },
-  { value: "/admin/referrals", label: "Referrals" },
+  { value: "/admin/referrals", label: "Installs" },
   { value: "/admin/stipend", label: "Stipend & payouts" },
 ];
 

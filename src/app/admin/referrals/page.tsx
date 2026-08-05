@@ -13,7 +13,7 @@ import { Stat } from "@/components/ui/stat";
 import { getReferralSummary } from "@/lib/admin/queries";
 import { cn, formatDate, formatNumber, initials } from "@/lib/utils";
 
-export const metadata = { title: "Referrals" };
+export const metadata = { title: "Installs" };
 
 const STATUS_TONE = {
   active: "ok",
@@ -21,7 +21,7 @@ const STATUS_TONE = {
   suspended: "bad",
 } as const;
 
-export default async function AdminReferralsPage({
+export default async function AdminInstallsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
@@ -40,7 +40,7 @@ export default async function AdminReferralsPage({
     <div className="stagger space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-        <h1 className="display text-[26px] leading-none text-ink">Referrals</h1>
+        <h1 className="display text-[26px] leading-none text-ink">Installs</h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">
           Every ambassador&apos;s code, and how many app downloads it has
           brought in.

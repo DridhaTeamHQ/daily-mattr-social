@@ -54,7 +54,7 @@ const ITEMS = [
   },
   {
     href: "/dashboard/referrals",
-    label: "Referrals",
+    label: "Installs",
     icon: Gift,
     fill: "bg-invite",
   },

@@ -2,27 +2,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  ExternalLink,
-  Heart,
-  MessageCircle,
-  Percent,
-  Play,
-  Share2,
   Upload,
+  ExternalLink,
+  Percent,
   Users,
 } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
+import { CampaignTaskManager } from "@/components/campaign-task-manager";
 import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
-import { ProgressBar, Stat } from "@/components/ui/stat";
+import { Stat } from "@/components/ui/stat";
 import { setCampaignStatus } from "@/lib/admin/actions";
 import { archiveCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Campaign" };
@@ -33,16 +31,6 @@ const STATUS_TONE = {
   ended: "neutral",
   archived: "neutral",
 } as const;
-
-const TASK_META: Record<
-  string,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  like: { label: "Like the reel", icon: Heart },
-  comment: { label: "Leave a comment", icon: MessageCircle },
-  share: { label: "Share it", icon: Share2 },
-  story: { label: "Post to story", icon: Play },
-};
 
 const STATUS_FILL: Record<string, string> = {
   "Auto-approved": "#00a650",
@@ -63,6 +51,13 @@ export default async function CampaignDetailPage({
   const { id } = await params;
   const data = await getCampaignDetail(id);
   if (!data) notFound();
+
+  const { data: library } = await createAdminClient()
+    .from("task_library")
+    .select("id, label, platform, default_points, proof_type")
+    .eq("active", true)
+    .order("platform", { ascending: true, nullsFirst: false })
+    .order("label", { ascending: true });
 
   const { campaign, totals } = data;
 
@@ -212,56 +207,26 @@ export default async function CampaignDetailPage({
       <Card>
         <CardBody>
           <h2 className="display text-[16px] text-ink">Task by task</h2>
-          <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-            Where students drop off. A task with submissions but few approvals
-            is usually badly worded, not badly done.
+          <p className="mt-1 mb-4 text-[12.5px] font-semibold text-ink-soft">
+            Where students drop off, and where you change the ask. A task with
+            submissions but few approvals is usually badly worded, not badly
+            done.
           </p>
 
-          <ul className="mt-4 space-y-3">
-            {data.tasks.map((task) => {
-              const meta = TASK_META[task.type] ?? {
-                label: task.type,
-                icon: Upload,
-              };
-              const Icon = meta.icon;
-
-              return (
-                <li key={task.id} className="brut-sm rounded-sm bg-canvas-sunk p-3.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="brut-sm grid size-8 shrink-0 place-items-center rounded-xs bg-reel-tint">
-                      <Icon className="size-4 text-ink" />
-                    </span>
-                    <span className="text-[14px] font-extrabold text-ink">
-                      {meta.label}
-                    </span>
-                    <Badge tone="brand">+{task.points}</Badge>
-                    {!task.required && <Badge tone="neutral">optional</Badge>}
-                    <span className="ml-auto text-[12.5px] font-extrabold text-ink">
-                      {task.approved}/{totals.cohort} approved
-                    </span>
-                  </div>
-
-                  <ProgressBar
-                    value={task.approved}
-                    max={Math.max(1, totals.cohort)}
-                    tone="reel"
-                    className="mt-3"
-                  />
-
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    <Badge tone="neutral">{task.submitted} submitted</Badge>
-                    {task.waiting > 0 && (
-                      <Badge tone="warn">{task.waiting} waiting</Badge>
-                    )}
-                    {task.rejected > 0 && (
-                      <Badge tone="bad">{task.rejected} rejected</Badge>
-                    )}
-                    <Badge tone="ok">{formatNumber(task.pointsPaid)} points paid</Badge>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <CampaignTaskManager
+            campaignId={campaign.id}
+            campaignPlatform={campaign.platform}
+            library={library ?? []}
+            tasks={data.tasks.map((t) => ({
+              id: t.id,
+              label: t.label,
+              platform: t.platform,
+              points: t.points,
+              required: t.required,
+              instructions: null,
+              submitted: t.submitted,
+            }))}
+          />
         </CardBody>
       </Card>
 
