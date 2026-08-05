@@ -42,6 +42,9 @@ export type Database = {
           must_change_password: boolean;
           created_at: string;
           updated_at: string;
+          city: string | null;
+          batch: string | null;
+          joined_as: Enums<"joined_as">;
         };
         Insert: {
           id: string;
@@ -55,6 +58,9 @@ export type Database = {
           must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
+          city?: string | null;
+          batch?: string | null;
+          joined_as?: Enums<"joined_as">;
         };
         Update: {
           id?: string;
@@ -68,6 +74,9 @@ export type Database = {
           must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
+          city?: string | null;
+          batch?: string | null;
+          joined_as?: Enums<"joined_as">;
         };
         Relationships: [
           {
@@ -163,6 +172,7 @@ export type Database = {
           created_at: string;
           /** Generated: sign(delta). +1 credit, -1 reversal. */
           direction: number;
+          phase: Enums<"program_phase"> | null;
         };
         Insert: {
           id?: number;
@@ -174,6 +184,7 @@ export type Database = {
           note?: string | null;
           created_by?: string | null;
           created_at?: string;
+          phase?: Enums<"program_phase"> | null;
         };
         Update: NoUpdate;
         Relationships: [
@@ -206,6 +217,8 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          phase: Enums<"program_phase">;
+          response_cap: number | null;
         };
         Insert: {
           id?: string;
@@ -218,6 +231,8 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          phase?: Enums<"program_phase">;
+          response_cap?: number | null;
         };
         Update: {
           id?: string;
@@ -230,6 +245,8 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          phase?: Enums<"program_phase">;
+          response_cap?: number | null;
         };
         Relationships: [
           {
@@ -440,6 +457,7 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          phase: Enums<"program_phase">;
         };
         Insert: {
           id?: string;
@@ -455,6 +473,7 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          phase?: Enums<"program_phase">;
         };
         Update: {
           id?: string;
@@ -470,6 +489,7 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          phase?: Enums<"program_phase">;
         };
         Relationships: [
           {
@@ -491,6 +511,9 @@ export type Database = {
           instructions: string | null;
           required: boolean;
           order_index: number;
+          library_id: string | null;
+          label_override: string | null;
+          proof_type: Enums<"proof_type"> | null;
         };
         Insert: {
           id?: string;
@@ -500,6 +523,9 @@ export type Database = {
           instructions?: string | null;
           required?: boolean;
           order_index?: number;
+          library_id?: string | null;
+          label_override?: string | null;
+          proof_type?: Enums<"proof_type"> | null;
         };
         Update: {
           id?: string;
@@ -509,6 +535,9 @@ export type Database = {
           instructions?: string | null;
           required?: boolean;
           order_index?: number;
+          library_id?: string | null;
+          label_override?: string | null;
+          proof_type?: Enums<"proof_type"> | null;
         };
         Relationships: [
           {
@@ -547,6 +576,8 @@ export type Database = {
           reviewer_id: string | null;
           review_note: string | null;
           reviewed_at: string | null;
+          proof_url: string | null;
+          proof_text: string | null;
         };
         Insert: {
           id?: string;
@@ -571,6 +602,8 @@ export type Database = {
           reviewer_id?: string | null;
           review_note?: string | null;
           reviewed_at?: string | null;
+          proof_url?: string | null;
+          proof_text?: string | null;
         };
         /**
          * The evidence itself is immutable — only verdict and review fields
@@ -586,6 +619,8 @@ export type Database = {
           reviewer_id?: string | null;
           review_note?: string | null;
           reviewed_at?: string | null;
+          proof_url?: string | null;
+          proof_text?: string | null;
         };
         Relationships: [
           {
@@ -664,6 +699,11 @@ export type Database = {
           import_id: string | null;
           notes: string | null;
           created_at: string;
+          store: Enums<"install_store">;
+          onboarded_at: string | null;
+          activated_at: string | null;
+          day3_return_at: string | null;
+          day7_return_at: string | null;
         };
         Insert: {
           id?: string;
@@ -676,11 +716,21 @@ export type Database = {
           import_id?: string | null;
           notes?: string | null;
           created_at?: string;
+          store?: Enums<"install_store">;
+          onboarded_at?: string | null;
+          activated_at?: string | null;
+          day3_return_at?: string | null;
+          day7_return_at?: string | null;
         };
         /** Voiding a conversion is the only edit; the fact of it stays. */
         Update: {
           status?: Enums<"conversion_status">;
           notes?: string | null;
+          store?: Enums<"install_store">;
+          onboarded_at?: string | null;
+          activated_at?: string | null;
+          day3_return_at?: string | null;
+          day7_return_at?: string | null;
         };
         Relationships: [
           {
@@ -774,6 +824,289 @@ export type Database = {
           },
         ];
       };
+      task_library: {
+        Row: {
+          id: string;
+          slug: string;
+          label: string;
+          platform: string | null;
+          instructions: string | null;
+          proof_type: Enums<"proof_type">;
+          cadence: Enums<"task_cadence">;
+          default_points: number;
+          active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          label: string;
+          platform?: string | null;
+          instructions?: string | null;
+          proof_type?: Enums<"proof_type">;
+          cadence?: Enums<"task_cadence">;
+          default_points?: number;
+          active?: boolean;
+          created_by?: string | null;
+        };
+        Update: {
+          slug?: string;
+          label?: string;
+          platform?: string | null;
+          instructions?: string | null;
+          proof_type?: Enums<"proof_type">;
+          cadence?: Enums<"task_cadence">;
+          default_points?: number;
+          active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_library_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      referral_clicks: {
+        Row: {
+          id: string;
+          ambassador_id: string | null;
+          code: string;
+          store: Enums<"install_store">;
+          ip_hash: string | null;
+          user_agent: string | null;
+          clicked_at: string;
+        };
+        Insert: {
+          id?: string;
+          ambassador_id?: string | null;
+          code: string;
+          store?: Enums<"install_store">;
+          ip_hash?: string | null;
+          user_agent?: string | null;
+          clicked_at?: string;
+        };
+        Update: NoUpdate;
+        Relationships: [
+          {
+            foreignKeyName: "referral_clicks_ambassador_id_fkey";
+            columns: ["ambassador_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      redemption_requests: {
+        Row: {
+          id: string;
+          ambassador_id: string;
+          points: number;
+          amount_inr: number;
+          status: Enums<"redemption_status">;
+          method: string;
+          payee_ref: string | null;
+          note: string | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_note: string | null;
+          requested_at: string;
+        };
+        Insert: {
+          id?: string;
+          ambassador_id: string;
+          points: number;
+          amount_inr: number;
+          status?: Enums<"redemption_status">;
+          method?: string;
+          payee_ref?: string | null;
+          note?: string | null;
+        };
+        Update: {
+          status?: Enums<"redemption_status">;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+          payee_ref?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "redemption_requests_ambassador_id_fkey";
+            columns: ["ambassador_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      payout_batches: {
+        Row: {
+          id: string;
+          label: string;
+          kind: string;
+          period_month: string | null;
+          status: Enums<"payout_status">;
+          created_by: string | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          label: string;
+          kind?: string;
+          period_month?: string | null;
+          status?: Enums<"payout_status">;
+          created_by?: string | null;
+        };
+        Update: {
+          label?: string;
+          status?: Enums<"payout_status">;
+          processed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payout_batches_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      payouts: {
+        Row: {
+          id: string;
+          batch_id: string | null;
+          ambassador_id: string;
+          redemption_id: string | null;
+          kind: string;
+          amount_inr: number;
+          status: Enums<"payout_status">;
+          utr: string | null;
+          failure_reason: string | null;
+          processed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id?: string | null;
+          ambassador_id: string;
+          redemption_id?: string | null;
+          kind?: string;
+          amount_inr: number;
+          status?: Enums<"payout_status">;
+          utr?: string | null;
+        };
+        Update: {
+          status?: Enums<"payout_status">;
+          utr?: string | null;
+          failure_reason?: string | null;
+          processed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payouts_ambassador_id_fkey";
+            columns: ["ambassador_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payouts_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "payout_batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payouts_redemption_id_fkey";
+            columns: ["redemption_id"];
+            isOneToOne: false;
+            referencedRelation: "redemption_requests";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      badges: {
+        Row: {
+          id: string;
+          slug: string;
+          label: string;
+          description: string;
+          icon: string;
+          tone: string;
+          criteria: Json;
+          active: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          label: string;
+          description: string;
+          icon?: string;
+          tone?: string;
+          criteria: Json;
+          active?: boolean;
+          sort_order?: number;
+        };
+        Update: {
+          label?: string;
+          description?: string;
+          icon?: string;
+          tone?: string;
+          criteria?: Json;
+          active?: boolean;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+
+      badge_awards: {
+        Row: {
+          id: string;
+          badge_id: string;
+          ambassador_id: string;
+          awarded_at: string;
+          meta: Json;
+        };
+        Insert: {
+          id?: string;
+          badge_id: string;
+          ambassador_id: string;
+          awarded_at?: string;
+          meta?: Json;
+        };
+        Update: NoUpdate;
+        Relationships: [
+          {
+            foreignKeyName: "badge_awards_ambassador_id_fkey";
+            columns: ["ambassador_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "badge_awards_badge_id_fkey";
+            columns: ["badge_id"];
+            isOneToOne: false;
+            referencedRelation: "badges";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
     };
 
     Views: Record<never, never>;
@@ -853,9 +1186,71 @@ export type Database = {
           uploaded_at: string;
         }[];
       };
+      leaderboard_window: {
+        Args: {
+          window_key?: string;
+          city_filter?: string | null;
+          batch_filter?: string | null;
+          phase_filter?: Enums<"program_phase"> | null;
+          limit_count?: number;
+        };
+        Returns: {
+          position: number;
+          ambassador_id: string;
+          full_name: string;
+          college: string | null;
+          city: string | null;
+          batch: string | null;
+          points: number;
+          is_me: boolean;
+        }[];
+      };
+      my_standing_window: {
+        Args: { window_key?: string; phase_filter?: Enums<"program_phase"> | null };
+        Returns: { points: number; position: number; total: number }[];
+      };
+      batch_standings: {
+        Args: { window_key?: string };
+        Returns: {
+          batch: string;
+          members: number;
+          points: number;
+          avg_points: number;
+          downloads: number;
+        }[];
+      };
+      stipend_eligibility: {
+        Args: { period_start: string };
+        Returns: {
+          ambassador_id: string;
+          full_name: string;
+          city: string | null;
+          batch: string | null;
+          downloads: number;
+          surveys: number;
+          met: boolean;
+          at_risk: boolean;
+        }[];
+      };
+      public_stats: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          ambassadors: number;
+          responses: number;
+          points: number;
+          downloads: number;
+        }[];
+      };
     };
 
     Enums: {
+      program_phase: "phase_1" | "phase_2";
+      joined_as: "student" | "professional";
+      install_store: "play_store" | "app_store" | "unknown";
+      proof_type: "screenshot" | "link" | "text" | "none";
+      task_cadence: "daily" | "twice_weekly" | "weekly" | "milestone" | "once";
+      payout_status: "pending" | "processing" | "paid" | "failed";
+      redemption_status: "requested" | "approved" | "rejected" | "paid";
       user_role: "admin" | "ambassador";
       user_status: "invited" | "active" | "suspended";
       ledger_reason:
@@ -875,7 +1270,7 @@ export type Database = {
         | "number"
         | "email"
         | "phone";
-      campaign_status: "draft" | "live" | "ended";
+      campaign_status: "draft" | "live" | "ended" | "archived";
       task_type: "like" | "comment" | "share" | "story";
       submission_status:
         | "pending"

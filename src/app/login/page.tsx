@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Clapperboard, ClipboardList, Gift, Zap } from "lucide-react";
 
+import { Wordmark } from "@/components/logo";
 import { LoginForm } from "./login-form";
 import { Card, CardBody } from "@/components/ui/card";
 import { getUser } from "@/lib/supabase/server";
@@ -48,7 +49,8 @@ export default async function LoginPage({
       {/* ── Pitch panel. Hidden on phones, where it would just push the
              form below the fold. ───────────────────────────────────────── */}
       <aside className="relative hidden overflow-hidden border-r-[3px] border-ink bg-brand p-12 lg:flex lg:flex-col lg:justify-between">
-        <p className="display relative z-10 text-[22px] text-ink">DailyMattr</p>
+        {/* On the brand fill the mark goes ink, never white — the palette rule. */}
+        <Wordmark label="DailyMattr" className="relative z-10 h-[19px] w-auto text-ink" />
 
         <div className="relative z-10">
           <h1 className="display max-w-md text-[46px] leading-[0.92] text-ink">
@@ -107,7 +109,7 @@ export default async function LoginPage({
       <main className="grid place-items-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-7 text-center lg:text-left">
-            <p className="display text-[20px] text-ink lg:hidden">DailyMattr</p>
+            <Wordmark label="DailyMattr" className="mx-auto h-[17px] w-auto text-brand lg:hidden" />
             <h2 className="display mt-3 text-[30px] leading-none text-ink lg:mt-0">
               Welcome back
             </h2>

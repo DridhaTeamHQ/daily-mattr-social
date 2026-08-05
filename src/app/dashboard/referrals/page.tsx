@@ -2,10 +2,6 @@ import { redirect } from "next/navigation";
 import { Gift, Download, Calendar, Star } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardBody } from "@/components/ui/card";
-import { Note } from "@/components/ui/feedback";
-import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 

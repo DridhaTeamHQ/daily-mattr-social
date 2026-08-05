@@ -17,7 +17,12 @@ import { formatDate, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Campaigns" };
 
-const STATUS_TONE = { live: "ok", draft: "neutral", ended: "neutral" } as const;
+const STATUS_TONE = {
+  live: "ok",
+  draft: "neutral",
+  ended: "neutral",
+  archived: "neutral",
+} as const;
 
 const TASK_LABEL: Record<string, string> = {
   like: "Like",

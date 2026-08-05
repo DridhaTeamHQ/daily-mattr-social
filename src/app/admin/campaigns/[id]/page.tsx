@@ -25,7 +25,12 @@ import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/uti
 
 export const metadata = { title: "Campaign" };
 
-const STATUS_TONE = { live: "ok", draft: "neutral", ended: "neutral" } as const;
+const STATUS_TONE = {
+  live: "ok",
+  draft: "neutral",
+  ended: "neutral",
+  archived: "neutral",
+} as const;
 
 const TASK_META: Record<
   string,

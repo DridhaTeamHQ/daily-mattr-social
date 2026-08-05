@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { Wordmark } from "@/components/logo";
 import { signOut } from "@/app/login/actions";
 import { cn, initials } from "@/lib/utils";
 
@@ -46,9 +47,13 @@ export function AdminNav({
   return (
     <header className="sticky top-0 z-20 border-b border-ink/10 bg-ink text-white">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-5 px-4 sm:px-6">
-        <Link href="/admin" className="shrink-0 text-[15px] font-semibold tracking-tight">
-          DailyMattr
-          <span className="ml-1.5 rounded-xs bg-white/15 px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide uppercase">
+        <Link
+          href="/admin"
+          aria-label="DailyMattr admin — overview"
+          className="flex shrink-0 items-center gap-1.5"
+        >
+          <Wordmark className="h-[15px] w-auto text-white" />
+          <span className="rounded-xs bg-white/15 px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide uppercase">
             Admin
           </span>
         </Link>

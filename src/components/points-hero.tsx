@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Flame, Lock, Star, Trophy, Zap, Sparkles } from "lucide-react";
+import { Flame, Lock, Star, Trophy, Zap } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { cn, formatNumber } from "@/lib/utils";

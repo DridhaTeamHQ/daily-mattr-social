@@ -12,6 +12,7 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { Wordmark } from "@/components/logo";
 import { signOut } from "@/app/login/actions";
 import {
   NotificationBell,
@@ -118,7 +119,10 @@ export function TopNav({
     <header className="sticky top-0 z-20 bg-ink text-white">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4 sm:px-6">
         <Link href="/dashboard" className="shrink-0">
-          <span className="display text-[22px] font-extrabold text-blue-600 lowercase tracking-tight">dailymattr</span>
+          {/* White on the ink bar, not brand blue: #2563eb on #0a0a0a is a
+              3.1:1 contrast, which is under the floor for something this
+              small. The blue lives on the nav pills instead. */}
+          <Wordmark label="DailyMattr — home" className="h-[18px] w-auto text-white" />
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-2 sm:flex">

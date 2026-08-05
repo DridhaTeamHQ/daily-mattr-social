@@ -15,11 +15,10 @@ import {
 
 import { LevelUpWatcher } from "@/components/level-up";
 import { PointsHero, TierTrack } from "@/components/points-hero";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { ProgressBar, Stat } from "@/components/ui/stat";
+import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
 import { cn, formatDate, formatDelta, timeRemaining } from "@/lib/utils";
 

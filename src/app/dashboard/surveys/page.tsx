@@ -5,7 +5,7 @@ import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
