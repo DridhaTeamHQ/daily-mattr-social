@@ -11,7 +11,7 @@ import {
   removeCampaignTask,
   updateCampaignTask,
 } from "@/lib/admin/campaign-tasks";
-import { PLATFORM_TONE, SOCIAL_PLATFORMS } from "@/lib/platforms";
+import { PLATFORM_TONE } from "@/lib/platforms";
 import { cn } from "@/lib/utils";
 
 /**
@@ -98,6 +98,7 @@ export function CampaignTaskManager({
         <TaskRow
           key={task.id}
           campaignId={campaignId}
+          campaignPlatform={campaignPlatform}
           task={task}
           pending={pending}
           onRun={run}
@@ -117,44 +118,27 @@ export function CampaignTaskManager({
           }}
           className="rounded-xl border border-gray-200 bg-gray-50 p-4"
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
-                Task
-              </span>
-              <select
-                name="library_id"
-                value={choice}
-                onChange={(e) => setChoice(e.target.value)}
-                className={cn(SELECT, "mt-1.5")}
-              >
-                {sorted.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.platform ? `${option.platform} · ` : ""}
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <label className="block">
+            <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
+              Task
+            </span>
+            <select
+              name="library_id"
+              value={choice}
+              onChange={(e) => setChoice(e.target.value)}
+              className={cn(SELECT, "mt-1.5")}
+            >
+              {sorted.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.platform ? `${option.platform} · ` : ""}
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            <label className="block">
-              <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
-                Network
-              </span>
-              <select
-                name="platform"
-                defaultValue={selected?.platform ?? campaignPlatform}
-                key={selected?.platform ?? campaignPlatform}
-                className={cn(SELECT, "mt-1.5")}
-              >
-                {SOCIAL_PLATFORMS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {/* Inherited from the campaign, not chosen again here. */}
+          <input type="hidden" name="platform" value={campaignPlatform} />
 
           <label className="mt-3 block">
             <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
@@ -222,11 +206,13 @@ export function CampaignTaskManager({
 
 function TaskRow({
   campaignId,
+  campaignPlatform,
   task,
   pending,
   onRun,
 }: {
   campaignId: string;
+  campaignPlatform: string;
   task: ManagedTask;
   pending: boolean;
   onRun: (fn: () => Promise<{ ok: boolean; message: string }>) => void;
@@ -249,7 +235,9 @@ function TaskRow({
           <span className="text-[14px] font-extrabold text-ink">
             {task.label}
           </span>
-          {task.platform && (
+          {/* Only shown when it differs from the campaign's own network,
+              which only happens on tasks created before networks existed. */}
+          {task.platform && task.platform !== campaignPlatform && (
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[11px] font-bold",

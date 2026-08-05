@@ -769,30 +769,63 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
       .single();
     if (error) throw error;
 
-    // Task points come from the form; a campaign with no tasks is useless, so
-    // any type given a positive value is created.
-    const tasks = (["like", "comment", "share", "story"] as const)
-      .map((type, i) => ({
-        type,
-        points: Number(formData.get(`points_${type}`) ?? 0),
+    // The whole task list arrives as one JSON field rather than four fixed
+    // `points_like`-style inputs, so a campaign can be built from any library
+    // task on any network, renamed and reordered — the same shape the campaign
+    // page edits afterwards.
+    type DraftTask = {
+      library_id?: string;
+      label?: string;
+      points?: number;
+      required?: boolean;
+      proof_type?: string;
+    };
+
+    let drafts: DraftTask[] = [];
+    try {
+      const raw = JSON.parse(String(formData.get("tasks") ?? "[]"));
+      if (Array.isArray(raw)) drafts = raw as DraftTask[];
+    } catch {
+      return { ok: false, message: "Could not read the task list." };
+    }
+
+    const tasks = drafts
+      .map((t, i) => ({
+        library_id: String(t.library_id ?? ""),
+        label: String(t.label ?? "").trim(),
+        points: Number(t.points ?? 0),
+        required: Boolean(t.required),
+        proof_type: String(t.proof_type ?? "screenshot"),
         order_index: i,
       }))
-      .filter((t) => Number.isFinite(t.points) && t.points > 0);
+      // Zero points means "not part of this campaign", same as before.
+      .filter(
+        (t) => t.library_id && Number.isFinite(t.points) && t.points > 0,
+      );
 
     if (tasks.length === 0) {
       return {
         ok: false,
-        message: "Give at least one task a point value above zero.",
+        message: "Add at least one task worth more than zero points.",
       };
     }
 
     const { error: taskError } = await supabase.from("campaign_tasks").insert(
       tasks.map((t) => ({
         campaign_id: campaign.id,
-        type: t.type,
+        // Library-backed, so `campaign_tasks_identified` is satisfied by
+        // library_id and the four Instagram enum values stay reserved for the
+        // campaigns that predate this.
+        type: null,
+        library_id: t.library_id,
+        label_override: t.label || null,
+        // Inherited from the campaign rather than chosen per task, so the two
+        // can never disagree.
+        platform: platform || "Instagram",
+        proof_type: t.proof_type as Enums<"proof_type">,
         points: t.points,
         order_index: t.order_index,
-        required: t.type === "like" || t.type === "comment",
+        required: t.required,
       })),
     );
     if (taskError) throw taskError;

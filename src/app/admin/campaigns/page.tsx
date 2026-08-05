@@ -6,6 +6,7 @@ import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { SearchBox } from "@/components/search-box";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,16 @@ export default async function AdminCampaignsPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const [{ q }, all] = await Promise.all([searchParams, getAdminCampaigns()]);
+  const [{ q }, all, { data: library }] = await Promise.all([
+    searchParams,
+    getAdminCampaigns(),
+    createAdminClient()
+      .from("task_library")
+      .select("id, label, platform, default_points, proof_type")
+      .eq("active", true)
+      .order("platform", { ascending: true, nullsFirst: false })
+      .order("label", { ascending: true }),
+  ]);
   const query = q ?? "";
   const campaigns = all.filter((c) =>
     matches(query, c.title, c.description, c.expected_handle, c.status),
@@ -50,7 +60,7 @@ export default async function AdminCampaignsPage({
           </p>
         </div>
 
-        <CreateCampaignDialog aiEnabled={aiEnabled()} />
+        <CreateCampaignDialog aiEnabled={aiEnabled()} library={library ?? []} />
       </div>
 
       <SearchBox

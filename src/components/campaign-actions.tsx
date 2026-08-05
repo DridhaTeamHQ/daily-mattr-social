@@ -8,20 +8,23 @@ import { toast } from "sonner";
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { Stepper } from "@/components/ui/stepper";
 import { SOCIAL_PLATFORMS } from "@/lib/platforms";
-import { cn } from "@/lib/utils";
+import {
+  seedTasks,
+  TaskDraftBuilder,
+  type DraftTask,
+  type LibraryTask,
+} from "@/components/task-draft-builder";
 import { createCampaign } from "@/lib/admin/actions";
 import { draftCampaign } from "@/lib/admin/ai-actions";
 
-const TASKS = [
-  { type: "like", label: "Like", suggested: 10, tag: "Daily" },
-  { type: "comment", label: "Comment", suggested: 20, tag: "Daily" },
-  { type: "share", label: "Share", suggested: 15, tag: "Twice weekly" },
-  { type: "story", label: "Story", suggested: 30, tag: "Weekly" },
-] as const;
-
-export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
+export function CreateCampaignDialog({
+  aiEnabled,
+  library,
+}: {
+  aiEnabled: boolean;
+  library: LibraryTask[];
+}) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
@@ -33,12 +36,11 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [handle, setHandle] = React.useState("dailymattr");
-  const [points, setPoints] = React.useState<Record<string, number>>({
-    like: 10,
-    comment: 20,
-    share: 15,
-    story: 30,
-  });
+  // Held in state so new tasks default to the campaign's own network.
+  const [platform, setPlatform] = React.useState("Instagram");
+  const [tasks, setTasks] = React.useState<DraftTask[]>(() =>
+    seedTasks(library),
+  );
 
   function draft() {
     startDrafting(async () => {
@@ -51,12 +53,22 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
       const drafted = result.data;
       setTitle(drafted.title);
       setDescription(drafted.description);
-      setPoints({
-        like: drafted.points.like,
-        comment: drafted.points.comment,
-        share: drafted.points.share,
-        story: drafted.points.story,
-      });
+      // The draft returns points for the four Instagram actions. Applied by
+      // label, so a task the admin already renamed or removed is left alone
+      // rather than being resurrected by the AI.
+      const byLabel: Record<string, number> = {
+        "Like the reel": drafted.points.like,
+        "Leave a comment": drafted.points.comment,
+        "Share it": drafted.points.share,
+        "Post to story": drafted.points.story,
+      };
+      setTasks((current) =>
+        current.map((t) =>
+          byLabel[t.label] === undefined
+            ? t
+            : { ...t, points: byLabel[t.label] },
+        ),
+      );
       setCommentIdeas(drafted.comment_ideas ?? []);
       toast.success("Draft ready — edit anything before creating.");
     });
@@ -192,7 +204,8 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
               <select
                 id="platform"
                 name="platform"
-                defaultValue="Instagram"
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value)}
                 className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
               >
                 {SOCIAL_PLATFORMS.map((option) => (
@@ -208,59 +221,16 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
                 Tasks and points
               </legend>
               <p className="mb-2.5 text-[12.5px] text-ink-soft">
-                Set a value above zero for each task you want. Leave a task at
-                zero to leave it out.
+                Rename anything, change its network, or drop it. Zero points
+                leaves a task out.
               </p>
 
-              <div className="space-y-2.5">
-                {TASKS.map((task) => {
-                  const value = points[task.type] ?? task.suggested;
-                  const included = value > 0;
-
-                  return (
-                    <div
-                      key={task.type}
-                      className={cn(
-                        "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 transition-colors",
-                        included
-                          ? "border-brand/35 bg-brand-tint/40"
-                          : "border-gray-200 bg-gray-50",
-                      )}
-                    >
-                      <span className="text-[13.5px] font-bold text-ink">
-                        {task.label}
-                      </span>
-                      <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft">
-                        {task.tag}
-                      </span>
-
-                      {/* Says out loud what zero means, rather than leaving the
-                          admin to infer it from the helper text above. */}
-                      <span
-                        className={cn(
-                          "text-[11.5px] font-bold",
-                          included ? "text-brand-strong" : "text-ink-faint",
-                        )}
-                      >
-                        {included ? "included" : "left out"}
-                      </span>
-
-                      <Stepper
-                        name={`points_${task.type}`}
-                        label={`${task.label} points`}
-                        value={value}
-                        min={0}
-                        max={1000}
-                        step={5}
-                        onChange={(next) =>
-                          setPoints((p) => ({ ...p, [task.type]: next }))
-                        }
-                        className="ml-auto"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              <TaskDraftBuilder
+                library={library}
+                platform={platform}
+                tasks={tasks}
+                onChange={setTasks}
+              />
             </fieldset>
 
             {commentIdeas.length > 0 && (
