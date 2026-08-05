@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { Gift, Download, Calendar, Star } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
+import { ReferralQr } from "@/components/referral-qr";
+import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 
@@ -12,6 +14,7 @@ export default async function ReferralsPage() {
   if (!data) redirect("/login");
 
   const { referrals } = data;
+  const siteUrl = await getSiteUrl();
 
   return (
     <div className="stagger space-y-6">
@@ -57,6 +60,8 @@ export default async function ReferralsPage() {
           />
         </div>
       </div>
+
+      <ReferralQr code={referrals.code} siteUrl={siteUrl} />
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

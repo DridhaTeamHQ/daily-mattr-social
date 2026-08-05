@@ -1,68 +1,33 @@
+import Papa from "papaparse";
+
 /**
- * A small CSV reader, and the ambassador-import row shape.
+ * Reading an ambassador CSV.
  *
- * Deliberately not a dependency. The files this handles are spreadsheets an
- * admin exported themselves — a few hundred rows of names, emails and
- * colleges — and the whole grammar needed is quoted fields, doubled quotes and
- * newlines inside quotes. A parser library would be more code to audit than
- * the thirty lines below.
+ * Parsing is delegated to papaparse, which was already a dependency. The value
+ * added here is the domain half: matching whatever headers an admin's
+ * spreadsheet happens to use, and deciding which rows are safe to create
+ * accounts from.
  *
- * No "use server" and no server-only import: the dry run happens in the
- * browser so an admin can see and fix their file before anything reaches the
- * database, and the same code re-validates on the server.
+ * No "use server" and no server-only import — the dry run runs in the browser
+ * so an admin can fix their file before anything reaches the database, and the
+ * server re-runs exactly the same code on the raw text.
  */
 
 export type CsvRow = Record<string, string>;
 
-/** Splits CSV text into rows, honouring quotes and embedded newlines. */
+/**
+ * Splits CSV text into rows.
+ *
+ * `skipEmptyLines` drops the trailing blank line every spreadsheet export
+ * ends with, which would otherwise arrive as a row with no name and no email
+ * and be reported to the admin as an error in their file.
+ */
 export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
+  const { data } = Papa.parse<string[]>(text, {
+    skipEmptyLines: "greedy",
+  });
 
-  // Strip the UTF-8 BOM Excel writes, otherwise the first header becomes
-  // "﻿name" and never matches a column alias.
-  const input = text.replace(/^﻿/, "");
-
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-
-    if (quoted) {
-      if (char === '"') {
-        if (input[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(field);
-      field = "";
-    } else if (char === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else if (char !== "\r") {
-      field += char;
-    }
-  }
-
-  if (field || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+  return data.filter((row) => row.some((cell) => cell.trim() !== ""));
 }
 
 /**

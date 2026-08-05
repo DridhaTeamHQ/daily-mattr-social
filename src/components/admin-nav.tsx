@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgeIndianRupee,
   Banknote,
+  Library,
   ClipboardList,
   Clapperboard,
   Gift,
@@ -31,6 +32,7 @@ const ITEMS = [
   { href: "/admin/review", label: "Review", icon: Inbox },
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
+  { href: "/admin/library", label: "Library", icon: Library },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/stipend", label: "Stipend", icon: BadgeIndianRupee },
