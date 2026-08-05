@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
+import { assertAdmin, fail } from "@/lib/admin/guards";
+import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -18,27 +20,6 @@ import type { Enums } from "@/lib/database.types";
  * That check is the only thing standing between a signed-in student and the
  * ledger, so it is not optional and it is not "belt and braces".
  */
-
-export type ActionResult = { ok: boolean; message: string };
-
-async function assertAdmin(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not signed in");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, status")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== "admin" || profile.status !== "active") {
-    throw new Error("Not authorised");
-  }
-  return user.id;
-}
 
 async function audit(
   actorId: string,
@@ -56,25 +37,6 @@ async function audit(
       entity_id: entityId,
       meta: meta as never,
     });
-}
-
-function fail(err: unknown): ActionResult {
-  // Supabase's PostgrestError is a plain object, not an Error subclass, so an
-  // `instanceof Error` check alone swallows the only useful diagnostic and
-  // reports "Something went wrong" for every database failure.
-  if (err instanceof Error) return { ok: false, message: err.message };
-
-  if (err && typeof err === "object" && "message" in err) {
-    const { message, hint } = err as { message?: unknown; hint?: unknown };
-    if (typeof message === "string" && message) {
-      return {
-        ok: false,
-        message: typeof hint === "string" && hint ? `${message} (${hint})` : message,
-      };
-    }
-  }
-
-  return { ok: false, message: "Something went wrong" };
 }
 
 // ─── Review queue ───────────────────────────────────────────────────────────

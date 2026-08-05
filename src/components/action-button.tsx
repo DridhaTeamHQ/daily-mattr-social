@@ -4,7 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
-import type { ActionResult } from "@/lib/admin/actions";
+import type { ActionResult } from "@/lib/admin/guards";
 
 /**
  * Runs a bound server action and reports the outcome as a toast.

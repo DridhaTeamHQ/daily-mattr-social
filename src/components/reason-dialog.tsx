@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Field, Textarea } from "@/components/ui/input";
-import type { ActionResult } from "@/lib/admin/actions";
+import type { ActionResult } from "@/lib/admin/guards";
 
 /**
  * A destructive action that requires a written reason.

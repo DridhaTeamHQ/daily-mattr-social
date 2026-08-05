@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeIndianRupee,
+  Banknote,
   ClipboardList,
   Clapperboard,
   Gift,
@@ -31,6 +33,8 @@ const ITEMS = [
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
+  { href: "/admin/stipend", label: "Stipend", icon: BadgeIndianRupee },
+  { href: "/admin/payouts", label: "Payouts", icon: Banknote },
 ];
 
 export function AdminNav({
