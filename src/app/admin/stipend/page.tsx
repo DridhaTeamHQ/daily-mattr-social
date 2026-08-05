@@ -7,6 +7,8 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { PayoutQueue } from "@/components/payout-queue";
+import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
@@ -59,9 +61,13 @@ export default async function StipendPage({
 
   return (
     <div className="stagger space-y-5">
+      <SectionTabs tabs={AMBASSADOR_TABS} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="display text-[24px] leading-none text-ink">Stipend</h1>
+          <h1 className="display text-[24px] leading-none text-ink">
+            Stipend &amp; payouts
+          </h1>
           <p className="mt-2 text-[13px] font-semibold text-ink-soft">
             {thresholds.downloads} downloads and {thresholds.surveys} surveys in
             a month earns ₹{formatNumber(thresholds.amountInr)}.
@@ -259,6 +265,11 @@ export default async function StipendPage({
           </ul>
         )}
       </Card>
+
+      {/* Redemption decisions and payout batches used to be their own page.
+          Both are money leaving the programme, and keeping them here means
+          building a stipend batch and paying it are not two destinations. */}
+      <PayoutQueue />
     </div>
   );
 }

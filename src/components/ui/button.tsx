@@ -7,10 +7,17 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet" | "outline
 type Size = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-brand text-ink hover:brightness-95 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]",
+  // White, not ink. --color-brand is #2563eb since the redesign, and near-black
+  // on it lands at about 3.1:1 — under the floor, and the reason primary
+  // buttons across the app were hard to read. White on #2563eb is 5.2:1.
+  primary:
+    "bg-brand text-white hover:brightness-110 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]",
   secondary: "bg-gray-100 text-ink hover:bg-gray-200 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   danger: "bg-bad text-white hover:brightness-110 transition-transform hover:scale-[1.02] active:scale-[0.98]",
-  quiet: "bg-poll text-ink hover:brightness-105 transition-transform hover:scale-[1.02] active:scale-[0.98]",
+  // A tinted fill with dark text rather than white on #3b82f6, which is only
+  // 3.7:1 and fails at this size.
+  quiet:
+    "bg-poll-tint text-blue-700 hover:brightness-95 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   ghost:
     "border border-transparent text-ink-soft hover:bg-gray-100 hover:text-ink transition-colors",
   "outline-blue":

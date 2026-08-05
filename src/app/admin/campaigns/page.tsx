@@ -2,6 +2,7 @@ import { Clapperboard, ExternalLink } from "lucide-react";
 
 import Link from "next/link";
 
+import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { SearchBox } from "@/components/search-box";
@@ -44,6 +45,8 @@ export default async function AdminCampaignsPage({
 
   return (
     <div className="stagger space-y-5">
+      <SectionTabs tabs={CAMPAIGN_TABS} />
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-[26px] leading-none text-ink">

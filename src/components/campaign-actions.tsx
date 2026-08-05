@@ -8,14 +8,16 @@ import { toast } from "sonner";
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
+import { Stepper } from "@/components/ui/stepper";
+import { cn } from "@/lib/utils";
 import { createCampaign } from "@/lib/admin/actions";
 import { draftCampaign } from "@/lib/admin/ai-actions";
 
 const TASKS = [
-  { type: "like", label: "Like", suggested: 10 },
-  { type: "comment", label: "Comment", suggested: 20 },
-  { type: "share", label: "Share", suggested: 15 },
-  { type: "story", label: "Story", suggested: 30 },
+  { type: "like", label: "Like", suggested: 10, tag: "Daily" },
+  { type: "comment", label: "Comment", suggested: 20, tag: "Daily" },
+  { type: "share", label: "Share", suggested: 15, tag: "Twice weekly" },
+  { type: "story", label: "Story", suggested: 30, tag: "Weekly" },
 ] as const;
 
 export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
@@ -194,33 +196,54 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
                 zero to leave it out.
               </p>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                {TASKS.map((task) => (
-                  <label
-                    key={task.type}
-                    className="flex items-center gap-2 rounded-sm border border-line bg-canvas-sunk px-3 py-2"
-                  >
-                    <span className="flex-1 text-[13px] text-ink">
-                      {task.label}
-                    </span>
-                    <Input
-                      name={`points_${task.type}`}
-                      type="number"
-                      min={0}
-                      max={1000}
-                      step={1}
-                      value={points[task.type] ?? task.suggested}
-                      onChange={(e) =>
-                        setPoints((p) => ({
-                          ...p,
-                          [task.type]: Number(e.target.value),
-                        }))
-                      }
-                      className="h-9 w-20 text-right"
-                      aria-label={`${task.label} points`}
-                    />
-                  </label>
-                ))}
+              <div className="space-y-2.5">
+                {TASKS.map((task) => {
+                  const value = points[task.type] ?? task.suggested;
+                  const included = value > 0;
+
+                  return (
+                    <div
+                      key={task.type}
+                      className={cn(
+                        "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 transition-colors",
+                        included
+                          ? "border-blue-200 bg-blue-50/40"
+                          : "border-gray-200 bg-gray-50",
+                      )}
+                    >
+                      <span className="text-[13.5px] font-bold text-ink">
+                        {task.label}
+                      </span>
+                      <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft">
+                        {task.tag}
+                      </span>
+
+                      {/* Says out loud what zero means, rather than leaving the
+                          admin to infer it from the helper text above. */}
+                      <span
+                        className={cn(
+                          "text-[11.5px] font-bold",
+                          included ? "text-blue-600" : "text-ink-faint",
+                        )}
+                      >
+                        {included ? "included" : "left out"}
+                      </span>
+
+                      <Stepper
+                        name={`points_${task.type}`}
+                        label={`${task.label} points`}
+                        value={value}
+                        min={0}
+                        max={1000}
+                        step={5}
+                        onChange={(next) =>
+                          setPoints((p) => ({ ...p, [task.type]: next }))
+                        }
+                        className="ml-auto"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </fieldset>
 

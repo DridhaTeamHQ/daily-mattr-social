@@ -102,7 +102,7 @@ export async function decideRedemption(
       href: "/dashboard/rewards",
     }).catch(() => {});
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     revalidatePath("/dashboard/rewards");
 
     return {
@@ -176,7 +176,7 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
     );
     if (payoutError) throw payoutError;
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     revalidatePath("/admin/stipend");
 
     return {
@@ -238,7 +238,7 @@ export async function buildRedemptionBatch(): Promise<ActionResult> {
     );
     if (error) throw error;
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     return { ok: true, message: `Batch created for ${toPay.length} payout${toPay.length === 1 ? "" : "s"}.` };
   } catch (err) {
     return fail(err);
@@ -293,7 +293,7 @@ export async function markPayoutPaid(
       href: "/dashboard/rewards",
     }).catch(() => {});
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     revalidatePath("/dashboard/rewards");
 
     return { ok: true, message: "Marked paid." };
@@ -320,7 +320,7 @@ export async function markPayoutFailed(
       .eq("id", payoutId);
     if (error) throw error;
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     return { ok: true, message: "Marked failed." };
   } catch (err) {
     return fail(err);
@@ -344,7 +344,7 @@ export async function setBatchStatus(
       .eq("id", batchId);
     if (error) throw error;
 
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
     return { ok: true, message: `Batch marked ${status}.` };
   } catch (err) {
     return fail(err);

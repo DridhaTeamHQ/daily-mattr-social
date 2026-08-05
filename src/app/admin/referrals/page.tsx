@@ -2,6 +2,7 @@ import { Coins, Gift, TrendingUp, Users } from "lucide-react";
 
 import Link from "next/link";
 
+import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
 import { DownloadsCell } from "@/components/downloads-cell";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
@@ -37,6 +38,8 @@ export default async function AdminReferralsPage({
 
   return (
     <div className="stagger space-y-5">
+      <SectionTabs tabs={AMBASSADOR_TABS} />
+
       <div>
         <h1 className="display text-[26px] leading-none text-ink">Referrals</h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">

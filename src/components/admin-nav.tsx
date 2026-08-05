@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BadgeIndianRupee,
-  Banknote,
-  Library,
   ClipboardList,
   Clapperboard,
-  Gift,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -30,13 +26,12 @@ const ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
   { href: "/admin/review", label: "Review", icon: Inbox },
+  // Campaigns owns the task library; Ambassadors owns referrals, stipend and
+  // the leaderboard. Ten top-level destinations did not fit a laptop width and
+  // made the two that matter daily harder to hit.
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
-  { href: "/admin/library", label: "Library", icon: Library },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
-  { href: "/admin/referrals", label: "Referrals", icon: Gift },
-  { href: "/admin/stipend", label: "Stipend", icon: BadgeIndianRupee },
-  { href: "/admin/payouts", label: "Payouts", icon: Banknote },
 ];
 
 export function AdminNav({

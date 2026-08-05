@@ -35,7 +35,10 @@ export type GoalTracking = {
   remaining: number;
   /** Mean downloads per day over the trailing 7 days. */
   velocity7: number;
-  velocity30: number;
+  /** Mean per day across the whole selected window. */
+  velocityWindow: number;
+  /** How many days that window covers, so labels can say so honestly. */
+  windowDays: number;
   /** Null when velocity is zero — a date is not knowable, and 'never' is not a date. */
   projectedDate: string | null;
   daysRemaining: number | null;
@@ -45,7 +48,8 @@ export type GoalTracking = {
   rolling7: { day: string; value: number }[];
 };
 
-export const getGoalTracking = cache(async (): Promise<GoalTracking> => {
+export const getGoalTracking = cache(
+  async (days = 30): Promise<GoalTracking> => {
   const db = createAdminClient();
   const { download_goal: goal } = await getSettings("download_goal");
 
@@ -57,14 +61,14 @@ export const getGoalTracking = cache(async (): Promise<GoalTracking> => {
   const rows = conversions ?? [];
   const total = rows.length;
 
-  const days = dayRange(30);
-  const counts = new Map(days.map((d) => [d, 0]));
+  const span = dayRange(days);
+  const counts = new Map(span.map((d) => [d, 0]));
   for (const row of rows) {
     const day = row.converted_at.slice(0, 10);
     if (counts.has(day)) counts.set(day, (counts.get(day) ?? 0) + 1);
   }
 
-  const perDay = days.map((day) => ({ day, value: counts.get(day) ?? 0 }));
+  const perDay = span.map((day) => ({ day, value: counts.get(day) ?? 0 }));
 
   // A 7-day trailing mean, not a raw daily count. Downloads arrive in bursts
   // when someone posts, and a raw line makes every quiet Tuesday look like a
@@ -77,7 +81,8 @@ export const getGoalTracking = cache(async (): Promise<GoalTracking> => {
 
   const last7 = perDay.slice(-7).reduce((sum, p) => sum + p.value, 0);
   const velocity7 = last7 / 7;
-  const velocity30 = perDay.reduce((sum, p) => sum + p.value, 0) / 30;
+  const velocityWindow =
+    perDay.reduce((sum, p) => sum + p.value, 0) / Math.max(1, days);
 
   const remaining = Math.max(0, goal - total);
   const daysRemaining =
@@ -100,7 +105,8 @@ export const getGoalTracking = cache(async (): Promise<GoalTracking> => {
     pct: goal > 0 ? Math.min(100, Math.round((total / goal) * 100)) : 0,
     remaining,
     velocity7: Math.round(velocity7 * 10) / 10,
-    velocity30: Math.round(velocity30 * 10) / 10,
+    velocityWindow: Math.round(velocityWindow * 10) / 10,
+    windowDays: days,
     projectedDate,
     daysRemaining,
     byStore: [
@@ -112,7 +118,8 @@ export const getGoalTracking = cache(async (): Promise<GoalTracking> => {
     perDay,
     rolling7,
   };
-});
+  },
+);
 
 // ─── Funnel ─────────────────────────────────────────────────────────────────
 

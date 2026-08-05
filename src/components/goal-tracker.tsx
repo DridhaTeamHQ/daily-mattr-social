@@ -16,7 +16,7 @@ import { cn, formatNumber } from "@/lib/utils";
  */
 export function GoalTracker({ goal }: { goal: GoalTracking }) {
   const stalled = goal.velocity7 <= 0;
-  const accelerating = goal.velocity7 > goal.velocity30;
+  const accelerating = goal.velocity7 > goal.velocityWindow;
 
   return (
     <Card>
@@ -65,7 +65,7 @@ export function GoalTracker({ goal }: { goal: GoalTracking }) {
             icon={TrendingUp}
             label="Velocity"
             value={`${goal.velocity7}/day`}
-            sub={`30-day average ${goal.velocity30}`}
+            sub={`${goal.windowDays}-day average ${goal.velocityWindow}`}
             tone={accelerating ? "up" : "flat"}
           />
           <Metric

@@ -7,6 +7,7 @@ import {
   Repeat,
 } from "lucide-react";
 
+import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { LibraryTaskDialog } from "@/components/library-actions";
 import { SearchBox } from "@/components/search-box";
@@ -68,6 +69,8 @@ export default async function LibraryPage({
 
   return (
     <div className="stagger space-y-5">
+      <SectionTabs tabs={CAMPAIGN_TABS} />
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-[26px] leading-none text-ink">

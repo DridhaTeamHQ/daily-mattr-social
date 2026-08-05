@@ -104,7 +104,7 @@ export async function requestRedemption(
             type: "account" as const,
             title: "New redemption request",
             body: `${points} points → ₹${Math.floor(points / rate)}`,
-            href: "/admin/payouts",
+            href: "/admin/stipend",
           })),
         );
       }
@@ -113,7 +113,7 @@ export async function requestRedemption(
     }
 
     revalidatePath("/dashboard/rewards");
-    revalidatePath("/admin/payouts");
+    revalidatePath("/admin/stipend");
 
     return {
       ok: true,
