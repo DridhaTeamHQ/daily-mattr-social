@@ -116,18 +116,11 @@ function welcomeEmailHtml(input: {
           </p>
           <div style="margin:24px 0 28px;">
             <a href="${escapeHtml(input.loginUrl)}" style="display:inline-block;margin-right:12px;margin-bottom:12px;border-radius:999px;background:#2563eb;padding:14px 22px;font-size:14px;font-weight:800;color:#ffffff;text-decoration:none;">
-              Login to DailyMattr
+              Login
             </a>
             <a href="${escapeHtml(input.appDownloadUrl)}" style="display:inline-block;margin-bottom:12px;border:1px solid #93c5fd;border-radius:999px;background:#ffffff;padding:14px 22px;font-size:14px;font-weight:800;color:#1d4ed8;text-decoration:none;">
               Download the app
             </a>
-          </div>
-          <div style="border-top:1px solid #dbeafe;padding-top:20px;">
-            <div style="font-size:13px;font-weight:700;color:#1d4ed8;">Quick links</div>
-            <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:#334155;">
-              Website login: <a href="${escapeHtml(input.loginUrl)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(input.loginUrl)}</a><br />
-              App download: <a href="${escapeHtml(input.appDownloadUrl)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(input.appDownloadUrl)}</a>
-            </p>
           </div>
         </div>
       </div>
