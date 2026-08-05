@@ -31,7 +31,7 @@ async function loadSurvey(slug: string) {
 
   const { data: questions } = await db
     .from("survey_questions")
-    .select("id, type, prompt, help_text, options, required")
+    .select("id, type, prompt, help_text, options, required, max_select")
     .eq("survey_id", link.surveys.id)
     .order("order_index", { ascending: true });
 

@@ -107,7 +107,7 @@ export default async function AdminReferralsPage({
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-left">
-              <thead className="border-b-[3px] border-ink bg-canvas-sunk">
+              <thead className="border-b border-gray-200 bg-gray-50">
                 <tr className="text-[11.5px] font-extrabold tracking-wide text-ink uppercase">
                   <th className="px-4 py-3">Ambassador</th>
                   <th className="px-4 py-3">Code</th>
@@ -118,7 +118,7 @@ export default async function AdminReferralsPage({
                 </tr>
               </thead>
 
-              <tbody className="divide-y-[3px] divide-ink">
+              <tbody className="divide-y divide-gray-100">
                 {rows.map((row, i) => (
                   <tr key={row.id} className="hover:bg-canvas-sunk/60">
                     <td className="px-4 py-3">
@@ -130,7 +130,6 @@ export default async function AdminReferralsPage({
                             "tabular grid size-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold text-ink",
                             !query && i < 3 && row.confirmed > 0
                               ? cn(
-                                  "brut-sm",
                                   ["bg-brand", "bg-canvas-sunk", "bg-invite-tint"][i],
                                 )
                               : "text-ink-faint",
@@ -141,7 +140,7 @@ export default async function AdminReferralsPage({
 
                         <span
                           aria-hidden
-                          className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-surface text-[11px] font-extrabold text-ink"
+                          className="grid size-8 shrink-0 place-items-center rounded-full bg-gray-100 text-[11px] font-extrabold text-ink"
                         >
                           {initials(row.full_name || row.email)}
                         </span>

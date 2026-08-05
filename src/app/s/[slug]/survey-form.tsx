@@ -19,7 +19,18 @@ export type PublicQuestion = {
   help_text: string | null;
   options: string[];
   required: boolean;
+  /** null = pick as many as you like. */
+  max_select: number | null;
 };
+
+/**
+ * Google Forms convention: an option literally called "Other" opens a box to
+ * type into. Matching the label rather than adding a per-option flag keeps the
+ * question editor a plain list of strings.
+ */
+function isOtherOption(option: string): boolean {
+  return /^other\b/i.test(option.trim());
+}
 
 const initial: SubmitState = { status: "idle", message: "" };
 
@@ -164,45 +175,10 @@ function QuestionInput({ question }: { question: PublicQuestion }) {
       return <Textarea name={name} required={question.required} rows={4} />;
 
     case "single_choice":
-      return (
-        <div className="space-y-2">
-          {question.options.map((option) => (
-            <label
-              key={option}
-              className="flex cursor-pointer items-center gap-2.5 rounded-sm border-[3px] border-ink bg-surface px-3.5 py-3 text-[14.5px] font-bold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px has-checked:bg-brand has-checked:shadow-[3px_3px_0_var(--color-ink)]"
-            >
-              <input
-                type="radio"
-                name={name}
-                value={option}
-                required={question.required}
-                className="size-4 accent-[var(--color-brand)]"
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      );
+      return <SingleChoice question={question} name={name} />;
 
     case "multi_choice":
-      return (
-        <div className="space-y-2">
-          {question.options.map((option) => (
-            <label
-              key={option}
-              className="flex cursor-pointer items-center gap-2.5 rounded-sm border-[3px] border-ink bg-surface px-3.5 py-3 text-[14.5px] font-bold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px has-checked:bg-poll has-checked:shadow-[3px_3px_0_var(--color-ink)]"
-            >
-              <input
-                type="checkbox"
-                name={name}
-                value={option}
-                className="size-4 accent-[var(--color-brand)]"
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      );
+      return <MultiChoice question={question} name={name} />;
 
     case "rating":
       return <RatingInput name={name} required={question.required} />;
@@ -264,6 +240,124 @@ function RatingInput({ name, required }: { name: string; required: boolean }) {
           <span className="sr-only">{n} out of 5</span>
         </label>
       ))}
+    </div>
+  );
+}
+
+const CHOICE_LABEL =
+  "flex cursor-pointer items-center gap-2.5 rounded-sm border-[3px] border-ink bg-surface px-3.5 py-3 text-[14.5px] font-bold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px";
+
+/** The free-text box an "Other" option reveals. Posted alongside the choice. */
+function OtherBox({ name, show }: { name: string; show: boolean }) {
+  if (!show) return null;
+  return (
+    <Input
+      name={`${name}_other`}
+      placeholder="Tell us which one"
+      aria-label="Describe your answer"
+      className="mt-1"
+      required
+    />
+  );
+}
+
+function SingleChoice({
+  question,
+  name,
+}: {
+  question: PublicQuestion;
+  name: string;
+}) {
+  const [picked, setPicked] = React.useState("");
+
+  return (
+    <div className="space-y-2">
+      {question.options.map((option) => (
+        <label
+          key={option}
+          className={cn(CHOICE_LABEL, "has-checked:bg-brand has-checked:text-white has-checked:shadow-[3px_3px_0_var(--color-ink)]")}
+        >
+          <input
+            type="radio"
+            name={name}
+            value={option}
+            required={question.required}
+            onChange={() => setPicked(option)}
+            className="size-4 accent-[var(--color-brand)]"
+          />
+          {option}
+        </label>
+      ))}
+
+      <OtherBox name={name} show={isOtherOption(picked)} />
+    </div>
+  );
+}
+
+function MultiChoice({
+  question,
+  name,
+}: {
+  question: PublicQuestion;
+  name: string;
+}) {
+  const [picked, setPicked] = React.useState<string[]>([]);
+  const limit = question.max_select;
+  const atLimit = limit !== null && picked.length >= limit;
+
+  function toggle(option: string, checked: boolean) {
+    setPicked((current) =>
+      checked
+        ? [...current.filter((o) => o !== option), option]
+        : current.filter((o) => o !== option),
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {limit !== null && (
+        <p
+          className={cn(
+            "text-[12.5px] font-bold",
+            atLimit ? "text-brand" : "text-ink-soft",
+          )}
+        >
+          {atLimit
+            ? `That's your ${limit}. Untick one to change your mind.`
+            : `Pick up to ${limit} — ${limit - picked.length} left.`}
+        </p>
+      )}
+
+      {question.options.map((option) => {
+        const checked = picked.includes(option);
+        // Disabling rather than silently ignoring the click: an unresponsive
+        // checkbox reads as broken, a greyed one reads as a rule.
+        const blocked = !checked && atLimit;
+
+        return (
+          <label
+            key={option}
+            className={cn(
+              CHOICE_LABEL,
+              "has-checked:bg-poll has-checked:text-white has-checked:shadow-[3px_3px_0_var(--color-ink)]",
+              blocked && "cursor-not-allowed opacity-45 hover:translate-x-0 hover:translate-y-0",
+            )}
+          >
+            <input
+              type="checkbox"
+              name={name}
+              value={option}
+              checked={checked}
+              disabled={blocked}
+              onChange={(event) => toggle(option, event.target.checked)}
+              className="size-4 accent-[var(--color-brand)]"
+            />
+            {option}
+          </label>
+        );
+      })}
+
+      <OtherBox name={name} show={picked.some(isOtherOption)} />
     </div>
   );
 }

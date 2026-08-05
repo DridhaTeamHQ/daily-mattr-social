@@ -68,7 +68,7 @@ export async function submitSurvey(
 
   const { data: questions } = await db
     .from("survey_questions")
-    .select("id, type, prompt, options, required")
+    .select("id, type, prompt, options, required, max_select")
     .eq("survey_id", survey.id)
     .order("order_index", { ascending: true });
 
@@ -105,10 +105,30 @@ export async function submitSurvey(
     }
     if (raw.length === 0) continue;
 
+    // Re-checked here, not just in the browser. The form disables the extra
+    // checkboxes, but a POST does not have to come from that form.
+    const limit = question.max_select;
+    if (limit !== null && raw.length > limit) {
+      return {
+        status: "error",
+        message: `Pick at most ${limit} for: ${question.prompt}`,
+      };
+    }
+
+    // An option called "Other" carries a typed description alongside it.
+    // Stored as "Other: forestry" so a single answer stays one readable
+    // string and the summary can still group every "Other" together.
+    const otherText = String(formData.get(`q_${question.id}_other`) ?? "").trim();
+    const withOther = (choice: string) =>
+      /^other\b/i.test(choice) && otherText ? `Other: ${otherText}` : choice;
+
     let value: Json;
     switch (question.type as Enums<"question_type">) {
       case "multi_choice":
-        value = raw;
+        value = raw.map(withOther);
+        break;
+      case "single_choice":
+        value = withOther(raw[0]);
         break;
       case "rating":
       case "number": {

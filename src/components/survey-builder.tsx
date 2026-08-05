@@ -48,6 +48,7 @@ const newQuestion = (): Draft => ({
   help_text: "",
   options: [],
   required: true,
+  max_select: null,
 });
 
 export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
@@ -128,6 +129,7 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
           help_text: q.help_text,
           options: q.options,
           required: q.required,
+          max_select: q.type === "multi_choice" ? (q.max_select ?? null) : null,
         })),
       });
 
@@ -434,6 +436,35 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                       <Plus aria-hidden />
                       Add option
                     </Button>
+
+                    {/* Multi-choice only. A "pick 2" instruction written into
+                        the prompt is a suggestion; this is the thing that
+                        actually stops a third tick. */}
+                    {question.type === "multi_choice" && (
+                      <label className="mt-3 flex flex-wrap items-center gap-2 text-[13px] font-semibold text-ink">
+                        Limit answers to
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.max(1, (question.options ?? []).length || 1)}
+                          value={question.max_select ?? ""}
+                          placeholder="any"
+                          onChange={(event) => {
+                            const next = Number(event.target.value);
+                            update(question.key, {
+                              max_select:
+                                event.target.value === "" || !Number.isFinite(next)
+                                  ? null
+                                  : Math.max(1, next),
+                            });
+                          }}
+                          className="h-9 w-20 rounded-md border border-gray-200 bg-white px-2 text-center text-[13.5px] font-bold text-ink focus:border-brand focus:outline-none"
+                        />
+                        <span className="text-[12.5px] font-medium text-ink-soft">
+                          Leave blank for no limit.
+                        </span>
+                      </label>
+                    )}
                   </div>
                 )}
 

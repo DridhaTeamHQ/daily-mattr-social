@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Inbox, Mail, Phone } from "lucide-react";
 
+import { FilterChips, type ChipOption } from "@/components/filter-chips";
+import { ResponseSummary } from "@/components/response-summary";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
@@ -25,11 +27,19 @@ export default async function SurveyResponsesPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; view?: string }>;
 }) {
   await requireAdmin();
 
-  const [{ id }, { q, status }] = await Promise.all([params, searchParams]);
+  const [{ id }, { q, status, view }] = await Promise.all([
+    params,
+    searchParams,
+  ]);
+
+  // Summary first. It answers "what did people say", which is why the
+  // survey was run; the individual list answers "what did this person say",
+  // which matters far less often.
+  const isList = view === "responses";
   const data = await getSurveyResponses(id);
   if (!data) notFound();
 
@@ -77,12 +87,35 @@ export default async function SurveyResponsesPage({
         <StatLink id={id} status="flagged" label="Flagged" value={data.counts.flagged} tone="reel" active={status === "flagged"} />
       </div>
 
+      <FilterChips
+        label="View"
+        active={isList ? "responses" : "summary"}
+        options={
+          [
+            {
+              key: "summary",
+              label: "Summary",
+              href: `/admin/surveys/${id}/responses`,
+            },
+            {
+              key: "responses",
+              label: `Individual (${data.responses.length})`,
+              href: `/admin/surveys/${id}/responses?view=responses`,
+            },
+          ] satisfies ChipOption[]
+        }
+      />
+
+      {!isList && <ResponseSummary data={data} />}
+
+      {isList && (
       <SearchBox
         placeholder="Search names, emails, or anything they answered…"
         className="max-w-lg"
       />
+      )}
 
-      {responses.length === 0 ? (
+      {isList && (responses.length === 0 ? (
         <Card>
           <EmptyState
             icon={Inbox}
@@ -173,7 +206,7 @@ export default async function SurveyResponsesPage({
             </li>
           ))}
         </ul>
-      )}
+      ))}
     </div>
   );
 }

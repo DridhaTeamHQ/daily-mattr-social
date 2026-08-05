@@ -175,6 +175,29 @@ export function AddAmbassadorDialog() {
                   <Input id="college" name="college" placeholder="Optional" />
                 </Field>
 
+                {/* City and batch are what every geography and batch-vs-batch
+                    number groups by. Collecting them at creation is the only
+                    moment somebody reliably knows them. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="City" htmlFor="city">
+                    <Input
+                      id="city"
+                      name="city"
+                      list="dm-cities"
+                      placeholder="Hyderabad"
+                    />
+                    <datalist id="dm-cities">
+                      <option value="Hyderabad" />
+                      <option value="Vijayawada" />
+                      <option value="Warangal" />
+                    </datalist>
+                  </Field>
+
+                  <Field label="Batch" htmlFor="batch">
+                    <Input id="batch" name="batch" placeholder="Batch A" />
+                  </Field>
+                </div>
+
                 <Field
                   label="Temporary password"
                   htmlFor="password"

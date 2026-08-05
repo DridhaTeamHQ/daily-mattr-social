@@ -34,7 +34,7 @@ export default async function AmbassadorsPage({
   const [{ q }, all] = await Promise.all([searchParams, getAmbassadors()]);
   const query = q ?? "";
   const rows = all.filter((r) =>
-    matches(query, r.full_name, r.email, r.college, r.referral_code),
+    matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
   );
 
   return (
@@ -65,7 +65,7 @@ export default async function AmbassadorsPage({
       </div>
 
       <SearchBox
-        placeholder="Search by name, email, college or code…"
+        placeholder="Search by name, email, college, city, batch or code…"
         className="max-w-md"
       />
 
@@ -117,7 +117,9 @@ export default async function AmbassadorsPage({
                             {row.full_name || "—"}
                           </Link>
                           <p className="truncate text-[12px] text-ink-soft">
-                            {row.college ?? row.email}
+                            {[row.college, row.city, row.batch]
+                              .filter(Boolean)
+                              .join(" · ") || row.email}
                           </p>
                         </div>
                       </div>

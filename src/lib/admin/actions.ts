@@ -336,6 +336,8 @@ export async function createAmbassador(
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const fullName = String(formData.get("full_name") ?? "").trim();
     const college = String(formData.get("college") ?? "").trim();
+    const city = String(formData.get("city") ?? "").trim();
+    const batch = String(formData.get("batch") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
     if (!email || !fullName) {
@@ -369,7 +371,13 @@ export async function createAmbassador(
     // back: they haven't chosen their own password yet.
     const { error: profileError } = await db
       .from("profiles")
-      .update({ status: "invited", must_change_password: true, full_name: fullName })
+      .update({
+        status: "invited",
+        must_change_password: true,
+        full_name: fullName,
+        city: city || null,
+        batch: batch || null,
+      })
       .eq("id", created.user.id);
 
     if (profileError) {
@@ -711,6 +719,8 @@ export type SurveyQuestionInput = {
   help_text?: string;
   options?: string[];
   required: boolean;
+  /** Multi-choice only. null = no limit. */
+  max_select?: number | null;
 };
 
 /**
@@ -789,6 +799,12 @@ export async function createSurvey(input: {
             ? ((q.options ?? []).map((o) => o.trim()).filter(Boolean) as never)
             : ([] as never),
         required: q.required,
+        // Only multi-choice can carry a cap; anything else stores null so a
+        // stray value on a text question can never limit anything.
+        max_select:
+          q.type === "multi_choice" && q.max_select && q.max_select > 0
+            ? q.max_select
+            : null,
       })),
     );
 

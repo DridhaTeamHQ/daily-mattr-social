@@ -106,6 +106,8 @@ export async function getOverview(): Promise<AdminOverview> {
 // ─── Ambassadors ────────────────────────────────────────────────────────────
 
 export type AmbassadorRow = {
+  city: string | null;
+  batch: string | null;
   id: string;
   full_name: string;
   email: string;
@@ -122,7 +124,7 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   const [{ data: profiles }, { data: ledger }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, full_name, email, college, status, referral_code, created_at")
+      .select("id, full_name, email, college, city, batch, status, referral_code, created_at")
       .eq("role", "ambassador")
       .order("created_at", { ascending: false }),
     // `ambassador_points()` is revoked from `authenticated` by 0007, so totals

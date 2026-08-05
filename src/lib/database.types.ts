@@ -270,6 +270,7 @@ export type Database = {
           /** Choice labels. Required (>= 2) for single_choice / multi_choice. */
           options: Json;
           required: boolean;
+          max_select: number | null;
         };
         Insert: {
           id?: string;
@@ -280,6 +281,7 @@ export type Database = {
           help_text?: string | null;
           options?: Json;
           required?: boolean;
+          max_select?: number | null;
         };
         Update: {
           id?: string;
@@ -290,6 +292,7 @@ export type Database = {
           help_text?: string | null;
           options?: Json;
           required?: boolean;
+          max_select?: number | null;
         };
         Relationships: [
           {
