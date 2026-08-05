@@ -1232,6 +1232,16 @@ export type Database = {
           at_risk: boolean;
         }[];
       };
+      my_stipend_progress: {
+        Args: { months_back?: number };
+        Returns: {
+          period: string;
+          downloads: number;
+          surveys: number;
+          met: boolean;
+          paid_status: string;
+        }[];
+      };
       public_stats: {
         Args: Record<PropertyKey, never>;
         Returns: {

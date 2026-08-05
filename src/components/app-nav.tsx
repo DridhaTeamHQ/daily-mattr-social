@@ -3,9 +3,11 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeIndianRupee,
   Clapperboard,
   ClipboardList,
   Flame,
+  Coins,
   Gift,
   House,
   LogOut,
@@ -53,6 +55,23 @@ const ITEMS = [
     href: "/dashboard/leaderboard",
     label: "Ranks",
     icon: Trophy,
+    fill: "bg-rank",
+  },
+  {
+    // Reachable from the top bar, the Rewards page and Home, but kept off the
+    // phone bottom bar. Seven thumb targets across a 375px screen is about
+    // 53px each, which is under the comfortable minimum — and of the two
+    // money screens, Rewards is the one students open repeatedly.
+    href: "/dashboard/stipend",
+    label: "Stipend",
+    icon: BadgeIndianRupee,
+    fill: "bg-brand",
+    desktopOnly: true,
+  },
+  {
+    href: "/dashboard/rewards",
+    label: "Rewards",
+    icon: Coins,
     fill: "bg-rank",
   },
 ];
@@ -191,7 +210,7 @@ export function BottomNav() {
       )}
     >
       <ul className="flex items-stretch">
-        {ITEMS.map(({ href, label, icon: Icon, fill }) => {
+        {ITEMS.filter((item) => !item.desktopOnly).map(({ href, label, icon: Icon, fill }) => {
           const active = isActive(href);
           return (
             <li key={href} className="flex-1">
