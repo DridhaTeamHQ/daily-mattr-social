@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Upload, Users } from "lucide-react";
 
-import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
+import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
@@ -39,8 +39,6 @@ export default async function AmbassadorsPage({
 
   return (
     <div className="stagger space-y-5">
-      <SectionTabs tabs={AMBASSADOR_TABS} />
-
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-[26px] leading-none text-ink">
@@ -53,7 +51,8 @@ export default async function AmbassadorsPage({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <AmbassadorNav />
           <Button variant="secondary" asChild>
             <Link href="/admin/ambassadors/import">
               <Upload aria-hidden />

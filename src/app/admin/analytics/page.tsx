@@ -1,4 +1,13 @@
-import { Coins, Percent, TrendingUp, Wallet } from "lucide-react";
+import {
+  Clapperboard,
+  ClipboardList,
+  Coins,
+  Download,
+  Percent,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react";
 
 import {
   BarList,
@@ -7,7 +16,7 @@ import {
   DayBars,
   SERIES,
 } from "@/components/charts";
-import { FilterChips, type ChipOption } from "@/components/filter-chips";
+import { NavSelect, type NavOption } from "@/components/nav-select";
 import { GoalTracker } from "@/components/goal-tracker";
 import { Card, CardBody } from "@/components/ui/card";
 import { Note } from "@/components/ui/feedback";
@@ -34,22 +43,33 @@ const STATUS_FILL: Record<string, string> = {
 };
 
 /**
- * One time window for the whole page.
+ * Four categories, one at a time.
  *
- * Every figure below moves together. A page where each card silently covered a
- * different period is how somebody reads two numbers side by side and draws a
- * conclusion neither of them supports.
+ * Everything on one page meant scrolling past three subjects to reach the
+ * fourth, and it invited comparing a download figure against a survey figure
+ * that happen to sit next to each other and mean nothing together. Picking a
+ * subject first makes each screen answer one question.
  */
+const CATEGORIES = [
+  { key: "downloads", label: "Downloads", icon: Download },
+  { key: "campaigns", label: "Campaigns", icon: Clapperboard },
+  { key: "ambassadors", label: "Ambassadors", icon: Users },
+  { key: "surveys", label: "Surveys", icon: ClipboardList },
+] as const;
+
+type Category = (typeof CATEGORIES)[number]["key"];
+
+/** One window for every figure on screen, whichever category is showing. */
 const PERIODS = [
-  { key: "7", label: "7 days" },
-  { key: "30", label: "30 days" },
-  { key: "90", label: "90 days" },
+  { key: "7", label: "Last 7 days" },
+  { key: "30", label: "Last 30 days" },
+  { key: "90", label: "Last 90 days" },
 ] as const;
 
 const DIMENSIONS = [
-  { key: "city", label: "City" },
-  { key: "batch", label: "Batch" },
-  { key: "college", label: "College" },
+  { key: "city", label: "By city" },
+  { key: "batch", label: "By batch" },
+  { key: "college", label: "By college" },
 ] as const;
 
 type Dimension = (typeof DIMENSIONS)[number]["key"];
@@ -57,7 +77,7 @@ type Dimension = (typeof DIMENSIONS)[number]["key"];
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; by?: string }>;
+  searchParams: Promise<{ days?: string; by?: string; cat?: string }>;
 }) {
   await requireAdmin();
 
@@ -69,6 +89,9 @@ export default async function AnalyticsPage({
   const by: Dimension = DIMENSIONS.some((d) => d.key === params.by)
     ? (params.by as Dimension)
     : "city";
+  const cat: Category = CATEGORIES.some((c) => c.key === params.cat)
+    ? (params.cat as Category)
+    : "downloads";
 
   const [data, goal, geography, money] = await Promise.all([
     getAnalytics(days),
@@ -83,20 +106,23 @@ export default async function AnalyticsPage({
       : `${Math.round(data.totals.approvalRate * 100)}%`;
 
   const href = (next: Record<string, string>) => {
-    const sp = new URLSearchParams({ days: String(days), by, ...next });
+    const sp = new URLSearchParams({ days: String(days), by, cat, ...next });
     return `/admin/analytics?${sp.toString()}`;
   };
 
-  const periodChips: ChipOption[] = PERIODS.map((p) => ({
-    key: p.key,
-    label: p.label,
-    href: href({ days: p.key }),
+  const categoryOptions: NavOption[] = CATEGORIES.map((c) => ({
+    value: href({ cat: c.key }),
+    label: c.label,
   }));
 
-  const dimensionChips: ChipOption[] = DIMENSIONS.map((d) => ({
-    key: d.key,
+  const periodOptions: NavOption[] = PERIODS.map((p) => ({
+    value: href({ days: p.key }),
+    label: p.label,
+  }));
+
+  const dimensionOptions: NavOption[] = DIMENSIONS.map((d) => ({
+    value: href({ by: d.key }),
     label: d.label,
-    href: href({ by: d.key }),
   }));
 
   const cohort =
@@ -107,170 +133,308 @@ export default async function AnalyticsPage({
         : geography.cities;
 
   const windowLabel = `Last ${days} days`;
+  const active = CATEGORIES.find((c) => c.key === cat)!;
+  const ActiveIcon = active.icon;
+
+  const responses = data.responsesBySurvey.reduce(
+    (sum, row) => sum + row.value,
+    0,
+  );
 
   return (
     <div className="stagger space-y-5">
-      <div>
-        <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
-        <p className="mt-1 text-[13.5px] text-ink-soft">
-          Everything below covers the same window.
-        </p>
-      </div>
-
-      <FilterChips label="Period" options={periodChips} active={String(days)} />
-
-      <GoalTracker goal={goal} />
-
-      {/* ─── Money ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Stipend paid"
-          value={`₹${formatNumber(money.stipendPaidInr)}`}
-          sub="To date"
-          icon={Coins}
-          tone="brand"
-        />
-        <Stat
-          label="Incentives"
-          value={`₹${formatNumber(money.redemptionPaidInr)}`}
-          sub="Points turned to cash"
-          icon={Wallet}
-          tone="rank"
-        />
-        <Stat
-          label="To be paid"
-          value={`₹${formatNumber(money.pendingInr)}`}
-          sub={`${money.redemptionsOpen} request${money.redemptionsOpen === 1 ? "" : "s"} open`}
-          icon={Wallet}
-          tone="invite"
-        />
-        <Stat
-          label="Success rate"
-          value={success}
-          sub="Of reviewed screenshots"
-          icon={Percent}
-          tone="poll"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Points issued"
-          value={formatNumber(data.totals.issued)}
-          sub={windowLabel}
-          icon={Coins}
-          tone="brand"
-        />
-        <Stat
-          label="Points reversed"
-          value={formatNumber(data.totals.reversed)}
-          sub={data.totals.reversed > 0 ? "Revoked or corrected" : "None"}
-          icon={TrendingUp}
-          tone="reel"
-        />
-        <Stat
-          label="Survey responses"
-          value={formatNumber(
-            data.responsesBySurvey.reduce((sum, row) => sum + row.value, 0),
-          )}
-          sub={windowLabel}
-          icon={Coins}
-          tone="poll"
-        />
-        <Stat
-          label="Downloads"
-          value={formatNumber(goal.total)}
-          sub="All time"
-          icon={TrendingUp}
-          tone="rank"
-        />
-      </div>
-
-      {/* ─── Charts ────────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Downloads per day" hint={windowLabel}>
-          <DayBars data={goal.perDay} color="gold" />
-          <DataTable
-            caption="Downloads per day"
-            rows={goal.perDay
-              .filter((d) => d.value > 0)
-              .map((d) => ({ label: d.day, value: d.value }))}
-          />
-        </ChartCard>
-
-        <ChartCard title="Where installs come from" hint="Store split, all time.">
-          <BarList data={goal.byStore} emptyMessage="No downloads recorded yet." />
-          <DataTable caption="Store split" rows={goal.byStore} />
-        </ChartCard>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Where points come from" hint={windowLabel}>
-          <BarList
-            data={data.earningsBySource}
-            color="gold"
-            emptyMessage="Nobody has earned anything in this window."
-          />
-          <DataTable caption="Points by source" rows={data.earningsBySource} />
-        </ChartCard>
-
-        <ChartCard title="Screenshot outcomes" hint={windowLabel}>
-          <BarList
-            data={data.submissionsByStatus.map((row) => ({
-              ...row,
-              color: STATUS_FILL[row.label],
-            }))}
-            emptyMessage="Nothing submitted in this window."
-          />
-          <DataTable caption="Outcomes" rows={data.submissionsByStatus} />
-        </ChartCard>
-      </div>
-
-      {/* ─── Cohort ────────────────────────────────────────────────────────── */}
-      <Card>
-        <CardBody>
-          <h2 className="display text-[16px] text-ink">Breakdown</h2>
-          <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-            Downloads per head as well as the total — a group of thirty will
-            always out-total a group of six.
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
+          <p className="mt-1 text-[13.5px] text-ink-soft">
+            One subject, one window. Everything on screen moves together.
           </p>
+        </div>
 
-          {/* One card with a dimension filter, rather than three near-identical
-              cards sitting side by side. */}
-          <div className="mt-3">
-            <FilterChips label="Group by" options={dimensionChips} active={by} />
+        <div className="flex flex-wrap items-center gap-3">
+          <NavSelect
+            label="Category"
+            value={href({ cat })}
+            options={categoryOptions}
+          />
+          <NavSelect
+            label="Period"
+            value={href({ days: String(days) })}
+            options={periodOptions}
+          />
+        </div>
+      </div>
+
+      {/* The tag repeats the choice as a heading, so a screenshot of this page
+          says what it is without the dropdown being in frame. */}
+      <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3.5 py-1.5 text-[12.5px] font-extrabold text-blue-700">
+        <ActiveIcon className="size-3.5" />
+        {active.label} · {windowLabel}
+      </span>
+
+      {/* ─── Downloads ─────────────────────────────────────────────────────── */}
+      {cat === "downloads" && (
+        <>
+          <GoalTracker goal={goal} />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard title="Downloads per day" hint={windowLabel}>
+              <DayBars data={goal.perDay} color="gold" />
+              <DataTable
+                caption="Downloads per day"
+                rows={goal.perDay
+                  .filter((d) => d.value > 0)
+                  .map((d) => ({ label: d.day, value: d.value }))}
+              />
+            </ChartCard>
+
+            <ChartCard
+              title="Where installs come from"
+              hint="Store split, all time."
+            >
+              <BarList
+                data={goal.byStore}
+                emptyMessage="No downloads recorded yet."
+              />
+              <DataTable caption="Store split" rows={goal.byStore} />
+            </ChartCard>
           </div>
 
-          {cohort.length === 0 ? (
-            <p className="mt-4 text-[12.5px] font-semibold text-ink-soft">
-              Nothing recorded yet.
-            </p>
-          ) : (
-            <ul className="mt-3 divide-y divide-gray-100">
-              {cohort.slice(0, 12).map((row) => (
-                <li key={row.label} className="flex items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13.5px] font-bold text-ink">
-                      {row.label}
-                    </p>
-                    <p className="text-[11.5px] text-ink-soft">
-                      {row.ambassadors} ambassador
-                      {row.ambassadors === 1 ? "" : "s"} ·{" "}
-                      {formatNumber(row.points)} points
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="tabular text-[14px] font-extrabold text-ink">
-                      {formatNumber(row.downloads)}
-                    </p>
-                    <p className="text-[11px] text-ink-soft">{row.perHead} each</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
+          <Card>
+            <CardBody>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="display text-[16px] text-ink">Breakdown</h2>
+                  <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
+                    Downloads per head as well as the total — a group of thirty
+                    will always out-total a group of six.
+                  </p>
+                </div>
+                <NavSelect
+                  label="Group"
+                  value={href({ by })}
+                  options={dimensionOptions}
+                />
+              </div>
+
+              {cohort.length === 0 ? (
+                <p className="mt-4 text-[12.5px] font-semibold text-ink-soft">
+                  Nothing recorded yet.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-gray-100">
+                  {cohort.slice(0, 12).map((row) => (
+                    <li key={row.label} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13.5px] font-bold text-ink">
+                          {row.label}
+                        </p>
+                        <p className="text-[11.5px] text-ink-soft">
+                          {row.ambassadors} ambassador
+                          {row.ambassadors === 1 ? "" : "s"} ·{" "}
+                          {formatNumber(row.points)} points
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="tabular text-[14px] font-extrabold text-ink">
+                          {formatNumber(row.downloads)}
+                        </p>
+                        <p className="text-[11px] text-ink-soft">
+                          {row.perHead} each
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
+          </Card>
+        </>
+      )}
+
+      {/* ─── Campaigns ─────────────────────────────────────────────────────── */}
+      {cat === "campaigns" && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat
+              label="Success rate"
+              value={success}
+              sub="Of reviewed screenshots"
+              icon={Percent}
+              tone="poll"
+            />
+            <Stat
+              label="Approved"
+              value={formatNumber(
+                data.submissionsByStatus
+                  .filter((s) => s.label.includes("pproved"))
+                  .reduce((sum, s) => sum + s.value, 0),
+              )}
+              sub={windowLabel}
+              icon={Clapperboard}
+              tone="brand"
+            />
+            <Stat
+              label="Waiting"
+              value={formatNumber(
+                data.submissionsByStatus
+                  .filter(
+                    (s) => s.label === "Needs review" || s.label === "Checking",
+                  )
+                  .reduce((sum, s) => sum + s.value, 0),
+              )}
+              sub="In the review queue"
+              icon={Clapperboard}
+              tone="invite"
+            />
+            <Stat
+              label="Rejected"
+              value={formatNumber(
+                data.submissionsByStatus
+                  .filter(
+                    (s) => s.label === "Rejected" || s.label === "Revoked",
+                  )
+                  .reduce((sum, s) => sum + s.value, 0),
+              )}
+              sub={windowLabel}
+              icon={Clapperboard}
+              tone="reel"
+            />
+          </div>
+
+          <ChartCard title="Screenshot outcomes" hint={windowLabel}>
+            <BarList
+              data={data.submissionsByStatus.map((row) => ({
+                ...row,
+                color: STATUS_FILL[row.label],
+              }))}
+              emptyMessage="Nothing submitted in this window."
+            />
+            <DataTable caption="Outcomes" rows={data.submissionsByStatus} />
+          </ChartCard>
+        </>
+      )}
+
+      {/* ─── Ambassadors ───────────────────────────────────────────────────── */}
+      {cat === "ambassadors" && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat
+              label="Points issued"
+              value={formatNumber(data.totals.issued)}
+              sub={windowLabel}
+              icon={Coins}
+              tone="brand"
+            />
+            <Stat
+              label="Points reversed"
+              value={formatNumber(data.totals.reversed)}
+              sub={data.totals.reversed > 0 ? "Revoked or corrected" : "None"}
+              icon={TrendingUp}
+              tone="reel"
+            />
+            <Stat
+              label="Stipend paid"
+              value={`₹${formatNumber(money.stipendPaidInr)}`}
+              sub="To date"
+              icon={Wallet}
+              tone="rank"
+            />
+            <Stat
+              label="Incentives"
+              value={`₹${formatNumber(money.redemptionPaidInr)}`}
+              sub="Points turned to cash"
+              icon={Wallet}
+              tone="poll"
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard title="Where points come from" hint={windowLabel}>
+              <BarList
+                data={data.earningsBySource}
+                color="gold"
+                emptyMessage="Nobody has earned anything in this window."
+              />
+              <DataTable caption="Points by source" rows={data.earningsBySource} />
+            </ChartCard>
+
+            <Card>
+              <CardBody>
+                <h2 className="display text-[16px] text-ink">Money out</h2>
+                <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
+                  What has been sent, and what is still owed.
+                </p>
+                <dl className="mt-4 space-y-2.5">
+                  <MoneyRow
+                    label="To be paid"
+                    value={`₹${formatNumber(money.pendingInr)}`}
+                    sub={`${money.redemptionsOpen} request${money.redemptionsOpen === 1 ? "" : "s"} open`}
+                  />
+                  <MoneyRow
+                    label="Stipend paid"
+                    value={`₹${formatNumber(money.stipendPaidInr)}`}
+                    sub="All time"
+                  />
+                  <MoneyRow
+                    label="Incentives paid"
+                    value={`₹${formatNumber(money.redemptionPaidInr)}`}
+                    sub="All time"
+                  />
+                </dl>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* ─── Surveys ───────────────────────────────────────────────────────── */}
+      {cat === "surveys" && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat
+              label="Responses"
+              value={formatNumber(responses)}
+              sub={windowLabel}
+              icon={ClipboardList}
+              tone="poll"
+            />
+            <Stat
+              label="Surveys collecting"
+              value={formatNumber(data.responsesBySurvey.length)}
+              sub="With at least one response"
+              icon={ClipboardList}
+              tone="brand"
+            />
+            <Stat
+              label="Points from surveys"
+              value={formatNumber(
+                data.earningsBySource.find((s) => s.label === "Surveys")?.value ??
+                  0,
+              )}
+              sub={windowLabel}
+              icon={Coins}
+              tone="rank"
+            />
+            <Stat
+              label="Best survey"
+              value={formatNumber(data.responsesBySurvey[0]?.value ?? 0)}
+              sub={data.responsesBySurvey[0]?.label ?? "Nothing yet"}
+              icon={ClipboardList}
+              tone="invite"
+            />
+          </div>
+
+          <ChartCard title="Responses per survey" hint={windowLabel}>
+            <BarList
+              data={data.responsesBySurvey}
+              color="teal"
+              emptyMessage="No responses in this window."
+            />
+            <DataTable caption="Responses per survey" rows={data.responsesBySurvey} />
+          </ChartCard>
+        </>
+      )}
 
       <Note tone="neutral">
         Series colours here are darker steps of the app&apos;s accents: the
@@ -287,6 +451,28 @@ export default async function AnalyticsPage({
           ))}
         </span>
       </Note>
+    </div>
+  );
+}
+
+function MoneyRow({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5">
+      <div>
+        <dt className="text-[13px] font-bold text-ink">{label}</dt>
+        <p className="text-[11.5px] font-semibold text-ink-soft">{sub}</p>
+      </div>
+      <dd className="tabular shrink-0 text-[16px] font-extrabold text-ink">
+        {value}
+      </dd>
     </div>
   );
 }

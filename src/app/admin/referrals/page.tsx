@@ -2,7 +2,7 @@ import { Coins, Gift, TrendingUp, Users } from "lucide-react";
 
 import Link from "next/link";
 
-import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
+import { AmbassadorNav } from "@/components/ambassador-nav";
 import { DownloadsCell } from "@/components/downloads-cell";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
@@ -38,14 +38,15 @@ export default async function AdminReferralsPage({
 
   return (
     <div className="stagger space-y-5">
-      <SectionTabs tabs={AMBASSADOR_TABS} />
-
-      <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
         <h1 className="display text-[26px] leading-none text-ink">Referrals</h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">
           Every ambassador&apos;s code, and how many app downloads it has
           brought in.
         </p>
+        </div>
+        <AmbassadorNav />
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

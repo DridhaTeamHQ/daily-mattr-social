@@ -3,7 +3,7 @@ import { Trophy, Users } from "lucide-react";
 
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import { SearchBox } from "@/components/search-box";
-import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
+import { AmbassadorNav } from "@/components/ambassador-nav";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { requireAdmin } from "@/lib/admin/queries";
@@ -100,13 +100,14 @@ export default async function AdminLeaderboardPage({
 
   return (
     <div className="stagger space-y-5">
-      <SectionTabs tabs={AMBASSADOR_TABS} />
-
-      <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
         <h1 className="display text-[26px] leading-none text-ink">Leaderboard</h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">
           Who is earning, over the window you pick.
         </p>
+        </div>
+        <AmbassadorNav />
       </div>
 
       <div className="space-y-2.5">

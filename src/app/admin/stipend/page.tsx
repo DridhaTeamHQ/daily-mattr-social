@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { PayoutQueue } from "@/components/payout-queue";
-import { SectionTabs, AMBASSADOR_TABS } from "@/components/section-tabs";
+import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
@@ -61,8 +61,6 @@ export default async function StipendPage({
 
   return (
     <div className="stagger space-y-5">
-      <SectionTabs tabs={AMBASSADOR_TABS} />
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="display text-[24px] leading-none text-ink">
@@ -74,12 +72,15 @@ export default async function StipendPage({
           </p>
         </div>
 
-        <Button variant="secondary" size="sm" asChild>
-          <a href={`/admin/stipend/export?month=${month}`}>
-            <Download aria-hidden />
-            Export report
-          </a>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AmbassadorNav />
+          <Button variant="secondary" size="sm" asChild>
+            <a href={`/admin/stipend/export?month=${month}`}>
+              <Download aria-hidden />
+              Export report
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* ─── Month picker ──────────────────────────────────────────────────── */}
