@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { ProgressBar, Stat } from "@/components/ui/stat";
 import { setCampaignStatus } from "@/lib/admin/actions";
+import { archiveCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
 import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
 
@@ -135,6 +137,27 @@ export default async function CampaignDetailPage({
                 End
               </ActionButton>
             )}
+            <CampaignEditDialog campaign={campaign} />
+
+            {campaign.status !== "draft" && (
+              <ActionButton
+                size="sm"
+                variant="secondary"
+                action={archiveCampaign.bind(
+                  null,
+                  campaign.id,
+                  campaign.status !== "archived",
+                )}
+                confirmMessage={
+                  campaign.status === "archived"
+                    ? undefined
+                    : `Archive "${campaign.title}"? Its submissions and points are untouched — it just stops cluttering the list.`
+                }
+              >
+                {campaign.status === "archived" ? "Unarchive" : "Archive"}
+              </ActionButton>
+            )}
+
             <Button size="sm" variant="secondary" asChild>
               <a href={campaign.instagram_url} target="_blank" rel="noopener noreferrer">
                 Reel

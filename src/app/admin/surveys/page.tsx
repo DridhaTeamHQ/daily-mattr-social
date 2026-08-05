@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { SurveyEditDialog } from "@/components/edit-dialogs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
@@ -92,6 +93,8 @@ export default async function AdminSurveysPage() {
                       response{s.responseCount === 1 ? "" : "s"}
                     </Link>
                   </Button>
+
+                  <SurveyEditDialog survey={s} responseCount={s.responseCount} />
 
                   {s.status === "draft" && (
                     <ActionButton

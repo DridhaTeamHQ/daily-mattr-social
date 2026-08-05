@@ -2,14 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Inbox, Mail, Phone } from "lucide-react";
 
+import { ActionButton } from "@/components/action-button";
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
+import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
+import { setResponseStatus } from "@/lib/admin/edit-actions";
 import { matches } from "@/lib/search";
 import { formatDate } from "@/lib/utils";
 
@@ -201,6 +205,66 @@ export default async function SurveyResponsesPage({
                       </div>
                     ))}
                   </dl>
+
+                  {/* Moderation. Flagging reverses the point the response
+                      earned — leaving the points on the balance would make the
+                      flag cosmetic and let somebody farm their own link. */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3">
+                    {response.status === "valid" ? (
+                      <>
+                        <ReasonDialog
+                          title="Mark as duplicate"
+                          description="The point this earned is reversed. The original credit stays in their history next to the reversal."
+                          label="Why"
+                          placeholder="Same person answered twice"
+                          confirmLabel="Mark duplicate"
+                          action={async (reason: string) =>
+                            setResponseStatus(response.id, "duplicate", reason)
+                          }
+                          trigger={
+                            <Button size="sm" variant="secondary">
+                              Duplicate
+                            </Button>
+                          }
+                        />
+                        <ReasonDialog
+                          title="Flag this response"
+                          description="Use for answers that look made up or copied. The point is reversed."
+                          label="Why"
+                          placeholder="Every answer identical to the one above"
+                          confirmLabel="Flag"
+                          action={async (reason: string) =>
+                            setResponseStatus(response.id, "flagged", reason)
+                          }
+                          trigger={
+                            <Button size="sm" variant="secondary">
+                              Flag
+                            </Button>
+                          }
+                        />
+                      </>
+                    ) : (
+                      <ActionButton
+                        size="sm"
+                        variant="secondary"
+                        action={setResponseStatus.bind(
+                          null,
+                          response.id,
+                          "valid",
+                          undefined,
+                        )}
+                        confirmMessage="Count this response again? The point goes back."
+                      >
+                        Restore
+                      </ActionButton>
+                    )}
+
+                    {response.flagReason && (
+                      <span className="text-[12px] font-semibold text-ink-soft">
+                        {response.flagReason}
+                      </span>
+                    )}
+                  </div>
                 </CardBody>
               </Card>
             </li>

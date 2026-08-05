@@ -184,3 +184,207 @@ export const getSurveyParticipation = cache(
       .sort((a, b) => b.responses - a.responses || b.clicks - a.clicks);
   },
 );
+
+// ─── Per-entity league tables ───────────────────────────────────────────────
+
+export type DownloadLeader = {
+  id: string;
+  name: string;
+  city: string | null;
+  batch: string | null;
+  downloads: number;
+  voided: number;
+  pointsEarned: number;
+};
+
+/** Every ambassador, ranked by confirmed downloads. */
+export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
+  const db = createAdminClient();
+
+  const [{ data: profiles }, { data: conversions }, { data: ledger }] =
+    await Promise.all([
+      db
+        .from("profiles")
+        .select("id, full_name, city, batch")
+        .eq("role", "ambassador")
+        .eq("status", "active"),
+      db.from("referral_conversions").select("ambassador_id, status"),
+      db
+        .from("point_ledger")
+        .select("ambassador_id, delta")
+        .eq("reason", "referral"),
+    ]);
+
+  const rows = new Map<string, DownloadLeader>();
+  for (const p of profiles ?? []) {
+    rows.set(p.id, {
+      id: p.id,
+      name: p.full_name,
+      city: p.city,
+      batch: p.batch,
+      downloads: 0,
+      voided: 0,
+      pointsEarned: 0,
+    });
+  }
+
+  for (const c of conversions ?? []) {
+    const row = rows.get(c.ambassador_id);
+    if (!row) continue;
+    if (c.status === "counted") row.downloads += 1;
+    else row.voided += 1;
+  }
+
+  for (const entry of ledger ?? []) {
+    const row = rows.get(entry.ambassador_id);
+    if (row) row.pointsEarned += entry.delta;
+  }
+
+  return [...rows.values()].sort((a, b) => b.downloads - a.downloads);
+});
+
+export type CampaignTotals = {
+  id: string;
+  title: string;
+  status: string;
+  participants: number;
+  submitted: number;
+  approved: number;
+  waiting: number;
+  pointsPaid: number;
+};
+
+/** Every campaign with the numbers that say whether it worked. */
+export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
+  const db = createAdminClient();
+
+  const [{ data: campaigns }, { data: submissions }, { data: ledger }] =
+    await Promise.all([
+      db
+        .from("campaigns")
+        .select("id, title, status, campaign_tasks(id)")
+        .order("created_at", { ascending: false }),
+      db
+        .from("submissions")
+        .select("id, ambassador_id, status, campaign_tasks(campaign_id)"),
+      db
+        .from("point_ledger")
+        .select("delta, source_id")
+        .eq("reason", "instagram_task"),
+    ]);
+
+  // A campaign-task ledger row points at the SUBMISSION it paid for, so the
+  // route to a campaign is submission -> task -> campaign. Read from the
+  // ledger rather than summing task values, so a revoked approval stops
+  // counting.
+  const submissionToCampaign = new Map<string, string>();
+
+  const rows = new Map<string, CampaignTotals>();
+  const people = new Map<string, Set<string>>();
+
+  for (const c of campaigns ?? []) {
+    rows.set(c.id, {
+      id: c.id,
+      title: c.title,
+      status: c.status,
+      participants: 0,
+      submitted: 0,
+      approved: 0,
+      waiting: 0,
+      pointsPaid: 0,
+    });
+    people.set(c.id, new Set());
+  }
+
+  for (const s of submissions ?? []) {
+    const campaignId = (
+      s.campaign_tasks as unknown as { campaign_id: string } | null
+    )?.campaign_id;
+    const row = campaignId ? rows.get(campaignId) : undefined;
+    if (!row || !campaignId) continue;
+
+    submissionToCampaign.set(s.id, campaignId);
+
+    row.submitted += 1;
+    people.get(campaignId)?.add(s.ambassador_id);
+    if (APPROVED.has(s.status)) row.approved += 1;
+    else if (!REJECTED.has(s.status)) row.waiting += 1;
+  }
+
+  for (const entry of ledger ?? []) {
+    const campaignId = entry.source_id
+      ? submissionToCampaign.get(entry.source_id)
+      : undefined;
+    const row = campaignId ? rows.get(campaignId) : undefined;
+    if (row) row.pointsPaid += entry.delta;
+  }
+
+  for (const [id, set] of people) {
+    const row = rows.get(id);
+    if (row) row.participants = set.size;
+  }
+
+  return [...rows.values()];
+});
+
+export type SurveyTotals = {
+  id: string;
+  title: string;
+  status: string;
+  links: number;
+  clicks: number;
+  responses: number;
+  flagged: number;
+  pointsPaid: number;
+};
+
+export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
+  const db = createAdminClient();
+
+  const [{ data: surveys }, { data: links }, { data: responses }] =
+    await Promise.all([
+      db
+        .from("surveys")
+        .select("id, title, status, points_per_response")
+        .order("created_at", { ascending: false }),
+      db.from("survey_links").select("survey_id, click_count"),
+      db.from("survey_responses").select("survey_id, status"),
+    ]);
+
+  const rows = new Map<string, SurveyTotals>();
+  const perResponse = new Map<string, number>();
+
+  for (const s of surveys ?? []) {
+    rows.set(s.id, {
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      links: 0,
+      clicks: 0,
+      responses: 0,
+      flagged: 0,
+      pointsPaid: 0,
+    });
+    perResponse.set(s.id, s.points_per_response);
+  }
+
+  for (const l of links ?? []) {
+    const row = rows.get(l.survey_id);
+    if (!row) continue;
+    row.links += 1;
+    row.clicks += l.click_count;
+  }
+
+  for (const r of responses ?? []) {
+    const row = rows.get(r.survey_id);
+    if (!row) continue;
+    if (r.status === "valid") row.responses += 1;
+    else row.flagged += 1;
+  }
+
+  for (const row of rows.values()) {
+    row.pointsPaid = row.responses * (perResponse.get(row.id) ?? 0);
+  }
+
+  return [...rows.values()];
+});

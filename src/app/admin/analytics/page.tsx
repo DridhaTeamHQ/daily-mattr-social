@@ -16,6 +16,7 @@ import {
   DayBars,
   SERIES,
 } from "@/components/charts";
+import { LeagueTable, type LeagueRow } from "@/components/league-table";
 import { NavSelect, type NavOption } from "@/components/nav-select";
 import { GoalTracker } from "@/components/goal-tracker";
 import { Card, CardBody } from "@/components/ui/card";
@@ -24,6 +25,13 @@ import { Stat } from "@/components/ui/stat";
 import { getAnalytics, requireAdmin } from "@/lib/admin/queries";
 import { getMoneySummary } from "@/lib/admin/money";
 import { getGeography, getGoalTracking } from "@/lib/admin/growth";
+import {
+  getCampaignParticipation,
+  getCampaignTotals,
+  getDownloadLeaders,
+  getSurveyParticipation,
+  getSurveyTotals,
+} from "@/lib/admin/participation";
 import { formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "Analytics" };
@@ -93,12 +101,114 @@ export default async function AnalyticsPage({
     ? (params.cat as Category)
     : "downloads";
 
-  const [data, goal, geography, money] = await Promise.all([
+  const [
+    data,
+    goal,
+    geography,
+    money,
+    downloaders,
+    campaignRows,
+    surveyRows,
+    surveyPeople,
+    campaignPeople,
+  ] = await Promise.all([
     getAnalytics(days),
     getGoalTracking(days),
     getGeography(),
     getMoneySummary(),
+    getDownloadLeaders(),
+    getCampaignTotals(),
+    getSurveyTotals(),
+    getSurveyParticipation(),
+    getCampaignParticipation(),
   ]);
+
+  const num = (n: number) => ({ value: formatNumber(n), muted: n === 0 });
+
+  // Every category ends in a list of the actual things, because a total tells
+  // you the size of a problem and a row tells you whose it is.
+  const downloadLeague: LeagueRow[] = downloaders.map((r) => ({
+    id: r.id,
+    name: r.name,
+    href: `/admin/ambassadors/${r.id}`,
+    meta:
+      [r.city, r.batch].filter(Boolean).join(" · ") ||
+      "No city or batch set",
+    columns: [
+      { label: "Downloads", ...num(r.downloads) },
+      { label: "Voided", ...num(r.voided) },
+      { label: "Points", ...num(r.pointsEarned) },
+    ],
+  }));
+
+  const campaignLeague: LeagueRow[] = campaignRows.map((c) => ({
+    id: c.id,
+    name: c.title,
+    href: `/admin/campaigns/${c.id}`,
+    meta: `${c.status} · ${c.participants} took part`,
+    columns: [
+      { label: "Submitted", ...num(c.submitted) },
+      { label: "Approved", ...num(c.approved) },
+      { label: "Points", ...num(c.pointsPaid) },
+    ],
+  }));
+
+  const surveyLeague: LeagueRow[] = surveyRows.map((s) => ({
+    id: s.id,
+    name: s.title,
+    href: `/admin/surveys/${s.id}/responses`,
+    meta: `${s.status} · ${s.links} link${s.links === 1 ? "" : "s"} issued`,
+    columns: [
+      { label: "Clicks", ...num(s.clicks) },
+      { label: "Responses", ...num(s.responses) },
+      { label: "Points", ...num(s.pointsPaid) },
+    ],
+  }));
+
+  // One row per person across all three earning routes. Merged here rather
+  // than in SQL because each half is already fetched for its own category, and
+  // a fourth query would be the same three joins again.
+  const responsesById = new Map(surveyPeople.map((r) => [r.id, r]));
+  const campaignsById = new Map(campaignPeople.rows.map((r) => [r.id, r]));
+
+  const ambassadorLeague: LeagueRow[] = downloaders
+    .map((r) => {
+      const survey = responsesById.get(r.id);
+      const campaign = campaignsById.get(r.id);
+      const points =
+        r.pointsEarned +
+        (survey?.pointsEarned ?? 0) +
+        (campaign?.pointsEarned ?? 0);
+
+      return {
+        id: r.id,
+        name: r.name,
+        href: `/admin/ambassadors/${r.id}`,
+        meta:
+          [r.city, r.batch].filter(Boolean).join(" · ") ||
+          "No city or batch set",
+        points,
+        columns: [
+          { label: "Downloads", ...num(r.downloads) },
+          { label: "Responses", ...num(survey?.responses ?? 0) },
+          { label: "Points", ...num(points) },
+        ],
+      };
+    })
+    .sort((a, b) => b.points - a.points);
+
+  const surveyPeopleLeague: LeagueRow[] = surveyPeople.map((r) => ({
+    id: r.id,
+    name: r.name,
+    href: `/admin/ambassadors/${r.id}`,
+    meta:
+      [r.city, r.batch].filter(Boolean).join(" · ") || "No city or batch set",
+    columns: [
+      { label: "Clicks", ...num(r.clicks) },
+      { label: "Responses", ...num(r.responses) },
+      { label: "Points", ...num(r.pointsEarned) },
+    ],
+  }));
 
   const success =
     data.totals.approvalRate === null
@@ -198,6 +308,18 @@ export default async function AnalyticsPage({
               />
               <DataTable caption="Store split" rows={goal.byStore} />
             </ChartCard>
+          </div>
+
+
+          <div>
+            <h2 className="display text-[16px] text-ink">Who drove them</h2>
+            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
+              Confirmed downloads per ambassador. Voided ones are shown beside them, because a big voided count is its own problem.
+            </p>
+            <LeagueTable
+              rows={downloadLeague}
+              emptyMessage="No ambassadors yet."
+            />
           </div>
 
           <Card>
@@ -312,6 +434,18 @@ export default async function AnalyticsPage({
             />
             <DataTable caption="Outcomes" rows={data.submissionsByStatus} />
           </ChartCard>
+
+          <div>
+            <h2 className="display text-[16px] text-ink">Each campaign</h2>
+            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
+              Every campaign, all time. A high submitted count with few approvals is usually a badly worded ask rather than badly done work.
+            </p>
+            <LeagueTable
+              rows={campaignLeague}
+              showRank={false}
+              emptyMessage="No campaigns yet."
+            />
+          </div>
         </>
       )}
 
@@ -385,6 +519,18 @@ export default async function AnalyticsPage({
               </CardBody>
             </Card>
           </div>
+
+          <div>
+            <h2 className="display text-[16px] text-ink">Every ambassador</h2>
+            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
+              Points across all three earning routes, so somebody strong on
+              surveys and absent on downloads is visible as both.
+            </p>
+            <LeagueTable
+              rows={ambassadorLeague}
+              emptyMessage="No ambassadors yet."
+            />
+          </div>
         </>
       )}
 
@@ -425,14 +571,29 @@ export default async function AnalyticsPage({
             />
           </div>
 
-          <ChartCard title="Responses per survey" hint={windowLabel}>
-            <BarList
-              data={data.responsesBySurvey}
-              color="teal"
-              emptyMessage="No responses in this window."
+
+          <div>
+            <h2 className="display text-[16px] text-ink">Each survey</h2>
+            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
+              Clicks against responses, all time. Plenty of clicks with few responses means the survey itself is losing people.
+            </p>
+            <LeagueTable
+              rows={surveyLeague}
+              showRank={false}
+              emptyMessage="No surveys yet."
             />
-            <DataTable caption="Responses per survey" rows={data.responsesBySurvey} />
-          </ChartCard>
+          </div>
+
+          <div>
+            <h2 className="display text-[16px] text-ink">Who is collecting</h2>
+            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
+              The same two numbers per ambassador. No clicks means the link is not being shared at all.
+            </p>
+            <LeagueTable
+              rows={surveyPeopleLeague}
+              emptyMessage="No ambassadors yet."
+            />
+          </div>
         </>
       )}
 
