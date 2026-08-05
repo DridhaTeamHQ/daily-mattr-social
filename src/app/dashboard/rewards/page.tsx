@@ -2,11 +2,13 @@ import { redirect } from "next/navigation";
 import { Banknote, Coins, History, Wallet } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { BadgeWall } from "@/components/badge-wall";
 import { RedeemForm } from "@/components/redeem-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
+import { getMyBadges } from "@/lib/badges";
 import { getRewards } from "@/lib/rewards";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
@@ -28,7 +30,7 @@ const STATUS_TONE = {
 } as const;
 
 export default async function RewardsPage() {
-  const rewards = await getRewards();
+  const [rewards, badges] = await Promise.all([getRewards(), getMyBadges()]);
   if (!rewards) redirect("/login?next=/dashboard/rewards");
 
   const reserved = rewards.requests
@@ -122,6 +124,8 @@ export default async function RewardsPage() {
           </CardBody>
         </Card>
       )}
+
+      <BadgeWall badges={badges} />
 
       {/* ─── The ledger ────────────────────────────────────────────────────── */}
       <Card>

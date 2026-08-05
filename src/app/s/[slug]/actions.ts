@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { awardStreakBonus } from "@/lib/rewards-engine";
+import { evaluateBadges } from "@/lib/badges";
 import { serverEnv } from "@/lib/env";
 import { notify } from "@/lib/notifications";
 import type { Enums, Json } from "@/lib/database.types";
@@ -194,6 +196,11 @@ export async function submitSurvey(
   if (!responseId) {
     return { status: "error", message: "Couldn't save your answers. Try again." };
   }
+
+  // A survey response also makes the week active, so the consistency bonus
+  // is checked here too rather than only on campaign approvals.
+  await awardStreakBonus(link.ambassador_id, null).catch(() => {});
+  await evaluateBadges(link.ambassador_id).catch(() => {});
 
   await db.from("survey_answers").insert(
     answers.map((a) => ({ ...a, response_id: responseId! })),

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
 import { assertAdmin, fail } from "@/lib/admin/guards";
+import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
+import { evaluateBadges } from "@/lib/badges";
 import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
@@ -94,6 +96,11 @@ export async function approveSubmission(
     await audit(actorId, "submission.approve", "submission", submissionId, {
       points,
     });
+
+    // Checked after the points land, since the week only counts as active
+    // once something has been earned in it.
+    await awardStreakBonus(submission.ambassador_id, actorId).catch(() => {});
+    await evaluateBadges(submission.ambassador_id).catch(() => {});
 
     await notify({
       profileId: submission.ambassador_id,
@@ -522,6 +529,12 @@ export async function setReferralCount(
           })),
         );
       }
+
+      // Past the threshold, later downloads are worth more. Runs after the
+      // flat award so it tops up rather than replacing it, and it is a no-op
+      // when nothing new is owed.
+      await awardReferralBonus(profileId, actorId).catch(() => {});
+      await evaluateBadges(profileId).catch(() => {});
 
       await notify({
         profileId,
