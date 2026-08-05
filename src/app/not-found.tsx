@@ -24,7 +24,7 @@ export default function NotFound() {
       <div className="w-full max-w-md text-center">
         <Wordmark
           label="DailyMattr"
-          className="mx-auto h-[18px] w-auto text-brand"
+          className="mx-auto h-[28px] w-auto text-brand"
         />
 
         <div className="mt-8 grid size-14 place-items-center justify-self-center rounded-full bg-brand-tint text-brand-strong">

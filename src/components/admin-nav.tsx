@@ -53,7 +53,7 @@ export function AdminNav({
           aria-label="DailyMattr admin — overview"
           className="flex shrink-0 items-center gap-1.5"
         >
-          <Wordmark className="h-[15px] w-auto text-white" />
+          <Wordmark className="h-[22px] w-auto text-white" />
           <span className="rounded-xs bg-white/15 px-1.5 py-0.5 text-[10.5px] font-medium tracking-wide uppercase">
             Admin
           </span>

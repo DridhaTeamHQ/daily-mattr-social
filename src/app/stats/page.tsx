@@ -77,7 +77,7 @@ export default async function PublicStatsPage() {
       <div className="mx-auto max-w-4xl px-5 py-16 sm:py-24">
         <Wordmark
           label="DailyMattr"
-          className="h-[22px] w-auto text-brand-strong"
+          className="h-[34px] w-auto text-brand-strong"
         />
 
         <h1 className="display mt-8 text-[34px] leading-[1.05] text-gray-900 sm:text-[44px]">
