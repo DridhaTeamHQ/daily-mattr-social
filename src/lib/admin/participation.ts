@@ -388,3 +388,91 @@ export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
 
   return [...rows.values()];
 });
+
+// ─── One survey, broken down by ambassador ──────────────────────────────────
+
+export type SurveyAmbassador = {
+  id: string;
+  name: string;
+  city: string | null;
+  batch: string | null;
+  slug: string | null;
+  clicks: number;
+  responses: number;
+  flagged: number;
+  pointsEarned: number;
+  /** Responses per click. Null until there are clicks to divide by. */
+  conversion: number | null;
+};
+
+/**
+ * Who collected what for a single survey.
+ *
+ * The responses list answers "what did this person say"; this answers "which
+ * of my ambassadors actually shared their link". Everyone holding a link is
+ * included, including the ones on zero — a list of only the people who
+ * delivered cannot tell you who to chase, which is the reason to open it.
+ */
+export const getSurveyAmbassadors = cache(
+  async (surveyId: string): Promise<SurveyAmbassador[]> => {
+    const db = createAdminClient();
+
+    const [{ data: survey }, { data: links }, { data: responses }] =
+      await Promise.all([
+        db
+          .from("surveys")
+          .select("points_per_response")
+          .eq("id", surveyId)
+          .maybeSingle(),
+        db
+          .from("survey_links")
+          .select("ambassador_id, slug, click_count, profiles(full_name, city, batch)")
+          .eq("survey_id", surveyId),
+        db
+          .from("survey_responses")
+          .select("ambassador_id, status")
+          .eq("survey_id", surveyId),
+      ]);
+
+    const perResponse = survey?.points_per_response ?? 0;
+    const rows = new Map<string, SurveyAmbassador>();
+
+    for (const link of links ?? []) {
+      const person = link.profiles as unknown as {
+        full_name: string;
+        city: string | null;
+        batch: string | null;
+      } | null;
+
+      rows.set(link.ambassador_id, {
+        id: link.ambassador_id,
+        name: person?.full_name ?? "Unknown",
+        city: person?.city ?? null,
+        batch: person?.batch ?? null,
+        slug: link.slug,
+        clicks: link.click_count,
+        responses: 0,
+        flagged: 0,
+        pointsEarned: 0,
+        conversion: null,
+      });
+    }
+
+    for (const response of responses ?? []) {
+      const row = rows.get(response.ambassador_id);
+      if (!row) continue;
+      if (response.status === "valid") row.responses += 1;
+      else row.flagged += 1;
+    }
+
+    return [...rows.values()]
+      .map((row) => ({
+        ...row,
+        // Points are the flat rate times valid responses. Flagged ones were
+        // already reversed in the ledger, so they must not be counted here.
+        pointsEarned: row.responses * perResponse,
+        conversion: row.clicks > 0 ? row.responses / row.clicks : null,
+      }))
+      .sort((a, b) => b.responses - a.responses || b.clicks - a.clicks);
+  },
+);

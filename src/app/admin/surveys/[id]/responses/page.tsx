@@ -6,6 +6,7 @@ import { ActionButton } from "@/components/action-button";
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
+import { SurveyAmbassadors } from "@/components/survey-ambassadors";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
+import { getSurveyAmbassadors } from "@/lib/admin/participation";
 import { setResponseStatus } from "@/lib/admin/edit-actions";
 import { matches } from "@/lib/search";
 import { formatDate } from "@/lib/utils";
@@ -44,7 +46,12 @@ export default async function SurveyResponsesPage({
   // survey was run; the individual list answers "what did this person say",
   // which matters far less often.
   const isList = view === "responses";
-  const data = await getSurveyResponses(id);
+  const isPeople = view === "ambassadors";
+
+  const [data, people] = await Promise.all([
+    getSurveyResponses(id),
+    getSurveyAmbassadors(id),
+  ]);
   if (!data) notFound();
 
   const query = q ?? "";
@@ -93,13 +100,18 @@ export default async function SurveyResponsesPage({
 
       <FilterChips
         label="View"
-        active={isList ? "responses" : "summary"}
+        active={isList ? "responses" : isPeople ? "ambassadors" : "summary"}
         options={
           [
             {
               key: "summary",
               label: "Summary",
               href: `/admin/surveys/${id}/responses`,
+            },
+            {
+              key: "ambassadors",
+              label: `By ambassador (${people.length})`,
+              href: `/admin/surveys/${id}/responses?view=ambassadors`,
             },
             {
               key: "responses",
@@ -110,7 +122,9 @@ export default async function SurveyResponsesPage({
         }
       />
 
-      {!isList && <ResponseSummary data={data} />}
+      {isPeople && <SurveyAmbassadors rows={people} />}
+
+      {!isList && !isPeople && <ResponseSummary data={data} />}
 
       {isList && (
       <SearchBox
