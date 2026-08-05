@@ -45,6 +45,10 @@ export const publicEnv = {
       "http://localhost:3000"
     );
   },
+  /** Optional. Used in ambassador welcome emails and fallback sharing copy. */
+  get appDownloadUrl() {
+    return process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL?.trim() || null;
+  },
 };
 
 export function serverEnv() {
@@ -66,6 +70,18 @@ export function serverEnv() {
     },
     get openaiVisionModel() {
       return process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+    },
+    /** Optional. If absent, ambassador welcome emails are skipped. */
+    get brevoApiKey() {
+      return process.env.BREVO_API_KEY?.trim() || null;
+    },
+    /** Optional. Must be a registered sender in Brevo. */
+    get brevoSenderEmail() {
+      return process.env.BREVO_SENDER_EMAIL?.trim() || null;
+    },
+    /** Optional. Sender display name for Brevo emails. */
+    get brevoSenderName() {
+      return process.env.BREVO_SENDER_NAME?.trim() || "DailyMattr";
     },
   };
 }

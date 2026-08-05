@@ -15,6 +15,7 @@ import {
   resetAmbassadorPassword,
   type CreatedAmbassador,
 } from "@/lib/admin/actions";
+import { publicEnv } from "@/lib/env";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -47,12 +48,28 @@ function suggestPassword() {
 /** Shown after an account is made, so the admin can pass the details on. */
 function CredentialsPanel({
   credentials,
+  emailDelivery,
   onDone,
 }: {
   credentials: NonNullable<CreatedAmbassador["credentials"]>;
+  emailDelivery?: CreatedAmbassador["emailDelivery"];
   onDone: () => void;
 }) {
-  const shareText = `Hi ${credentials.fullName}, here's your DailyMattr login.\n\nEmail: ${credentials.email}\nTemporary password: ${credentials.password}\n\nSign in at ${typeof window !== "undefined" ? window.location.origin : ""}/login — you'll be asked to pick your own password straight away.`;
+  const loginUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/login` : "";
+  const shareText = [
+    `Hi ${credentials.fullName}, here's your DailyMattr login.`,
+    "",
+    `Email: ${credentials.email}`,
+    `Temporary password: ${credentials.password}`,
+    "",
+    `Sign in at ${loginUrl} — you'll be asked to pick your own password straight away.`,
+    publicEnv.appDownloadUrl
+      ? `Download the app here: ${publicEnv.appDownloadUrl}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div>
@@ -66,8 +83,8 @@ function CredentialsPanel({
       </div>
 
       <Dialog.Description className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-        Send these over. This password only works once — they&apos;ll be asked to
-        pick their own the moment they sign in.
+        This password only works once — they&apos;ll be asked to pick their own
+        the moment they sign in.
       </Dialog.Description>
 
       <dl className="mt-4 space-y-2 rounded-sm border border-line bg-canvas-sunk p-3.5">
@@ -89,10 +106,20 @@ function CredentialsPanel({
         </div>
       </dl>
 
-      <Note tone="warn" className="mt-3">
-        This is the only time it&apos;s shown. If you lose it, use Reset
-        password on their row.
-      </Note>
+      {emailDelivery?.status === "sent" ? (
+        <Note tone="invite" className="mt-3">
+          Welcome email sent with the website login link, temporary password,
+          and app download link.
+        </Note>
+      ) : (
+        <Note
+          tone={emailDelivery?.status === "failed" ? "warn" : "brand"}
+          className="mt-3"
+        >
+          {emailDelivery?.message ??
+            "This is the only time it's shown. If you lose it, use Reset password on their row."}
+        </Note>
+      )}
 
       <div className="mt-4 flex flex-wrap justify-end gap-2">
         <CopyButton
@@ -108,18 +135,22 @@ function CredentialsPanel({
   );
 }
 
-/** Create an ambassador with a temporary password. No email involved. */
+/** Create an ambassador with a temporary password and send the welcome email. */
 export function AddAmbassadorDialog() {
   const [open, setOpen] = React.useState(false);
   const [password, setPassword] = React.useState(suggestPassword);
   const [issued, setIssued] = React.useState<
     CreatedAmbassador["credentials"] | null
   >(null);
+  const [emailDelivery, setEmailDelivery] = React.useState<
+    CreatedAmbassador["emailDelivery"] | null
+  >(null);
   const [pending, startTransition] = React.useTransition();
 
   function reset() {
     setOpen(false);
     setIssued(null);
+    setEmailDelivery(null);
     setPassword(suggestPassword());
   }
 
@@ -131,6 +162,7 @@ export function AddAmbassadorDialog() {
       const result = await createAmbassador(formData);
       if (result.ok && result.credentials) {
         setIssued(result.credentials);
+        setEmailDelivery(result.emailDelivery ?? null);
         toast.success(result.message);
       } else {
         toast.error(result.message);
@@ -151,15 +183,20 @@ export function AddAmbassadorDialog() {
         <Overlay />
         <Dialog.Content className={PANEL}>
           {issued ? (
-            <CredentialsPanel credentials={issued} onDone={reset} />
+            <CredentialsPanel
+              credentials={issued}
+              emailDelivery={emailDelivery ?? undefined}
+              onDone={reset}
+            />
           ) : (
             <>
               <Dialog.Title className="text-[16px] font-bold text-ink">
                 Add an ambassador
               </Dialog.Title>
               <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                You set a temporary password and pass it on yourself. No invite
-                email, so nothing depends on a mail server.
+                A welcome email goes out automatically with their website login
+                link, temporary password, and app download link. You&apos;ll still
+                see the credentials here as backup.
               </Dialog.Description>
 
               <form onSubmit={submit} className="mt-4 space-y-4">
@@ -258,11 +295,15 @@ export function ResetPasswordDialog({
   const [issued, setIssued] = React.useState<
     CreatedAmbassador["credentials"] | null
   >(null);
+  const [emailDelivery, setEmailDelivery] = React.useState<
+    CreatedAmbassador["emailDelivery"] | null
+  >(null);
   const [pending, startTransition] = React.useTransition();
 
   function reset() {
     setOpen(false);
     setIssued(null);
+    setEmailDelivery(null);
     setPassword(suggestPassword());
   }
 
@@ -273,6 +314,7 @@ export function ResetPasswordDialog({
       const result = await resetAmbassadorPassword(profileId, password);
       if (result.ok && result.credentials) {
         setIssued(result.credentials);
+        setEmailDelivery(result.emailDelivery ?? null);
         toast.success(result.message);
       } else {
         toast.error(result.message);
@@ -295,15 +337,20 @@ export function ResetPasswordDialog({
         <Overlay />
         <Dialog.Content className={PANEL}>
           {issued ? (
-            <CredentialsPanel credentials={issued} onDone={reset} />
+            <CredentialsPanel
+              credentials={issued}
+              emailDelivery={emailDelivery ?? undefined}
+              onDone={reset}
+            />
           ) : (
             <>
               <Dialog.Title className="text-[16px] font-bold text-ink">
                 Reset {name}&apos;s password
               </Dialog.Title>
               <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                Their current password stops working immediately, and
-                they&apos;ll be asked to choose a new one when they sign in.
+                Their current password stops working immediately, and the new
+                temporary password will be emailed with the website login link
+                and app download link.
               </Dialog.Description>
 
               <form onSubmit={submit} className="mt-4 space-y-4">
