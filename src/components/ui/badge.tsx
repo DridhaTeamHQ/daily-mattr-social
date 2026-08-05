@@ -109,24 +109,24 @@ export function StatusBadge({ status }: { status: string }) {
 
   const STATUS_TEXT: Record<Tone, string> = {
     neutral: "text-ink",
-    brand: "text-blue-800",
-    ok: "text-blue-800",
+    brand: "text-brand-press",
+    ok: "text-brand-press",
     warn: "text-red-800",
     bad: "text-red-800",
     reel: "text-gray-800",
     poll: "text-gray-800",
-    invite: "text-blue-800",
+    invite: "text-brand-press",
     rank: "text-gray-800",
   };
   const STATUS_BG: Record<Tone, string> = {
     neutral: "bg-gray-100 border border-gray-200",
-    brand: "bg-blue-100 border border-blue-200",
-    ok: "bg-blue-100 border border-blue-200",
+    brand: "bg-brand-tint border border-brand/35",
+    ok: "bg-brand-tint border border-brand/35",
     warn: "bg-red-100 border border-red-200",
     bad: "bg-red-100 border border-red-200",
     reel: "bg-gray-100 border border-gray-200",
     poll: "bg-gray-100 border border-gray-200",
-    invite: "bg-blue-100 border border-blue-200",
+    invite: "bg-brand-tint border border-brand/35",
     rank: "bg-gray-100 border border-gray-200",
   };
 

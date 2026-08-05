@@ -66,20 +66,20 @@ export function Note({
 }) {
   const NOTE_BG = {
     neutral: "bg-gray-50",
-    brand: "bg-blue-50 border border-blue-100",
+    brand: "bg-brand-tint border border-brand/20",
     warn: "bg-red-50 border border-red-100",
     bad: "bg-red-50 border border-red-100",
-    ok: "bg-blue-50 border border-blue-100",
-    invite: "bg-blue-50 border border-blue-100",
+    ok: "bg-brand-tint border border-brand/20",
+    invite: "bg-brand-tint border border-brand/20",
   };
 
   const ICON_BG = {
     neutral: "bg-gray-600 text-white",
-    brand: "bg-blue-600 text-white",
+    brand: "bg-brand-strong text-white",
     warn: "bg-red-500 text-white",
     bad: "bg-red-500 text-white",
-    ok: "bg-blue-600 text-white",
-    invite: "bg-blue-600 text-white",
+    ok: "bg-brand-strong text-white",
+    invite: "bg-brand-strong text-white",
   };
 
   return (

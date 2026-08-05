@@ -176,6 +176,40 @@ export type CohortSlice = {
   perHead: number;
 };
 
+/**
+ * Canonical label for a grouping value.
+ *
+ * Admins type these by hand and import them from spreadsheets, so "hyderabad",
+ * "Hyderabad" and "Hyderabad " all arrive. Grouping on the raw string split
+ * one city into three rows that each looked like a small city, which is worse
+ * than useless — it understates every one of them.
+ *
+ * Batches keep their number and get a consistent "Batch N" form, so "2",
+ * "batch 2" and "Batch 2" are one group.
+ */
+function canonical(field: "city" | "batch" | "college", raw: string): string {
+  const value = raw.trim().replace(/\s+/g, " ");
+  if (!value) return "Unassigned";
+
+  if (field === "batch") {
+    const digits = value.match(/\d+/);
+    if (digits) return `Batch ${Number(digits[0])}`;
+    const letter = value.replace(/batch/gi, " ").trim().match(/[a-z]/i);
+    if (letter) return `Batch ${letter[0].toUpperCase()}`;
+  }
+
+  // Title case, but only for words that are lower case already — "VIT" and
+  // "JNTU" must not become "Vit" and "Jntu".
+  return value
+    .split(" ")
+    .map((word) =>
+      word === word.toLowerCase()
+        ? word.charAt(0).toUpperCase() + word.slice(1)
+        : word,
+    )
+    .join(" ");
+}
+
 async function sliceBy(field: "city" | "batch" | "college"): Promise<CohortSlice[]> {
   const db = createAdminClient();
 
@@ -197,7 +231,7 @@ async function sliceBy(field: "city" | "batch" | "college"): Promise<CohortSlice
   const groups = new Map<string, CohortSlice>();
 
   for (const profile of profiles ?? []) {
-    const key = (profile[field] ?? "").trim() || "Unassigned";
+    const key = canonical(field, profile[field] ?? "");
     groupOf.set(profile.id, key);
     const existing = groups.get(key);
     if (existing) existing.ambassadors += 1;

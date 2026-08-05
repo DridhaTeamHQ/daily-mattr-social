@@ -44,13 +44,13 @@ export default async function SurveysPage() {
         description="Share your link. Every genuine response earns you points."
         variant="outline"
         action={
-          <div className="relative size-16 shrink-0 md:size-20 bg-blue-50 rounded-xl hidden sm:block">
+          <div className="relative size-16 shrink-0 md:size-20 bg-brand-tint rounded-xl hidden sm:block">
             {/* Simple CSS clipboard illustration to match the space */}
-            <div className="absolute inset-2 bg-white rounded-md border-2 border-blue-200 shadow-sm" />
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-3 bg-gray-200 rounded-sm border-2 border-blue-200" />
-            <div className="absolute top-6 left-4 w-6 h-1.5 bg-blue-100 rounded-full" />
-            <div className="absolute top-9 left-4 w-4 h-1.5 bg-blue-100 rounded-full" />
-            <div className="absolute top-12 left-4 w-8 h-1.5 bg-blue-100 rounded-full" />
+            <div className="absolute inset-2 bg-white rounded-md border-2 border-brand/35 shadow-sm" />
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-3 bg-gray-200 rounded-sm border-2 border-brand/35" />
+            <div className="absolute top-6 left-4 w-6 h-1.5 bg-brand-tint rounded-full" />
+            <div className="absolute top-9 left-4 w-4 h-1.5 bg-brand-tint rounded-full" />
+            <div className="absolute top-12 left-4 w-8 h-1.5 bg-brand-tint rounded-full" />
           </div>
         }
       />
@@ -97,7 +97,7 @@ export default async function SurveysPage() {
                 value={url}
                 size="md"
                 variant="primary"
-                className="bg-blue-600 text-white hover:bg-blue-700 border-0 shadow-sm"
+                className="bg-brand-strong text-white hover:bg-brand-press border-0 shadow-sm"
                 label="Copy link"
                 copiedLabel="Link copied"
                 toastMessage="Survey link copied"
@@ -132,12 +132,12 @@ function Metric({
 }) {
   const METRIC_BG = {
     clicks: "bg-gray-100",
-    responses: "bg-blue-50",
+    responses: "bg-brand-tint",
     points: "bg-gray-100",
   };
   const METRIC_ICON_BG = {
     clicks: "bg-gray-800",
-    responses: "bg-blue-600",
+    responses: "bg-brand-strong",
     points: "bg-black",
   };
   const Icon = tone === "clicks" ? Pointer : tone === "responses" ? MessageSquare : Star;

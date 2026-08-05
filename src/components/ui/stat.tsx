@@ -12,7 +12,7 @@ const STAT_BG = {
 };
 
 const STAT_ICON_BG = {
-  brand: "bg-blue-600",
+  brand: "bg-brand-strong",
   reel: "bg-[#0b5cff]",
   poll: "bg-[#008f6b]",
   invite: "bg-[#6432ff]",

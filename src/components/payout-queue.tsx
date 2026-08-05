@@ -110,9 +110,7 @@ export async function PayoutQueue() {
                         label="Reason"
                         placeholder="Balance already redeemed this month"
                         confirmLabel="Decline"
-                        action={async (reason: string) =>
-                          decideRedemption(r.id, "rejected", reason)
-                        }
+                        action={decideRedemption.bind(null, r.id, "rejected")}
                         trigger={
                           <Button size="sm" variant="secondary">
                             Decline
@@ -218,7 +216,7 @@ export async function PayoutQueue() {
                           label="UTR / transaction reference"
                           placeholder="N123456789012345"
                           confirmLabel="Mark paid"
-                          action={async (utr: string) => markPayoutPaid(p.id, utr)}
+                          action={markPayoutPaid.bind(null, p.id)}
                           trigger={
                             <Button size="sm">
                               <Check aria-hidden />
@@ -232,9 +230,7 @@ export async function PayoutQueue() {
                           label="Reason"
                           placeholder="Bank rejected the UPI id"
                           confirmLabel="Mark failed"
-                          action={async (reason: string) =>
-                            markPayoutFailed(p.id, reason)
-                          }
+                          action={markPayoutFailed.bind(null, p.id)}
                           trigger={
                             <Button size="sm" variant="secondary" aria-label="Mark failed">
                               <X aria-hidden />

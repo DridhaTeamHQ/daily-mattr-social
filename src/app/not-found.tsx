@@ -27,7 +27,7 @@ export default function NotFound() {
           className="mx-auto h-[18px] w-auto text-brand"
         />
 
-        <div className="mt-8 grid size-14 place-items-center justify-self-center rounded-full bg-blue-50 text-blue-600">
+        <div className="mt-8 grid size-14 place-items-center justify-self-center rounded-full bg-brand-tint text-brand-strong">
           <Compass className="size-6" />
         </div>
 

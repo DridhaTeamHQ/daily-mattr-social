@@ -68,7 +68,7 @@ export default async function CampaignsPage() {
           <Card key={c.id} id={c.id} className="scroll-mt-20">
             <CardBody className="p-6">
               <div className="flex items-start gap-4">
-                <div className={cn("grid size-12 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-800")}>
+                <div className={cn("grid size-12 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-brand-tint text-brand-strong" : "bg-gray-100 text-gray-800")}>
                   {c.title.includes("CLIP") ? <Video className="size-6" /> : <Megaphone className="size-6" />}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -98,7 +98,7 @@ export default async function CampaignsPage() {
 
                   return (
                     <li key={t.id} className="flex items-center gap-4 p-4">
-                      <div className={cn("grid size-11 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-800")}>
+                      <div className={cn("grid size-11 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-brand-tint text-brand-strong" : "bg-gray-100 text-gray-800")}>
                         <Icon className="size-5" />
                       </div>
 
@@ -156,12 +156,12 @@ export default async function CampaignsPage() {
               </ul>
             </CardBody>
 
-            <CardFooter className={cn("flex items-center justify-between gap-3 px-6 py-4 border-t-0 rounded-b-xl", c.title.includes("CLIP") ? "bg-blue-50/50" : "bg-gray-50/50")}>
+            <CardFooter className={cn("flex items-center justify-between gap-3 px-6 py-4 border-t-0 rounded-b-xl", c.title.includes("CLIP") ? "bg-brand-tint/50" : "bg-gray-50/50")}>
               <p className="text-[13px] font-medium text-ink-soft flex items-center gap-2">
-                <Sparkles className={cn("size-4", c.title.includes("CLIP") ? "text-blue-600" : "text-gray-600")} />
+                <Sparkles className={cn("size-4", c.title.includes("CLIP") ? "text-brand-strong" : "text-gray-600")} />
                 Open the reel, complete the task, then upload your screenshot.
               </p>
-              <Button size="sm" className={cn("text-white border-0 shadow-sm transition-transform hover:scale-[1.02]", c.title.includes("CLIP") ? "bg-blue-600 hover:bg-blue-700" : "bg-black hover:bg-gray-800")} asChild>
+              <Button size="sm" className={cn("text-white border-0 shadow-sm transition-transform hover:scale-[1.02]", c.title.includes("CLIP") ? "bg-brand-strong hover:bg-brand-press" : "bg-black hover:bg-gray-800")} asChild>
                 <a href={c.instagram_url} target="_blank" rel="noopener noreferrer">
                   Open reel
                   <ExternalLink aria-hidden />

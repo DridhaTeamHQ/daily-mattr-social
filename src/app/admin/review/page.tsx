@@ -117,7 +117,7 @@ export default async function ReviewPage({
                             href={item.proof_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 flex items-start gap-1.5 text-[13px] font-bold break-all text-blue-600 hover:underline"
+                            className="mt-2 flex items-start gap-1.5 text-[13px] font-bold break-all text-brand-strong hover:underline"
                           >
                             <ExternalLink className="mt-0.5 size-3.5 shrink-0" />
                             {item.proof_url}

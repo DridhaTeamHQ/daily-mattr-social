@@ -277,7 +277,7 @@ export default async function AnalyticsPage({
 
       {/* The tag repeats the choice as a heading, so a screenshot of this page
           says what it is without the dropdown being in frame. */}
-      <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3.5 py-1.5 text-[12.5px] font-extrabold text-blue-700">
+      <span className="inline-flex items-center gap-2 rounded-full bg-brand-tint px-3.5 py-1.5 text-[12.5px] font-extrabold text-brand-press">
         <ActiveIcon className="size-3.5" />
         {active.label} · {windowLabel}
       </span>

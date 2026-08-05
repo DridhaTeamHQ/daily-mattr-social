@@ -207,7 +207,7 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
                       className={cn(
                         "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 transition-colors",
                         included
-                          ? "border-blue-200 bg-blue-50/40"
+                          ? "border-brand/35 bg-brand-tint/40"
                           : "border-gray-200 bg-gray-50",
                       )}
                     >
@@ -223,7 +223,7 @@ export function CreateCampaignDialog({ aiEnabled }: { aiEnabled: boolean }) {
                       <span
                         className={cn(
                           "text-[11.5px] font-bold",
-                          included ? "text-blue-600" : "text-ink-faint",
+                          included ? "text-brand-strong" : "text-ink-faint",
                         )}
                       >
                         {included ? "included" : "left out"}

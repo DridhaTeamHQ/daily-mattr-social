@@ -232,9 +232,11 @@ export default async function SurveyResponsesPage({
                           label="Why"
                           placeholder="Same person answered twice"
                           confirmLabel="Mark duplicate"
-                          action={async (reason: string) =>
-                            setResponseStatus(response.id, "duplicate", reason)
-                          }
+                          action={setResponseStatus.bind(
+                            null,
+                            response.id,
+                            "duplicate",
+                          )}
                           trigger={
                             <Button size="sm" variant="secondary">
                               Duplicate
@@ -247,9 +249,11 @@ export default async function SurveyResponsesPage({
                           label="Why"
                           placeholder="Every answer identical to the one above"
                           confirmLabel="Flag"
-                          action={async (reason: string) =>
-                            setResponseStatus(response.id, "flagged", reason)
-                          }
+                          action={setResponseStatus.bind(
+                            null,
+                            response.id,
+                            "flagged",
+                          )}
                           trigger={
                             <Button size="sm" variant="secondary">
                               Flag

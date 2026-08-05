@@ -9,6 +9,7 @@ import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
 import { assertAdmin, fail } from "@/lib/admin/guards";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
+import { nextReferralCode } from "@/lib/referral-code";
 import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
@@ -389,6 +390,9 @@ export async function createAmbassador(
         full_name: fullName,
         city: city || null,
         batch: batch || null,
+        // The signup trigger issues a random code before anyone knows the
+        // batch, so the structured one is assigned here, where we do.
+        referral_code: await nextReferralCode(db, batch),
       })
       .eq("id", created.user.id);
 

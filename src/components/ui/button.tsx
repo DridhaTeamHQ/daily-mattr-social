@@ -7,22 +7,22 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "quiet" | "outline
 type Size = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
-  // White, not ink. --color-brand is #2563eb since the redesign, and near-black
-  // on it lands at about 3.1:1 — under the floor, and the reason primary
-  // buttons across the app were hard to read. White on #2563eb is 5.2:1.
+  // brand-strong, not brand: white on #3979ff is 3.92:1, under the floor for
+  // text this size. The darker step is the same blue at 4.98:1.
   primary:
-    "bg-brand text-white hover:brightness-110 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]",
+    "bg-brand-strong text-white hover:bg-brand-hover shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]",
   secondary: "bg-gray-100 text-ink hover:bg-gray-200 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   danger: "bg-bad text-white hover:brightness-110 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   // A tinted fill with dark text rather than white on #3b82f6, which is only
   // 3.7:1 and fails at this size.
   quiet:
-    "bg-poll-tint text-blue-700 hover:brightness-95 transition-transform hover:scale-[1.02] active:scale-[0.98]",
+    "bg-poll-tint text-brand-press hover:brightness-95 transition-transform hover:scale-[1.02] active:scale-[0.98]",
   ghost:
     "border border-transparent text-ink-soft hover:bg-gray-100 hover:text-ink transition-colors",
   "outline-blue":
-    "border border-blue-200 text-blue-600 bg-white hover:bg-blue-50 transition-colors shadow-sm",
-  brand: "bg-blue-600 text-white hover:bg-blue-700 transition-transform hover:scale-[1.02] active:scale-[0.98]",
+    "border border-brand/35 text-brand-strong bg-white hover:bg-brand-tint transition-colors shadow-sm",
+  brand:
+    "bg-brand-strong text-white hover:bg-brand-hover transition-transform hover:scale-[1.02] active:scale-[0.98]",
 };
 
 const SIZES: Record<Size, string> = {

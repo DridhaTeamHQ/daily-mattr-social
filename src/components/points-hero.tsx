@@ -12,8 +12,8 @@ import { cn, formatNumber } from "@/lib/utils";
  */
 export const TIERS = [
   { at: 0, name: "Rookie", fill: "bg-surface" },
-  { at: 100, name: "Warmed up", fill: "bg-blue-50" },
-  { at: 300, name: "Regular", fill: "bg-blue-100 border-blue-300" },
+  { at: 100, name: "Warmed up", fill: "bg-brand-tint" },
+  { at: 300, name: "Regular", fill: "bg-brand-tint border-brand/50" },
   { at: 750, name: "Campus star", fill: "bg-gray-50 text-ink-faint" },
   { at: 1500, name: "Legend", fill: "bg-gray-50 text-ink-faint" },
   { at: 3000, name: "Hall of fame", fill: "bg-gray-50 text-ink-faint" },
@@ -70,7 +70,7 @@ export function tierFor(points: number) {
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
               Total Points
             </span>
-            <div className="size-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+            <div className="size-8 rounded-lg bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong">
               <Zap className="size-4 fill-current" />
             </div>
           </div>
@@ -89,7 +89,7 @@ export function tierFor(points: number) {
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
               Current Tier
             </span>
-            <div className="size-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+            <div className="size-8 rounded-lg bg-brand-strong flex items-center justify-center text-white">
               <Star className="size-4 fill-current text-amber-300" />
             </div>
           </div>
@@ -97,7 +97,7 @@ export function tierFor(points: number) {
             <h3 className="text-2xl font-black text-black tracking-tight">
               {current.name}
             </h3>
-            <p className="text-xs font-semibold text-blue-600 mt-0.5">Unlocked Member</p>
+            <p className="text-xs font-semibold text-brand-strong mt-0.5">Unlocked Member</p>
           </div>
         </div>
 
@@ -108,7 +108,7 @@ export function tierFor(points: number) {
               Leaderboard Rank
             </span>
             <div className="size-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700">
-              <Trophy className="size-4 text-blue-600" />
+              <Trophy className="size-4 text-brand-strong" />
             </div>
           </div>
           <div>
@@ -145,17 +145,17 @@ export function tierFor(points: number) {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 sm:p-7 shadow-xs space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-bold">
             <div className="flex items-center gap-2.5">
-              <span className="size-3 rounded-full bg-blue-600 animate-pulse" />
+              <span className="size-3 rounded-full bg-brand-strong animate-pulse" />
               <span className="text-gray-700">Next Milestone: <strong className="text-black font-black">{next.name}</strong> <span className="text-xs text-gray-500 font-semibold">({next.at} pts)</span></span>
             </div>
-            <span className="text-blue-600 font-black text-sm sm:text-base">
+            <span className="text-brand-strong font-black text-sm sm:text-base">
               {formatNumber(next.at - points)} pts needed ({pct}%)
             </span>
           </div>
 
           <div className="h-4 sm:h-5 w-full rounded-full bg-gray-100 overflow-hidden p-0.5 border border-gray-200/60">
             <div
-              className="h-full bg-blue-600 rounded-full transition-all duration-500 shadow-xs"
+              className="h-full bg-brand-strong rounded-full transition-all duration-500 shadow-xs"
               style={{ width: `${pct}%` }}
             />
           </div>

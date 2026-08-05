@@ -77,7 +77,7 @@ export default async function PublicStatsPage() {
       <div className="mx-auto max-w-4xl px-5 py-16 sm:py-24">
         <Wordmark
           label="DailyMattr"
-          className="h-[22px] w-auto text-blue-600"
+          className="h-[22px] w-auto text-brand-strong"
         />
 
         <h1 className="display mt-8 text-[34px] leading-[1.05] text-gray-900 sm:text-[44px]">
@@ -100,7 +100,7 @@ export default async function PublicStatsPage() {
                 key={figure.label}
                 className="rounded-2xl border border-gray-200 bg-gray-50 p-6"
               >
-                <Icon className="size-5 text-blue-600" />
+                <Icon className="size-5 text-brand-strong" />
                 <dd className="display mt-3 text-[38px] leading-none text-gray-900">
                   {formatNumber(figure.value)}
                 </dd>

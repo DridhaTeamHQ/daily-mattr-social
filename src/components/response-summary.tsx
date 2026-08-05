@@ -124,7 +124,7 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
                               "h-full rounded-full",
                               // The most-picked answer is the one being looked
                               // for; the rest are context.
-                              bucket.count === top ? "bg-brand" : "bg-blue-300",
+                              bucket.count === top ? "bg-brand" : "bg-brand/40",
                             )}
                             style={{
                               width: `${Math.max(2, (bucket.count / Math.max(1, top)) * 100)}%`,

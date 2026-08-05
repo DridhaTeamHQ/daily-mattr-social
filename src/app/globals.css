@@ -32,48 +32,73 @@
   --color-line-strong: #d1d5db;
 
   /* ── Accents ───────────────────────────────────────────────────────────── */
-  /* Points / home */
-  --color-brand: #2563eb;
-  --color-brand-hover: #1d4ed8;
-  --color-brand-press: #1e40af;
-  --color-brand-tint: #eff6ff;
+  /*
+   * #3979ff is the brand blue and is used everywhere the colour is doing
+   * identity work: tints, borders, icons, active states, chart accents.
+   *
+   * `brand-strong` exists for one reason. White on #3979ff measures 3.92:1,
+   * which is under the 4.5:1 floor for 14.5px bold button text — readable in
+   * an office, not readable on a cheap phone in daylight, which is where this
+   * app is actually used. Solid fills that carry small white text use the
+   * darker step (4.98:1). It reads as the same blue; it just passes.
+   */
+  --color-brand: #3979ff;
+  --color-brand-strong: #2d67e8;
+  --color-brand-hover: #2a5fd4;
+  --color-brand-press: #2453b8;
+  --color-brand-tint: #eaf1ff;
   --color-brand-line: #0a0a0a;
 
+  /*
+   * Each section owns a hue. Previously campaigns and the leaderboard were
+   * both black and surveys and referrals were both blue, so four destinations
+   * looked like two — colour was carrying no information at all.
+   *
+   * Every one of these clears 3:1 against white, which is the floor for the
+   * white icons sitting on them.
+   */
+
   /* Campaigns */
-  --color-reel: #0a0a0a;
-  --color-reel-tint: #f3f4f6;
-  --color-reel-line: #ffffff;
+  --color-reel: #6d4aff;
+  --color-reel-tint: #f0ecff;
+  --color-reel-line: #0a0a0a;
 
   /* Surveys */
-  --color-poll: #3b82f6;
-  --color-poll-tint: #eff6ff;
+  --color-poll: #0891b2;
+  --color-poll-tint: #e4f6fb;
   --color-poll-line: #0a0a0a;
 
   /* Referrals */
-  --color-invite: #2563eb;
-  --color-invite-tint: #eff6ff;
+  --color-invite: #c2610a;
+  --color-invite-tint: #fdf0e2;
   --color-invite-line: #0a0a0a;
 
   /* Leaderboard */
-  --color-rank: #0a0a0a;
-  --color-rank-tint: #f3f4f6;
-  --color-rank-line: #ffffff;
+  --color-rank: #0f9d58;
+  --color-rank-tint: #e6f6ee;
+  --color-rank-line: #0a0a0a;
 
   /* Streaks */
-  --color-flame: #ef4444;
-  --color-flame-tint: #fef2f2;
+  --color-flame: #ff5a3c;
+  --color-flame-tint: #ffeee9;
 
   /* ── Status ────────────────────────────────────────────────────────────── */
-  --color-ok: #2563eb;
-  --color-ok-tint: #eff6ff;
+  /*
+   * These were wrong in a way that mattered: `ok` was blue and `warn` was the
+   * same red as `bad`, so "approved" read as brand chrome and "needs review"
+   * was indistinguishable from "rejected" at a glance. Green / amber / red now
+   * mean what everyone already expects, and all three clear 4.5:1 on white.
+   */
+  --color-ok: #15803d;
+  --color-ok-tint: #e8f6ec;
   --color-ok-line: #0a0a0a;
 
-  --color-warn: #ef4444;
-  --color-warn-tint: #fef2f2;
+  --color-warn: #b45309;
+  --color-warn-tint: #fdf2e3;
   --color-warn-line: #0a0a0a;
 
   --color-bad: #dc2626;
-  --color-bad-tint: #fef2f2;
+  --color-bad-tint: #fdecec;
   --color-bad-line: #0a0a0a;
 
   /* ── Radii ─────────────────────────────────────────────────────────────── */

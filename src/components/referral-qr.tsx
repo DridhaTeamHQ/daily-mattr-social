@@ -41,7 +41,7 @@ export async function ReferralQr({
         />
 
         <div className="min-w-0 flex-1 text-center sm:text-left">
-          <p className="text-[11px] font-extrabold tracking-widest text-blue-600 uppercase">
+          <p className="text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
             Your link
           </p>
           <p className="mt-2 truncate font-mono text-[13.5px] font-bold text-gray-900">
@@ -58,7 +58,7 @@ export async function ReferralQr({
               label="Copy link"
               copiedLabel="Link copied!"
               toastMessage="Referral link copied to clipboard"
-              className="rounded-xl border-0 bg-blue-600 px-6 py-2.5 text-xs font-extrabold tracking-wide text-white uppercase shadow-xs transition-all hover:bg-blue-700"
+              className="rounded-xl border-0 bg-brand-strong px-6 py-2.5 text-xs font-extrabold tracking-wide text-white uppercase shadow-xs transition-all hover:bg-brand-press"
             />
           </div>
         </div>

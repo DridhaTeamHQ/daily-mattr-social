@@ -132,7 +132,7 @@ export default async function DashboardPage() {
                       </Button>
 
                       {/* Icon */}
-                      <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm relative z-10">
+                      <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-brand-strong text-white shadow-sm relative z-10">
                         {c.title.includes("CLIP") ? (
                           <Video className="size-6 text-white" />
                         ) : (
@@ -148,7 +148,7 @@ export default async function DashboardPage() {
                           </h3>
                           <span className={cn(
                             "inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-bold",
-                            ended ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"
+                            ended ? "bg-green-50 text-green-700" : "bg-brand-tint text-brand-press"
                           )}>
                             {timeRemaining(c.ends_at)}
                           </span>
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
                           </span>
                         </div>
 
-                        <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm">
+                        <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-brand-strong px-3 py-1.5 text-[12px] font-bold text-white shadow-sm">
                           <Zap className="size-3.5" fill="currentColor" />
                           {up} points up for grabs
                         </div>
@@ -255,7 +255,7 @@ function SectionHeader({
       {href && (
         <Link
           href={href}
-          className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-ink hover:text-blue-600 transition-colors"
+          className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-ink hover:text-brand-strong transition-colors"
         >
           {linkLabel}
           <ArrowRight className="size-4" />

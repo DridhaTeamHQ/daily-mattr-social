@@ -32,12 +32,14 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   award: Award,
 };
 
+// Each badge wears its section's accent, so the wall reads as the same colour
+// system as the rest of the app rather than a second palette.
 const TONES: Record<string, string> = {
-  brand: "bg-blue-50 text-blue-600",
-  poll: "bg-sky-50 text-sky-600",
-  reel: "bg-rose-50 text-rose-600",
-  invite: "bg-amber-50 text-amber-600",
-  rank: "bg-emerald-50 text-emerald-600",
+  brand: "bg-brand-tint text-brand-strong",
+  poll: "bg-poll-tint text-poll",
+  reel: "bg-reel-tint text-reel",
+  invite: "bg-invite-tint text-invite",
+  rank: "bg-rank-tint text-rank",
 };
 
 export function BadgeWall({ badges }: { badges: BadgeView[] }) {

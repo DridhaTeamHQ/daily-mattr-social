@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { readAmbassadorCsv, tempPassword } from "@/lib/admin/csv";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { nextReferralCode } from "@/lib/referral-code";
 
 /**
  * Bulk ambassador import.
@@ -101,6 +102,10 @@ export async function importAmbassadors(csvText: string): Promise<ImportResult> 
           city: row.city || null,
           batch: row.batch || null,
           joined_as: row.joined_as,
+          // Recomputed per row rather than once for the file: the rows are
+          // created one at a time, so each read already sees the previous
+          // row's code and the serials stay contiguous.
+          referral_code: await nextReferralCode(db, row.batch),
         })
         .eq("id", data.user.id);
 
