@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { sendAmbassadorWelcomeEmail } from "@/lib/ambassador-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
 import { assertAdmin, fail } from "@/lib/admin/guards";
@@ -320,6 +321,10 @@ export async function adjustPoints(
 
 export type CreatedAmbassador = ActionResult & {
   credentials?: { email: string; password: string; fullName: string };
+  emailDelivery?: {
+    status: "sent" | "skipped" | "failed";
+    message: string;
+  };
 };
 
 /**
@@ -396,11 +401,32 @@ export async function createAmbassador(
 
     await audit(actorId, "ambassador.create", "profile", created.user.id, { email });
 
+    const emailResult = await sendAmbassadorWelcomeEmail({
+      email,
+      fullName,
+      password,
+    }).catch((error) => {
+      console.error("Unexpected welcome email failure", error);
+      return {
+        ok: false as const,
+        reason: "failed" as const,
+        message: "Account created, but the welcome email could not be sent.",
+      };
+    });
+
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
-      message: `${fullName} can sign in now`,
+      message: emailResult.ok
+        ? `${fullName} added and emailed`
+        : `${fullName} added - share the credentials below`,
       credentials: { email, password, fullName },
+      emailDelivery: emailResult.ok
+        ? { status: "sent", message: emailResult.message }
+        : {
+            status: emailResult.reason === "disabled" ? "skipped" : "failed",
+            message: emailResult.message,
+          },
     };
   } catch (err) {
     return fail(err);
@@ -437,15 +463,36 @@ export async function resetAmbassadorPassword(
 
     await audit(actorId, "ambassador.reset_password", "profile", profileId, {});
 
+    const emailResult = await sendAmbassadorWelcomeEmail({
+      email: profile.email,
+      fullName: profile.full_name || profile.email,
+      password,
+    }).catch((error) => {
+      console.error("Unexpected reset-password email failure", error);
+      return {
+        ok: false as const,
+        reason: "failed" as const,
+        message: "Password reset, but the email could not be sent.",
+      };
+    });
+
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
-      message: "New temporary password set",
+      message: emailResult.ok
+        ? "New temporary password set and emailed"
+        : "New temporary password set - share the credentials below",
       credentials: {
         email: profile.email,
         password,
         fullName: profile.full_name || profile.email,
       },
+      emailDelivery: emailResult.ok
+        ? { status: "sent", message: emailResult.message }
+        : {
+            status: emailResult.reason === "disabled" ? "skipped" : "failed",
+            message: emailResult.message,
+          },
     };
   } catch (err) {
     return fail(err);
