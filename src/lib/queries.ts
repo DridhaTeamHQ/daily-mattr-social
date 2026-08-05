@@ -280,3 +280,104 @@ export const getLeaderboard = cache(async (
   const { data } = await supabase.rpc("leaderboard", { limit_count: limit });
   return data ?? [];
 });
+
+// ─── Windowed leaderboard ───────────────────────────────────────────────────
+
+export type LeaderWindow = "day" | "week" | "month" | "all";
+
+export const LEADER_WINDOWS: { key: LeaderWindow; label: string }[] = [
+  { key: "day", label: "Today" },
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
+  { key: "all", label: "All time" },
+];
+
+export function isLeaderWindow(value: string | undefined): value is LeaderWindow {
+  return LEADER_WINDOWS.some((w) => w.key === value);
+}
+
+export type LeaderboardWindowRow = {
+  position: number;
+  ambassador_id: string;
+  full_name: string;
+  college: string | null;
+  city: string | null;
+  batch: string | null;
+  points: number;
+  is_me: boolean;
+};
+
+/**
+ * The leaderboard for a time window, optionally narrowed by city, batch or
+ * phase.
+ *
+ * A separate function from `getLeaderboard()` rather than a parameter on it:
+ * the all-time board is what the dashboard's rank widget reads on every page
+ * load, and it should keep hitting the simpler, already-cached query.
+ */
+export const getLeaderboardWindow = cache(
+  async (opts: {
+    window?: LeaderWindow;
+    city?: string | null;
+    batch?: string | null;
+    phase?: Enums<"program_phase"> | null;
+    limit?: number;
+  } = {}): Promise<LeaderboardWindowRow[]> => {
+    if (isDemoMode()) {
+      const { demoLeaderboard } = await import("@/lib/demo-data");
+      return demoLeaderboard.map((r) => ({ ...r, city: null, batch: null }));
+    }
+
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("leaderboard_window", {
+      window_key: opts.window ?? "all",
+      city_filter: opts.city ?? null,
+      batch_filter: opts.batch ?? null,
+      phase_filter: opts.phase ?? null,
+      limit_count: opts.limit ?? 200,
+    });
+    return data ?? [];
+  },
+);
+
+export const getMyStandingWindow = cache(
+  async (
+    window: LeaderWindow = "all",
+  ): Promise<{ points: number; position: number; total: number }> => {
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("my_standing_window", {
+      window_key: window,
+      phase_filter: null,
+    });
+    return data?.[0] ?? { points: 0, position: 0, total: 0 };
+  },
+);
+
+/**
+ * The distinct cities and batches that actually have ambassadors in them.
+ *
+ * Derived from the data rather than read from settings, so a filter can never
+ * offer a city that would return an empty board.
+ */
+export const getCohortFilters = cache(
+  async (): Promise<{ cities: string[]; batches: string[] }> => {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("city, batch")
+      .eq("role", "ambassador")
+      .eq("status", "active");
+
+    const cities = new Set<string>();
+    const batches = new Set<string>();
+    for (const row of data ?? []) {
+      if (row.city?.trim()) cities.add(row.city.trim());
+      if (row.batch?.trim()) batches.add(row.batch.trim());
+    }
+
+    return {
+      cities: [...cities].sort(),
+      batches: [...batches].sort(),
+    };
+  },
+);

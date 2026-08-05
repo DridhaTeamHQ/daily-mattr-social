@@ -5,7 +5,14 @@ import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { getLeaderboard } from "@/lib/queries";
+import { FilterChips, type ChipOption } from "@/components/filter-chips";
+import {
+  getCohortFilters,
+  getLeaderboardWindow,
+  isLeaderWindow,
+  LEADER_WINDOWS,
+  type LeaderWindow,
+} from "@/lib/queries";
 import { cn, formatNumber, initials } from "@/lib/utils";
 
 export const metadata = { title: "Leaderboard" };
@@ -17,14 +24,61 @@ const AVATAR_COLORS = [
   "bg-red-50",
 ];
 
+/** Top N shown by default. The spec asks for 10-20; 20 keeps a big cohort interesting. */
+const VISIBLE = 20;
+
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; window?: string; city?: string; batch?: string }>;
 }) {
-  const [{ q }, all] = await Promise.all([searchParams, getLeaderboard()]);
-  const query = q ?? "";
-  const rows = all.filter((r) => matches(query, r.full_name, r.college));
+  const params = await searchParams;
+
+  const window: LeaderWindow = isLeaderWindow(params.window) ? params.window : "all";
+  const city = params.city?.trim() || null;
+  const batch = params.batch?.trim() || null;
+  const query = params.q ?? "";
+
+  const [all, filters] = await Promise.all([
+    getLeaderboardWindow({ window, city, batch }),
+    getCohortFilters(),
+  ]);
+
+  const matched = all.filter((r) => matches(query, r.full_name, r.college, r.city, r.batch));
+
+  // Top N, plus the viewer's own row appended when they fall outside it. Being
+  // ranked 47th and seeing nothing about yourself is the one thing a
+  // leaderboard must not do — the rank you are chasing is your own.
+  const visible = matched.slice(0, VISIBLE);
+  const me = matched.find((r) => r.is_me);
+  const rows = me && !visible.some((r) => r.is_me) ? [...visible, me] : visible;
+  const meIsPinned = Boolean(me) && !visible.some((r) => r.is_me);
+
+  const href = (next: Record<string, string | null>) => {
+    const sp = new URLSearchParams();
+    const merged = { q: query || null, window, city, batch, ...next };
+    for (const [key, value] of Object.entries(merged)) {
+      if (value && !(key === "window" && value === "all")) sp.set(key, value);
+    }
+    const qs = sp.toString();
+    return qs ? `/dashboard/leaderboard?${qs}` : "/dashboard/leaderboard";
+  };
+
+  const windowChips: ChipOption[] = LEADER_WINDOWS.map((w) => ({
+    key: w.key,
+    label: w.label,
+    href: href({ window: w.key }),
+  }));
+
+  const cityChips: ChipOption[] = [
+    { key: "", label: "All cities", href: href({ city: null }) },
+    ...filters.cities.map((c) => ({ key: c, label: c, href: href({ city: c }) })),
+  ];
+
+  const batchChips: ChipOption[] = [
+    { key: "", label: "All batches", href: href({ batch: null }) },
+    ...filters.batches.map((b) => ({ key: b, label: b, href: href({ batch: b }) })),
+  ];
 
   return (
     <div className="stagger space-y-4">
@@ -32,7 +86,7 @@ export default async function LeaderboardPage({
         icon={Trophy}
         tone="rank"
         title="Leaderboard"
-        description="Every active ambassador, ranked by points earned."
+        description="Ranked by points earned. Switch the window to see who is moving now, not just who started first."
         variant="outline"
         className="bg-gray-50 border-gray-200"
         action={
@@ -56,7 +110,17 @@ export default async function LeaderboardPage({
         }
       />
 
-      <SearchBox placeholder="Find someone by name or college…" />
+      <div className="space-y-2.5">
+        <FilterChips label="When" options={windowChips} active={window} />
+        {filters.cities.length > 0 && (
+          <FilterChips label="City" options={cityChips} active={city ?? ""} />
+        )}
+        {filters.batches.length > 0 && (
+          <FilterChips label="Batch" options={batchChips} active={batch ?? ""} />
+        )}
+      </div>
+
+      <SearchBox placeholder="Find someone by name, college, city or batch…" />
 
       <Card>
         {rows.length === 0 ? (
@@ -81,6 +145,10 @@ export default async function LeaderboardPage({
                   className={cn(
                     "flex items-center gap-4 px-6 py-4",
                     row.is_me && "bg-blue-50/50",
+                    // A pinned row is not rank 21, and a plain divider would
+                    // read as though it were.
+                    meIsPinned && index === rows.length - 1 &&
+                      "border-t-[3px] border-dashed border-blue-300",
                   )}
                 >
                   {isTop3 ? (
