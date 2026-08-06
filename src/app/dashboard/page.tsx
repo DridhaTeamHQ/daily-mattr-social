@@ -48,6 +48,20 @@ export default async function DashboardPage() {
   // First name only. "Hii Bharani Kumar Reddy" is a form field, not a greeting.
   const firstName = (profile.full_name || "there").trim().split(/\s+/)[0];
 
+  /**
+   * Nothing on the record yet — no points, no submission, no response.
+   *
+   * Not "did they sign in before": that would need a stored flag, and it would
+   * be wrong for the student who signs in three times before doing anything.
+   * An empty ledger is the honest version of the question the greeting is
+   * really asking, which is whether this screen has anything to show them.
+   */
+  const isNewcomer =
+    standing.points === 0 &&
+    recentLedger.length === 0 &&
+    surveyResponses === 0 &&
+    campaigns.every((c) => c.tasks.every((t) => t.submission_status === null));
+
   // Confetti when an approval has landed that they haven't opened yet.
   const justApproved = data.notifications.some(
     (n) => n.type === "submission_approved" && !n.read_at,
@@ -72,10 +86,15 @@ export default async function DashboardPage() {
             👋
           </span>
         </h1>
+        {/* Two lines, and the split is "have they done anything yet" rather
+            than "is there work waiting". Somebody on their first visit has an
+            empty screen behind this sentence, so it has to tell them where to
+            start; everybody else already knows, and a count of open tasks in
+            a greeting is a to-do list wearing a welcome. */}
         <p className="mt-1 text-[13.5px] font-semibold text-gray-500">
-          {openTasks > 0
-            ? `${openTasks} ${openTasks === 1 ? "task is" : "tasks are"} waiting on you.`
-            : "Welcome back! Ready to earn more points today? Lesssssss go!"}
+          {isNewcomer
+            ? "Ready to make an impact? Complete your first task and start earning points."
+            : "Welcome back! Ready to earn more points today?"}
         </p>
       </header>
 
