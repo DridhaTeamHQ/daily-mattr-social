@@ -105,6 +105,9 @@ export function PointsHero({
     }
   }, [celebrate, fireConfetti]);
 
+  // A position only means something once there are points behind it.
+  const ranked = rank !== null && points > 0;
+
   const { current, next } = tierFor(points);
   const span = next ? next.at - current.at : 0;
   const into = next ? points - current.at : 0;
@@ -175,11 +178,17 @@ export function PointsHero({
           </div>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
+              {/* Nobody on zero points has placed in anything, so the board
+                  position they technically hold is noise — a dash says "not
+                  started" where "#13" would read like a result. The `#` goes
+                  with it; the old fallback rendered "#-". */}
               <h3 className="text-3xl font-black text-black tracking-tight">
-                #{rank !== null ? rank : "-"}
+                {ranked ? `#${rank}` : "-"}
               </h3>
               <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                Out of {total} Ambassadors
+                {ranked
+                  ? `Out of ${total} Ambassadors`
+                  : "Earn points to get ranked"}
               </p>
             </div>
             <InfoBadge

@@ -172,8 +172,28 @@ export default async function LeaderboardPage({
                     )}
                   </div>
 
-                  <span className={cn("tabular shrink-0 px-3 py-1.5 rounded-lg font-bold text-[14px]", row.is_me ? "bg-brand-tint text-brand-press" : "bg-gray-100 text-gray-900")}>
-                    {formatNumber(row.points)}
+                  {/* A dash, not a nought. Display only — the row still
+                      carries 0 and ranks on 0, so nothing about the ordering
+                      or the tie handling changes. "0" reads like a score
+                      somebody earned; "—" reads like a start line. */}
+                  <span
+                    className={cn(
+                      "tabular shrink-0 px-3 py-1.5 rounded-lg font-bold text-[14px]",
+                      row.points === 0
+                        ? "bg-gray-50 text-gray-400"
+                        : row.is_me
+                          ? "bg-brand-tint text-brand-press"
+                          : "bg-gray-100 text-gray-900",
+                    )}
+                  >
+                    {row.points === 0 ? (
+                      <>
+                        <span aria-hidden>-</span>
+                        <span className="sr-only">No points yet</span>
+                      </>
+                    ) : (
+                      formatNumber(row.points)
+                    )}
                   </span>
                 </li>
               );
