@@ -34,6 +34,7 @@ export function InstallCard({
   link,
   name,
   qrDataUrl,
+  logoDataUrl,
 }: {
   code: string;
   link: string;
@@ -41,6 +42,8 @@ export function InstallCard({
   name: string;
   /** The QR, already rendered on the server, as an SVG data URL. */
   qrDataUrl: string;
+  /** The wordmark, same paths as everywhere else in the app. */
+  logoDataUrl: string;
 }) {
   const [busy, setBusy] = React.useState(false);
 
@@ -52,59 +55,79 @@ export function InstallCard({
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    // ── Ground
     ctx.fillStyle = BRAND;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    // A band at the bottom so the link never sits on saturated blue, where
-    // small text at forwarded-image quality stops being legible.
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, HEIGHT - 190, WIDTH, 190);
-
-    // ── Wordmark
-    ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
-    ctx.font = "700 46px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillText("dailymattr", WIDTH / 2, 120);
 
-    // ── The ask
-    ctx.font = "900 84px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillText("Get the app", WIDTH / 2, 250);
-    ctx.font = "600 38px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(`${name} is on DailyMattr — join them`, WIDTH / 2, 315);
-
-    // ── QR on a white tile
-    const tile = 520;
-    const tileX = (WIDTH - tile) / 2;
-    const tileY = 380;
-    ctx.fillStyle = "#ffffff";
-    roundRect(ctx, tileX, tileY, tile, tile, 36);
-    ctx.fill();
-
-    const qr = await loadImage(qrDataUrl);
-    if (qr) {
-      const pad = 40;
-      ctx.drawImage(qr, tileX + pad, tileY + pad, tile - pad * 2, tile - pad * 2);
+    // ── The mark, as artwork rather than as the word typed out. Drawn from
+    //    the same paths the app uses, so the poster cannot drift from the
+    //    logo everywhere else.
+    const logo = await loadImage(logoDataUrl);
+    if (logo) {
+      const w = 400;
+      // 12886:2658 — the mark's own ratio. Hard-coding a height instead would
+      // squash it the first time the artwork changes.
+      ctx.drawImage(logo, (WIDTH - w) / 2, 92, w, (w * 2658) / 12886);
     }
 
-    // ── The code, which is the part people read out loud
+    // ── The ask
     ctx.fillStyle = "#ffffff";
-    ctx.font = "600 32px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillText("OR USE CODE", WIDTH / 2, tileY + tile + 90);
-    ctx.font = "900 96px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText(code, WIDTH / 2, tileY + tile + 190);
+    ctx.font = "900 84px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillText("Get the app", WIDTH / 2, 268);
+    ctx.font = "600 36px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.fillText(`${name} is on DailyMattr — join them`, WIDTH / 2, 328);
 
-    // ── The link
-    ctx.fillStyle = INK;
-    ctx.font = "700 34px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText(link.replace(/^https?:\/\//, ""), WIDTH / 2, HEIGHT - 105);
+    // ── One white card holding everything a stranger has to act on. The
+    //    shadow is what stops it reading as a hole cut in the blue.
+    const cardX = 90;
+    const cardY = 386;
+    const cardW = WIDTH - cardX * 2;
+    const cardH = 744;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.28)";
+    ctx.shadowBlur = 48;
+    ctx.shadowOffsetY = 18;
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, cardX, cardY, cardW, cardH, 44);
+    ctx.fill();
+    ctx.restore();
+
+    const qr = await loadImage(qrDataUrl);
+    const qrSize = 440;
+    if (qr) {
+      ctx.drawImage(qr, (WIDTH - qrSize) / 2, cardY + 48, qrSize, qrSize);
+    }
+
+    // ── A rule, so the code reads as a second way in rather than a caption
+    //    on the QR.
+    const ruleY = cardY + 48 + qrSize + 56;
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cardX + 80, ruleY);
+    ctx.lineTo(WIDTH - cardX - 80, ruleY);
+    ctx.stroke();
+
     ctx.fillStyle = "#6b7280";
+    ctx.font = "800 28px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillText(spaced("USE THE CODE"), WIDTH / 2, ruleY + 62);
+
+    ctx.fillStyle = INK;
+    ctx.font = "900 92px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.fillText(code, WIDTH / 2, ruleY + 156);
+
+    // ── The link, for anyone who cannot scan a screen they are holding
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.font = "700 30px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.fillText(link.replace(/^https?:\/\//, ""), WIDTH / 2, 1224);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.font = "600 26px ui-sans-serif, system-ui, sans-serif";
-    ctx.fillText("Scan the code or open the link", WIDTH / 2, HEIGHT - 55);
+    ctx.fillText("Scan the code or open the link", WIDTH / 2, 1274);
 
     return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-  }, [code, link, name, qrDataUrl]);
+  }, [code, link, name, qrDataUrl, logoDataUrl]);
 
   async function share() {
     setBusy(true);
@@ -174,6 +197,11 @@ export function InstallCard({
       </Button>
     </div>
   );
+}
+
+/** Letter-spacing, which canvas has no property for. */
+function spaced(text: string): string {
+  return text.split("").join(" ");
 }
 
 /** `roundRect` is not in every browser the students are on. */

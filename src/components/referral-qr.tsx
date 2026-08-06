@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 
 import { CopyButton } from "@/components/copy-button";
 import { InstallCard } from "@/components/install-card";
+import { wordmarkSvg } from "@/components/logo";
 
 /**
  * The shareable referral link, as a link and as a QR code.
@@ -39,6 +40,9 @@ export async function ReferralQr({
   // an SVG full of `#` and `<` characters has to be escaped either way, and
   // base64 is the encoding that survives every browser's image loader.
   const qrDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  const logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(
+    wordmarkSvg("#ffffff"),
+  ).toString("base64")}`;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
@@ -67,6 +71,7 @@ export async function ReferralQr({
               link={link}
               name={firstName}
               qrDataUrl={qrDataUrl}
+              logoDataUrl={logoDataUrl}
             />
           </div>
 

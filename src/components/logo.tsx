@@ -72,6 +72,22 @@ export function Wordmark({
 }
 
 /**
+ * The same mark as a standalone SVG string.
+ *
+ * For places that need the logo as an *image* rather than as an element — the
+ * shareable install card draws it onto a canvas, and canvas takes a URL, not
+ * JSX. Colour is baked in here because a data URL has no cascade to inherit
+ * `currentColor` from.
+ */
+export function wordmarkSvg(color = "#ffffff"): string {
+  const paths = [...QUOTE_OPEN, ...LETTERS, ...QUOTE_CLOSE]
+    .map((d) => `<path d="${d}"/>`)
+    .join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12886 2658" fill="${color}">${paths}</svg>`;
+}
+
+/**
  * The quote pair on its own — the wordmark's most compact recognisable part.
  *
  * For avatars, app icons, empty states and anywhere the full wordmark would
