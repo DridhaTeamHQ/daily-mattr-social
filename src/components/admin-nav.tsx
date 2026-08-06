@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   ClipboardList,
   Clapperboard,
-  Inbox,
   LayoutDashboard,
   LogOut,
   TrendingUp,
@@ -22,16 +21,24 @@ import { cn, initials } from "@/lib/utils";
  * they're looking at before they read a single label.
  */
 
+/**
+ * The nav in the order the work happens.
+ *
+ * Campaigns owns the task library and now the review queue too — reviewing a
+ * screenshot is the second half of running a campaign, not a separate errand,
+ * and it was the one destination admins reached from a badge rather than from
+ * a decision. Ambassadors owns referrals, stipend and the leaderboard.
+ *
+ * Analytics sits last on purpose. It is the thing you open when the day's work
+ * is done, and giving it second position put a reading screen ahead of every
+ * screen you act on.
+ */
 const ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
-  { href: "/admin/review", label: "Review", icon: Inbox },
-  // Campaigns owns the task library; Ambassadors owns referrals, stipend and
-  // the leaderboard. Ten top-level destinations did not fit a laptop width and
-  // made the two that matter daily harder to hit.
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
+  { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
 export function AdminNav({
@@ -42,8 +49,15 @@ export function AdminNav({
   queueCount: number;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+  const isActive = (href: string) => {
+    if (href === "/admin") return pathname === "/admin";
+    // Review is a page inside Campaigns, so Campaigns stays lit while you are
+    // in the queue. Without this the whole bar goes dark there.
+    if (href === "/admin/campaigns" && pathname.startsWith("/admin/review")) {
+      return true;
+    }
+    return pathname.startsWith(href);
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-ink/10 bg-ink text-white">
@@ -74,7 +88,10 @@ export function AdminNav({
             >
               <Icon className="size-4" />
               {label}
-              {href === "/admin/review" && queueCount > 0 && (
+              {/* The queue count rides on Campaigns now that Review lives
+                  inside it — an admin still learns from the top bar that
+                  something is waiting, without a destination of its own. */}
+              {href === "/admin/campaigns" && queueCount > 0 && (
                 <span className="ml-0.5 rounded-full bg-warn px-1.5 text-[11px] font-semibold text-white">
                   {queueCount}
                 </span>
@@ -125,7 +142,7 @@ export function AdminNav({
           >
             <Icon className="size-4" />
             {label}
-            {href === "/admin/review" && queueCount > 0 && (
+            {href === "/admin/campaigns" && queueCount > 0 && (
               <span className="rounded-full bg-warn px-1.5 text-[11px] font-semibold text-white">
                 {queueCount}
               </span>

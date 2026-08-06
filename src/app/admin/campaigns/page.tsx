@@ -1,4 +1,4 @@
-import { Clapperboard, ExternalLink } from "lucide-react";
+import { Clapperboard, ExternalLink, Inbox } from "lucide-react";
 
 import Link from "next/link";
 
@@ -31,7 +31,7 @@ export default async function AdminCampaignsPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const [{ q }, all, { data: library }] = await Promise.all([
+  const [{ q }, all, { data: library }, queue] = await Promise.all([
     searchParams,
     getAdminCampaigns(),
     createAdminClient()
@@ -40,6 +40,12 @@ export default async function AdminCampaignsPage({
       .eq("active", true)
       .order("platform", { ascending: true, nullsFirst: false })
       .order("label", { ascending: true }),
+    // Head-only: the button wants the number, not the rows.
+    createAdminClient()
+      .from("submissions")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "needs_review"])
+      .then(({ count }) => count ?? 0),
   ]);
   const query = q ?? "";
   const campaigns = all.filter((c) =>
@@ -60,7 +66,25 @@ export default async function AdminCampaignsPage({
           </p>
         </div>
 
-        <CreateCampaignDialog aiEnabled={aiEnabled()} library={library ?? []} />
+        <div className="flex items-center gap-2">
+          {/* The queue, reachable from the page that fills it. The count is
+              the whole point of the button: "Review" alone gives you no
+              reason to press it, and an admin should not have to open the
+              queue to find out it is empty. */}
+          <Button variant="secondary" asChild>
+            <Link href="/admin/review">
+              <Inbox aria-hidden />
+              Review
+              {queue > 0 && (
+                <span className="tabular ml-0.5 rounded-full bg-warn px-1.5 text-[11.5px] font-bold text-white">
+                  {queue}
+                </span>
+              )}
+            </Link>
+          </Button>
+
+          <CreateCampaignDialog aiEnabled={aiEnabled()} library={library ?? []} />
+        </div>
       </div>
 
       <SearchBox
