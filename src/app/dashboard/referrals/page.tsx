@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Gift, Download, Calendar, Star } from "lucide-react";
+import { Gift, Download, Calendar, Coins, Star } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ReferralQr } from "@/components/referral-qr";
+import { Button } from "@/components/ui/button";
 import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
@@ -34,6 +36,16 @@ export default async function ReferralsPage() {
               </p>
             </div>
           </div>
+
+          {/* The other half of the pair that now lives behind the avatar menu.
+              Points earned here are spent there, so the two need a direct
+              hop rather than a trip back through the menu. */}
+          <Button asChild variant="outline-blue" className="shrink-0">
+            <Link href="/dashboard/rewards">
+              <Coins aria-hidden />
+              Points &amp; rewards
+            </Link>
+          </Button>
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { ClipboardList, ExternalLink, Flag, Link as LinkIcon, Pointer, MessageSquare, Star } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { Badge } from "@/components/ui/badge";
+import { SurveyCard } from "@/components/survey-card";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,7 +41,7 @@ export default async function SurveysPage() {
         icon={ClipboardList}
         tone="poll"
         title="Surveys"
-        description="Share your link. Every genuine response earns you points."
+        description="Share your survey, collect genuine responses, and watch your points grow!"
         variant="outline"
         action={
           <div className="relative size-16 shrink-0 md:size-20 bg-brand-tint rounded-xl hidden sm:block">
@@ -55,7 +55,7 @@ export default async function SurveysPage() {
         }
       />
 
-      <Note tone="neutral">
+      <Note tone="neutral" size="sm">
         Each link below is yours alone — responses collected through it are
         credited to you. Duplicate submissions from the same person don&apos;t
         count twice.
@@ -65,56 +65,58 @@ export default async function SurveysPage() {
         const url = `${siteUrl}/s/${s.slug}`;
 
         return (
-          <Card key={s.survey_id} className="p-6">
-            <h2 className="text-[16px] font-extrabold uppercase tracking-wide text-ink">{s.survey_title}</h2>
+          <SurveyCard
+            key={s.survey_id}
+            id={s.survey_id}
+            title={s.survey_title}
+            clicks={s.click_count}
+            responses={s.valid_responses}
+            points={s.points_earned}
+          >
+            <div className="px-6 pt-0 pb-6">
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Metric label="Clicks" value={s.click_count} tone="clicks" />
+                <Metric label="Responses" value={s.valid_responses} tone="responses" />
+                <Metric label="Points" value={s.points_earned} tone="points" />
+              </dl>
 
-            <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Metric label="Clicks" value={s.click_count} tone="clicks" />
-              <Metric label="Responses" value={s.valid_responses} tone="responses" />
-              <Metric label="Points" value={s.points_earned} tone="points" />
-            </dl>
+              {s.flagged > 0 && (
+                <p className="mt-4 text-[13px] font-medium text-ink-soft flex items-center gap-2">
+                  <Flag className="size-4 text-red-500" />
+                  <span>
+                    <strong className="text-ink font-semibold">{s.flagged} {s.flagged === 1 ? "response" : "responses"} flagged for review</strong> — these don&apos;t earn points until cleared.
+                  </span>
+                </p>
+              )}
 
-            {s.flagged > 0 && (
-              <p className="mt-4 text-[13px] font-medium text-ink-soft flex items-center gap-2">
-                <Flag className="size-4 text-red-500" />
-                <span>
-                  <strong className="text-ink font-semibold">{s.flagged} {s.flagged === 1 ? "response" : "responses"} flagged for review</strong> — these don&apos;t earn points until cleared.
-                </span>
-              </p>
-            )}
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex flex-1 items-center gap-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                  <LinkIcon className="size-4 text-ink-soft shrink-0" />
+                  <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
+                    {url}
+                  </code>
+                </div>
+              </div>
 
-            <div className="mt-4 flex items-center gap-3">
-              <div className="flex flex-1 items-center gap-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
-                <LinkIcon className="size-4 text-ink-soft shrink-0" />
-                <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
-                  {url}
-                </code>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <CopyButton
+                  value={url}
+                  size="md"
+                  variant="primary"
+                  className="bg-brand-strong text-white hover:bg-brand-press border-0 shadow-sm"
+                  label="Copy link"
+                  copiedLabel="Link copied"
+                  toastMessage="Survey link copied"
+                />
+                <Button size="md" variant="secondary" className="bg-white border border-gray-200 text-ink shadow-sm" asChild>
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    Preview
+                    <ExternalLink aria-hidden />
+                  </a>
+                </Button>
               </div>
             </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <CopyButton
-                value={url}
-                size="md"
-                variant="primary"
-                className="bg-brand-strong text-white hover:bg-brand-press border-0 shadow-sm"
-                label="Copy link"
-                copiedLabel="Link copied"
-                toastMessage="Survey link copied"
-              />
-              <Button size="md" variant="secondary" className="bg-white border border-gray-200 text-ink shadow-sm" asChild>
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  Preview
-                  <ExternalLink aria-hidden />
-                </a>
-              </Button>
-              {s.click_count === 0 && (
-                <Badge tone="neutral" className="ml-auto">
-                  Not shared yet
-                </Badge>
-              )}
-            </div>
-          </Card>
+          </SurveyCard>
         );
       })}
     </div>

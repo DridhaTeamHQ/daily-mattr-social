@@ -2,7 +2,9 @@ import "server-only";
 
 import { cache } from "react";
 
+import { earningRoute } from "@/lib/admin/participation";
 import { isSupabaseConfigured } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/database.types";
 
@@ -323,6 +325,32 @@ export function isLeaderWindow(value: string | undefined): value is LeaderWindow
   return LEADER_WINDOWS.some((w) => w.key === value);
 }
 
+/**
+ * Which earning route a board is scoped to.
+ *
+ * The keys are the route names `earning_route()` returns in SQL, not the
+ * ledger reasons — attribution has to follow `source_type` so a reversal is
+ * subtracted from the same route it was credited to.
+ */
+export type LeaderSource = "campaign" | "survey" | "referral";
+
+export const LEADER_SOURCES: {
+  key: LeaderSource;
+  label: string;
+  /** Downloads are counted but not offered as a filter yet. */
+  hidden?: boolean;
+}[] = [
+  { key: "campaign", label: "Campaigns" },
+  { key: "survey", label: "Surveys" },
+  { key: "referral", label: "Downloads", hidden: true },
+];
+
+export function isLeaderSource(
+  value: string | undefined,
+): value is LeaderSource {
+  return LEADER_SOURCES.some((s) => s.key === value);
+}
+
 export type LeaderboardWindowRow = {
   position: number;
   ambassador_id: string;
@@ -348,6 +376,7 @@ export const getLeaderboardWindow = cache(
     city?: string | null;
     batch?: string | null;
     phase?: Enums<"program_phase"> | null;
+    source?: LeaderSource | null;
     limit?: number;
   } = {}): Promise<LeaderboardWindowRow[]> => {
     if (isDemoMode()) {
@@ -355,15 +384,158 @@ export const getLeaderboardWindow = cache(
       return demoLeaderboard.map((r) => ({ ...r, city: null, batch: null }));
     }
 
+    // Narrowing to one earning route is the one thing the RPC cannot do, so
+    // that case is summed in `getLeaderboardBySource()` instead. Everything
+    // else keeps hitting the cheap, already-indexed aggregate.
+    if (opts.source) {
+      return getLeaderboardBySource({
+        window: opts.window ?? "all",
+        source: opts.source,
+        city: opts.city ?? null,
+        batch: opts.batch ?? null,
+        limit: opts.limit ?? 200,
+      });
+    }
+
     const supabase = await createClient();
-    const { data } = await supabase.rpc("leaderboard_window", {
+    const { data, error } = await supabase.rpc("leaderboard_window", {
       window_key: opts.window ?? "all",
       city_filter: opts.city ?? null,
       batch_filter: opts.batch ?? null,
       phase_filter: opts.phase ?? null,
       limit_count: opts.limit ?? 200,
     });
+
+    // A bare `data ?? []` renders a failed call as "No rankings yet", which is
+    // indistinguishable from a programme where nobody has scored. Say so.
+    if (error) {
+      console.error("leaderboard_window failed", error);
+      return [];
+    }
+
     return data ?? [];
+  },
+);
+
+/**
+ * The start of a leader window, matching `window_start()` in SQL.
+ *
+ * UTC throughout, and the week starts Monday, because that is what Postgres'
+ * `date_trunc('week', …)` does — an "All time" board and a "This week" board
+ * that disagreed about when the week began would be worse than no filter.
+ */
+function windowStart(window: LeaderWindow): Date | null {
+  if (window === "all") return null;
+
+  const now = new Date();
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+
+  if (window === "day") return start;
+  if (window === "month") {
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  }
+
+  // Monday-start, so Sunday (getUTCDay() === 0) reaches back six days.
+  const weekday = start.getUTCDay();
+  start.setUTCDate(start.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
+  return start;
+}
+
+/**
+ * The leaderboard for a single earning route.
+ *
+ * The RPC in 0017 sums the whole ledger and takes no route argument, and RLS
+ * stops a student reading anyone else's ledger rows — so this is summed here,
+ * over the service-role client, and returns exactly the columns the RPC
+ * returns and nothing else. No email, no phone, no per-row detail.
+ *
+ * Attribution goes through `earningRoute()`, which reads `source_type` first
+ * and `reason` only as a fallback: a reversal carries reason 'revoke' and the
+ * SAME source_type as the credit it cancels, so keying on reason alone counts
+ * a credit and drops the row that took it back.
+ */
+const getLeaderboardBySource = cache(
+  async (opts: {
+    window: LeaderWindow;
+    source: LeaderSource;
+    city?: string | null;
+    batch?: string | null;
+    limit?: number;
+  }): Promise<LeaderboardWindowRow[]> => {
+    const user = await currentUser();
+    if (!user) return [];
+
+    const db = createAdminClient();
+    const since = windowStart(opts.window);
+
+    let profileQuery = db
+      .from("profiles")
+      .select("id, full_name, college, city, batch")
+      .eq("role", "ambassador")
+      .eq("status", "active");
+
+    if (opts.city) profileQuery = profileQuery.eq("city", opts.city);
+    if (opts.batch) profileQuery = profileQuery.eq("batch", opts.batch);
+
+    let ledgerQuery = db
+      .from("point_ledger")
+      .select("ambassador_id, delta, reason, source_type");
+
+    if (since) ledgerQuery = ledgerQuery.gte("created_at", since.toISOString());
+
+    const [profiles, ledger] = await Promise.all([profileQuery, ledgerQuery]);
+
+    if (profiles.error || ledger.error) {
+      console.error(
+        "leaderboard by source failed",
+        profiles.error ?? ledger.error,
+      );
+      return [];
+    }
+
+    const totals = new Map<string, number>();
+    for (const row of ledger.data ?? []) {
+      if (earningRoute(row) !== opts.source) continue;
+      totals.set(
+        row.ambassador_id,
+        (totals.get(row.ambassador_id) ?? 0) + row.delta,
+      );
+    }
+
+    // Everyone active is listed, scoring or not — the same reason the RPC uses
+    // FILTER over a WHERE. Somebody sitting on zero this week is exactly who
+    // the board is meant to nudge.
+    const ranked = (profiles.data ?? [])
+      .map((p) => ({
+        ambassador_id: p.id,
+        full_name: p.full_name,
+        college: p.college,
+        city: p.city,
+        batch: p.batch,
+        points: totals.get(p.id) ?? 0,
+        is_me: p.id === user.id,
+      }))
+      .sort(
+        (a, b) =>
+          b.points - a.points || a.full_name.localeCompare(b.full_name),
+      );
+
+    // Standard competition ranking, as `rank() over (order by pts desc)`
+    // gives: ties share a position and the next one skips.
+    let position = 0;
+    let previousPoints: number | null = null;
+
+    return ranked
+      .map((row, index) => {
+        if (previousPoints === null || row.points !== previousPoints) {
+          position = index + 1;
+          previousPoints = row.points;
+        }
+        return { position, ...row };
+      })
+      .slice(0, opts.limit ?? 200);
   },
 );
 

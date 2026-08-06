@@ -55,11 +55,14 @@ export function EmptyState({
 
 export function Note({
   tone = "neutral",
+  size = "md",
   title,
   children,
   className,
 }: {
   tone?: "neutral" | "brand" | "warn" | "bad" | "ok" | "invite";
+  /** `sm` for standing footnotes that shouldn't compete with the content. */
+  size?: "sm" | "md";
   title?: string;
   children: React.ReactNode;
   className?: string;
@@ -85,13 +88,20 @@ export function Note({
   return (
     <div
       className={cn(
-        "flex items-start gap-4 rounded-xl px-5 py-4",
+        "flex items-start gap-4 rounded-xl",
+        size === "sm" ? "gap-3 px-4 py-3" : "px-5 py-4",
         NOTE_BG[tone],
         className,
       )}
     >
-      <div className={cn("shrink-0 grid place-items-center rounded-full size-6 mt-0.5", ICON_BG[tone])}>
-         <Info className="size-4" />
+      <div
+        className={cn(
+          "shrink-0 grid place-items-center rounded-full mt-0.5",
+          size === "sm" ? "size-5" : "size-6",
+          ICON_BG[tone],
+        )}
+      >
+        <Info className={size === "sm" ? "size-3.5" : "size-4"} />
       </div>
       <div>
         {title && (
@@ -99,8 +109,13 @@ export function Note({
             {title}
           </p>
         )}
-        <div className="text-[13px] leading-relaxed font-medium text-ink-soft">
-           {children}
+        <div
+          className={cn(
+            "leading-relaxed font-medium text-ink-soft",
+            size === "sm" ? "text-[12px]" : "text-[13px]",
+          )}
+        >
+          {children}
         </div>
       </div>
     </div>

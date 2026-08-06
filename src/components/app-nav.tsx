@@ -1,5 +1,6 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -31,7 +32,7 @@ import { cn, initials } from "@/lib/utils";
  */
 
 const ITEMS = [
-  { href: "/dashboard", label: "Home", icon: House, fill: "bg-brand" },
+  { href: "/dashboard", label: "Dashboard", icon: House, fill: "bg-brand" },
   {
     href: "/dashboard/campaigns",
     label: "Campaigns",
@@ -45,25 +46,44 @@ const ITEMS = [
     fill: "bg-poll",
   },
   {
-    href: "/dashboard/referrals",
-    label: "Installs",
-    icon: Gift,
-    fill: "bg-invite",
-  },
-  {
     // Off the phone bar: it is the one people check occasionally rather than
     // act on, and it is still one tap from Home and the top bar.
     href: "/dashboard/leaderboard",
-    label: "Ranks",
+    label: "Leaderboard",
     icon: Trophy,
     fill: "bg-rank",
     desktopOnly: true,
   },
   {
+    // Kept on the phone bar but off the desktop one. Sharing a code is the
+    // single most common thing a student does on a phone, so it stays in thumb
+    // reach; on desktop the avatar menu covers it without a fifth top-bar pill.
+    href: "/dashboard/referrals",
+    label: "Installs",
+    icon: Gift,
+    fill: "bg-invite",
+    mobileOnly: true,
+  },
+];
+
+/**
+ * The two destinations that hang off the avatar menu rather than the nav bars.
+ *
+ * Both are things you check about yourself rather than work you do, which is
+ * the same shelf sign-out sits on.
+ */
+const ACCOUNT_LINKS = [
+  {
     href: "/dashboard/rewards",
-    label: "Rewards",
+    label: "Points & rewards",
     icon: Coins,
-    fill: "bg-rank",
+    tint: "bg-rank-tint text-ink",
+  },
+  {
+    href: "/dashboard/referrals",
+    label: "Installs",
+    icon: Gift,
+    tint: "bg-invite-tint text-invite",
   },
 ];
 
@@ -112,6 +132,81 @@ export function StreakChip({ days }: { days: number }) {
   );
 }
 
+/**
+ * The avatar, which is now a door rather than a decoration.
+ *
+ * Tapping it opens the account menu — the two destinations that used to eat
+ * slots in the nav bars, plus sign-out, which no longer needs its own
+ * permanent button on the bar.
+ */
+function ProfileMenu({ name }: { name: string }) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          title={name}
+          aria-label={`${name} — account menu`}
+          className="tap grid size-9 shrink-0 place-items-center rounded-full border border-gray-700 bg-gray-800 text-[12px] font-bold text-white transition-colors hover:bg-gray-700 data-[state=open]:bg-gray-700"
+        >
+          {initials(name)}
+        </button>
+      </DropdownMenu.Trigger>
+
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={8}
+          className="animate-rise z-50 w-[min(17rem,calc(100vw-1.5rem))] overflow-hidden rounded-md border border-line bg-surface shadow-pop"
+        >
+          <div className="border-b border-line px-4 py-3">
+            <p className="truncate text-[14px] font-semibold text-ink">{name}</p>
+            <p className="mt-0.5 text-[12px] text-ink-soft">Ambassador</p>
+          </div>
+
+          {ACCOUNT_LINKS.map(({ href, label, icon: Icon, tint }) => (
+            <DropdownMenu.Item key={href} asChild>
+              <Link
+                href={href}
+                className="flex items-center gap-2.5 px-4 py-2.5 text-[13.5px] font-semibold text-ink outline-none transition-colors hover:bg-canvas-sunk focus:bg-canvas-sunk"
+              >
+                <span
+                  className={cn(
+                    "grid size-8 shrink-0 place-items-center rounded-xs",
+                    tint,
+                  )}
+                >
+                  <Icon className="size-4" />
+                </span>
+                {label}
+              </Link>
+            </DropdownMenu.Item>
+          ))}
+
+          <DropdownMenu.Separator className="h-px bg-line" />
+
+          {/* The form wraps the item rather than sitting inside it: the submit
+              happens on the same click that closes the menu, so the action
+              must not depend on the item surviving the close. */}
+          <form action={signOut}>
+            <DropdownMenu.Item asChild>
+              <button
+                type="submit"
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13.5px] font-semibold text-bad outline-none transition-colors hover:bg-bad-tint focus:bg-bad-tint"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-xs bg-bad-tint text-bad">
+                  <LogOut className="size-4" />
+                </span>
+                Sign out
+              </button>
+            </DropdownMenu.Item>
+          </form>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 export function TopNav({
   name,
   streak,
@@ -136,7 +231,7 @@ export function TopNav({
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-2 sm:flex">
-          {ITEMS.map(({ href, label, fill }) => {
+          {ITEMS.filter((item) => !item.mobileOnly).map(({ href, label, fill }) => {
             const active = isActive(href);
             return (
               <Link
@@ -165,24 +260,7 @@ export function TopNav({
             vapidPublicKey={vapidPublicKey}
           />
 
-          <span
-            aria-hidden
-            title={name}
-            className="tap grid size-9 shrink-0 place-items-center rounded-full bg-gray-800 text-[12px] font-bold text-white border border-gray-700"
-          >
-            {initials(name)}
-          </span>
-
-          <form action={signOut}>
-            <button
-              type="submit"
-              title="Sign out"
-              className="tap grid size-9 place-items-center rounded-full text-gray-300 transition-colors hover:text-white hover:bg-white/10"
-            >
-              <LogOut className="size-4.5" />
-              <span className="sr-only">Sign out</span>
-            </button>
-          </form>
+          <ProfileMenu name={name} />
         </div>
       </div>
     </header>

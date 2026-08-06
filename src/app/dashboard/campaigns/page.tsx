@@ -7,13 +7,12 @@ import {
   MessageCircle,
   Play,
   Share2,
-  Megaphone,
-  Video,
   Sparkles,
   Upload,
 } from "lucide-react";
 
-import { Badge, StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
+import { CampaignCard } from "@/components/campaign-card";
+import { StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
 import { UploadTask } from "@/components/upload-task";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -57,36 +56,43 @@ export default async function CampaignsPage() {
         icon={Clapperboard}
         tone="reel"
         title="Campaigns"
-        description="Complete the tasks on a reel, then upload a screenshot as proof."
+        description="Finish the challenge, submit your proof, and let the points roll in!"
       />
 
       {campaigns.map((c) => {
         const ended = timeRemaining(c.ends_at) === "Ended";
         const expectedHandle = c.expected_handle;
+        const isClip = c.title.includes("CLIP");
+
+        const credited = c.tasks.filter(
+          (t) =>
+            t.submission_status === "approved" ||
+            t.submission_status === "auto_approved",
+        );
+        const doneCount = credited.length;
+
+        // Two different numbers: what the campaign is worth in total, and what
+        // has actually landed in the ledger. Only the second one may be called
+        // "gained".
+        const points = c.tasks.reduce((n, t) => n + t.points, 0);
+        const earnedPoints = credited.reduce((n, t) => n + t.points, 0);
 
         return (
-          <Card key={c.id} id={c.id} className="scroll-mt-20">
-            <CardBody className="p-6">
-              <div className="flex items-start gap-4">
-                <div className={cn("grid size-12 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-brand-tint text-brand-strong" : "bg-gray-100 text-gray-800")}>
-                  {c.title.includes("CLIP") ? <Video className="size-6" /> : <Megaphone className="size-6" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[16px] font-extrabold uppercase tracking-wide text-ink">{c.title}</h2>
-                    <Badge tone={ended ? "neutral" : "reel"}>
-                      {timeRemaining(c.ends_at)}
-                    </Badge>
-                  </div>
-                  {c.description && (
-                    <p className="mt-1.5 text-[13.5px] leading-relaxed font-medium text-ink-soft">
-                      {c.description}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <ul className="mt-5 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <CampaignCard
+            key={c.id}
+            id={c.id}
+            variant={isClip ? "clip" : "reel"}
+            title={c.title}
+            description={c.description}
+            deadlineLabel={timeRemaining(c.ends_at)}
+            ended={ended}
+            taskCount={c.tasks.length}
+            doneCount={doneCount}
+            points={points}
+            earnedPoints={earnedPoints}
+          >
+            <CardBody className="px-6 pt-0 pb-6">
+              <ul className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 {c.tasks.map((t) => {
                   // A library task has no enum type, so fall back to its own
                   // label and a neutral icon rather than indexing with null.
@@ -98,7 +104,7 @@ export default async function CampaignsPage() {
 
                   return (
                     <li key={t.id} className="flex items-center gap-4 p-4">
-                      <div className={cn("grid size-11 shrink-0 place-items-center rounded-xl", c.title.includes("CLIP") ? "bg-brand-tint text-brand-strong" : "bg-gray-100 text-gray-800")}>
+                      <div className={cn("grid size-11 shrink-0 place-items-center rounded-xl", isClip ? "bg-brand-tint text-brand-strong" : "bg-gray-100 text-gray-800")}>
                         <Icon className="size-5" />
                       </div>
 
@@ -156,19 +162,19 @@ export default async function CampaignsPage() {
               </ul>
             </CardBody>
 
-            <CardFooter className={cn("flex items-center justify-between gap-3 px-6 py-4 border-t-0 rounded-b-xl", c.title.includes("CLIP") ? "bg-brand-tint/50" : "bg-gray-50/50")}>
+            <CardFooter className={cn("flex items-center justify-between gap-3 px-6 py-4 border-t-0 rounded-b-xl", isClip ? "bg-brand-tint/50" : "bg-gray-50/50")}>
               <p className="text-[13px] font-medium text-ink-soft flex items-center gap-2">
-                <Sparkles className={cn("size-4", c.title.includes("CLIP") ? "text-brand-strong" : "text-gray-600")} />
+                <Sparkles className={cn("size-4", isClip ? "text-brand-strong" : "text-gray-600")} />
                 Open the reel, complete the task, then upload your screenshot.
               </p>
-              <Button size="sm" className={cn("text-white border-0 shadow-sm transition-transform hover:scale-[1.02]", c.title.includes("CLIP") ? "bg-brand-strong hover:bg-brand-press" : "bg-black hover:bg-gray-800")} asChild>
+              <Button size="sm" className={cn("text-white border-0 shadow-sm transition-transform hover:scale-[1.02]", isClip ? "bg-brand-strong hover:bg-brand-press" : "bg-black hover:bg-gray-800")} asChild>
                 <a href={c.instagram_url} target="_blank" rel="noopener noreferrer">
                   Open reel
                   <ExternalLink aria-hidden />
                 </a>
               </Button>
             </CardFooter>
-          </Card>
+          </CampaignCard>
         );
       })}
     </div>

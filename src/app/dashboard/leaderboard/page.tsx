@@ -1,16 +1,16 @@
 import { Trophy, Star } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { SearchBox } from "@/components/search-box";
-import { matches } from "@/lib/search";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import {
-  getCohortFilters,
   getLeaderboardWindow,
+  isLeaderSource,
   isLeaderWindow,
+  LEADER_SOURCES,
   LEADER_WINDOWS,
+  type LeaderSource,
   type LeaderWindow,
 } from "@/lib/queries";
 import { cn, formatNumber, initials } from "@/lib/utils";
@@ -30,21 +30,16 @@ const VISIBLE = 20;
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; window?: string; city?: string; batch?: string }>;
+  searchParams: Promise<{ window?: string; source?: string }>;
 }) {
   const params = await searchParams;
 
   const window: LeaderWindow = isLeaderWindow(params.window) ? params.window : "all";
-  const city = params.city?.trim() || null;
-  const batch = params.batch?.trim() || null;
-  const query = params.q ?? "";
+  const source: LeaderSource | null = isLeaderSource(params.source)
+    ? params.source
+    : null;
 
-  const [all, filters] = await Promise.all([
-    getLeaderboardWindow({ window, city, batch }),
-    getCohortFilters(),
-  ]);
-
-  const matched = all.filter((r) => matches(query, r.full_name, r.college, r.city, r.batch));
+  const matched = await getLeaderboardWindow({ window, source });
 
   // Top N, plus the viewer's own row appended when they fall outside it. Being
   // ranked 47th and seeing nothing about yourself is the one thing a
@@ -56,7 +51,7 @@ export default async function LeaderboardPage({
 
   const href = (next: Record<string, string | null>) => {
     const sp = new URLSearchParams();
-    const merged = { q: query || null, window, city, batch, ...next };
+    const merged = { window, source, ...next };
     for (const [key, value] of Object.entries(merged)) {
       if (value && !(key === "window" && value === "all")) sp.set(key, value);
     }
@@ -70,14 +65,13 @@ export default async function LeaderboardPage({
     href: href({ window: w.key }),
   }));
 
-  const cityChips: ChipOption[] = [
-    { key: "", label: "All cities", href: href({ city: null }) },
-    ...filters.cities.map((c) => ({ key: c, label: c, href: href({ city: c }) })),
-  ];
-
-  const batchChips: ChipOption[] = [
-    { key: "", label: "All batches", href: href({ batch: null }) },
-    ...filters.batches.map((b) => ({ key: b, label: b, href: href({ batch: b }) })),
+  const sourceChips: ChipOption[] = [
+    { key: "", label: "All points", href: href({ source: null }) },
+    ...LEADER_SOURCES.filter((s) => !s.hidden).map((s) => ({
+      key: s.key,
+      label: s.label,
+      href: href({ source: s.key }),
+    })),
   ];
 
   return (
@@ -86,7 +80,7 @@ export default async function LeaderboardPage({
         icon={Trophy}
         tone="rank"
         title="Leaderboard"
-        description="Ranked by points earned. Switch the window to see who is moving now, not just who started first."
+        description="The race is on. Earn more points and claim your spot!"
         variant="outline"
         className="bg-gray-50 border-gray-200"
         action={
@@ -110,28 +104,19 @@ export default async function LeaderboardPage({
         }
       />
 
-      <div className="space-y-2.5">
+      {/* What the points are for on the left, what period they cover on the
+          right — the two halves of the same question, read left to right. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <FilterChips label="Points" options={sourceChips} active={source ?? ""} />
         <FilterChips label="When" options={windowChips} active={window} />
-        {filters.cities.length > 0 && (
-          <FilterChips label="City" options={cityChips} active={city ?? ""} />
-        )}
-        {filters.batches.length > 0 && (
-          <FilterChips label="Batch" options={batchChips} active={batch ?? ""} />
-        )}
       </div>
-
-      <SearchBox placeholder="Find someone by name, college, city or batch…" />
 
       <Card>
         {rows.length === 0 ? (
           <EmptyState
             icon={Trophy}
-            title={query ? "Nobody matches that" : "No rankings yet"}
-            description={
-              query
-                ? "Try a different name or college."
-                : "Once ambassadors start earning points, the leaderboard fills up here."
-            }
+            title="No rankings yet"
+            description="Once ambassadors start earning points, the leaderboard fills up here."
           />
         ) : (
           <ul className="divide-y divide-gray-100">

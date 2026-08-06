@@ -36,13 +36,17 @@ export default async function DashboardPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
 
-  const { standing, campaigns, surveys, referrals, recentLedger, streak } = data;
+  const { profile, standing, campaigns, surveys, referrals, recentLedger, streak } =
+    data;
 
   const openTasks = campaigns
     .flatMap((c) => c.tasks)
     .filter((t) => t.submission_status === null).length;
 
   const surveyResponses = surveys.reduce((n, s) => n + s.valid_responses, 0);
+
+  // First name only. "Hii Bharani Kumar Reddy" is a form field, not a greeting.
+  const firstName = (profile.full_name || "there").trim().split(/\s+/)[0];
 
   // Confetti when an approval has landed that they haven't opened yet.
   const justApproved = data.notifications.some(
@@ -53,46 +57,88 @@ export default async function DashboardPage() {
     <div className="stagger space-y-7">
       <LevelUpWatcher points={standing.points} />
 
-      <PointsHero
-        points={standing.points}
-        rank={standing.position > 0 ? standing.position : null}
-        total={standing.total}
-        streak={streak}
-        celebrate={justApproved}
-      />
+      {/* ─── Greeting ──────────────────────────────────────────────────────
+          The four cards underneath are all numbers. This is the one line on
+          the screen addressed to a person rather than a metric, so it gets to
+          be the largest thing and the only place the brand blue is used on a
+          name. */}
+      <header>
+        <h1 className="text-[28px] leading-tight font-black tracking-tight text-ink sm:text-[34px]">
+          Hey <span className="text-brand-strong">{firstName}</span>
+          <span
+            aria-hidden
+            className="animate-wiggle ml-1.5 inline-block origin-[70%_75%]"
+          >
+            👋
+          </span>
+        </h1>
+        <p className="mt-1 text-[13.5px] font-semibold text-gray-500">
+          {openTasks > 0
+            ? `${openTasks} ${openTasks === 1 ? "task is" : "tasks are"} waiting on you.`
+            : "Welcome back! Ready to earn more points today? Lesssssss go!"}
+        </p>
+      </header>
 
-      <TierTrack points={standing.points} />
+      {/* ─── Progress ──────────────────────────────────────────────────── */}
+      <section>
+        <SectionHeader title="Your progress" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat
-          label="Open tasks"
-          value={openTasks}
-          sub={openTasks === 0 ? "All caught up" : "Waiting on you"}
-          icon={ClipboardCheck}
-          tone="reel"
-        />
-        <Stat
-          label="Responses"
-          value={surveyResponses}
-          sub={`${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
-          icon={ClipboardList}
-          tone="poll"
-        />
-        <Stat
-          label="Installs"
-          value={referrals.total_confirmed}
-          sub={
-            referrals.last_conversion
-              ? `Last ${formatDate(referrals.last_conversion)}`
-              : "None yet"
-          }
-          icon={Gift}
-          tone="invite"
-        />
-      </div>
+        <div className="space-y-7">
+          <PointsHero
+            points={standing.points}
+            rank={standing.position > 0 ? standing.position : null}
+            total={standing.total}
+            streak={streak}
+            celebrate={justApproved}
+          />
+
+          <TierTrack points={standing.points} />
+        </div>
+      </section>
+
+      {/* ─── Tasks ─────────────────────────────────────────────────────────
+          `interactive` off: these three read a number, they don't go anywhere.
+          The chevron it draws promised a tap target that was never wired up. */}
+      <section>
+        <SectionHeader title="Your Tasks" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Stat
+            label="Open tasks"
+            value={openTasks}
+            sub={openTasks === 0 ? "All caught up" : "Waiting for you"}
+            icon={ClipboardCheck}
+            tone="reel"
+            interactive={false}
+          />
+          <Stat
+            label="Responses"
+            value={surveyResponses}
+            sub={`${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
+            icon={ClipboardList}
+            tone="poll"
+            interactive={false}
+          />
+          <Stat
+            label="Installs"
+            value={referrals.total_confirmed}
+            sub={
+              referrals.last_conversion
+                ? `Last ${formatDate(referrals.last_conversion)}`
+                : "None yet"
+            }
+            icon={Gift}
+            tone="invite"
+            interactive={false}
+          />
+        </div>
+      </section>
 
       {/* ─── Campaigns ─────────────────────────────────────────────────── */}
-      <section>
+      
+      
+      
+      {/* <section>
         <SectionHeader
           title="Campaigns"
           href="/dashboard/campaigns"
@@ -123,7 +169,6 @@ export default async function DashboardPage() {
                   <Card interactive className="rounded-2xl border-gray-200 shadow-sm overflow-hidden">
                     <CardBody className="flex flex-col sm:flex-row items-start gap-5 p-6 sm:p-7 relative">
                       
-                      {/* Top Right Action Button */}
                       <Button size="sm" variant={ended ? "secondary" : "brand"} asChild className={cn(
                         "absolute top-6 right-6 z-20",
                         ended && "bg-white border border-gray-200 text-ink shadow-sm"
@@ -131,7 +176,6 @@ export default async function DashboardPage() {
                         <Link href={`/dashboard/campaigns#${c.id}`}>Open</Link>
                       </Button>
 
-                      {/* Icon */}
                       <div className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-brand-strong text-white shadow-sm relative z-10">
                         {c.title.includes("CLIP") ? (
                           <Video className="size-6 text-white" />
@@ -139,8 +183,6 @@ export default async function DashboardPage() {
                           <Megaphone className="size-6 text-white" />
                         )}
                       </div>
-                      
-                      {/* Content */}
                       <div className="min-w-0 flex-1 sm:pr-[240px] relative z-10">
                         <div className="flex flex-wrap items-center gap-3">
                           <h3 className="text-[15px] font-extrabold uppercase tracking-wide text-ink">
@@ -182,11 +224,11 @@ export default async function DashboardPage() {
             })}
           </ul>
         )}
-      </section>
+      </section> */}
 
       {/* ─── Recent activity ───────────────────────────────────────────── */}
       <section>
-        <SectionHeader title="Recent points" />
+        <SectionHeader title="Recent Activity" />
 
         <Card className="rounded-2xl border-gray-200 shadow-sm overflow-hidden">
           {recentLedger.length === 0 ? (
@@ -248,7 +290,7 @@ function SectionHeader({
 }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-4 px-1">
-      <h2 className="text-[14px] font-black uppercase tracking-widest text-ink">
+      <h2 className="text-[14px] font-black uppercase tracking-widest text-black">
         {title}
       </h2>
 
