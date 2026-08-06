@@ -1269,6 +1269,11 @@ export type Database = {
           downloads: number;
         }[];
       };
+      /** Atomic `click_count + 1`, so concurrent visits stop overwriting each other. */
+      bump_survey_click: {
+        Args: { link_id: string; amount?: number };
+        Returns: undefined;
+      };
     };
 
     Enums: {

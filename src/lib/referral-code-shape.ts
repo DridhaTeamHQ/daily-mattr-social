@@ -1,58 +1,68 @@
 /**
  * Referral codes that mean something.
  *
- * A code is `DM` + the batch number + a serial: batch 2's first ambassador is
- * `DM201`, then `DM202`. Read one off a poster or a support message and you
- * already know which batch it belongs to, without looking anything up.
+ * A code is `DM` + the batch letter + a serial: batch A's first ambassador is
+ * `DMA01`, then `DMA02`; batch B starts again at `DMB01`. Read one off a
+ * poster or a support message and you know the batch without looking anything
+ * up — which is the whole point, and the reason the letter is the letter
+ * rather than its position in the alphabet.
  *
- * The serial is per batch, not global, so batch 3 also starts at 01 — the
- * number after the batch digit is "which person in this batch", which is the
- * only reading that stays true as batches grow at different rates.
+ * The serial is per batch, not global, so every batch starts at 01 — "which
+ * person in this batch" stays true as batches grow at different rates.
+ *
+ * `0` stands in for a batch nobody has set. `DM001` is honest about being
+ * unassigned instead of quietly claiming batch A.
  */
 
 const PREFIX = "DM";
 
+/** The stand-in when nobody has said which batch someone is in. */
+export const NO_BATCH = "0";
+
 /**
- * Turns a free-text batch into the digit that goes in the code.
+ * The character that goes in the code for a batch.
  *
- * Batches get typed as "Batch 2", "2", "Batch A" or left empty, and all four
- * have to land somewhere predictable:
- *   - a number anywhere in the string wins ("Batch 2" and "2" are both 2)
- *   - otherwise a leading letter is its position ("Batch A" is 1)
- *   - otherwise 0, which reads as "no batch set" rather than as batch 1
+ * Batches arrive typed as "Batch A", "A", "a", or imported from a spreadsheet
+ * as "2", and all of them have to land somewhere predictable:
+ *   - a letter wins, whatever the case ("Batch A" and "a" are both A)
+ *   - a number 1–26 is read as its position, so a spreadsheet that still says
+ *     "2" lands on B rather than being thrown away
+ *   - anything else is NO_BATCH, which reads as "not set" rather than as A
  */
-export function batchKey(batch: string | null | undefined): number {
+export function batchLetter(batch: string | null | undefined): string {
   // The word "batch" comes off FIRST. Without that, the letter rule below
-  // reads the B in "Batch A" and every batch that is named rather than
-  // numbered collapses to 2.
+  // reads the B in "Batch A" and every batch collapses to B.
   const value = (batch ?? "").replace(/batch/gi, " ").trim();
-  if (!value) return 0;
+  if (!value) return NO_BATCH;
+
+  const letter = value.match(/[a-z]/i);
+  if (letter) return letter[0].toUpperCase();
 
   const digits = value.match(/\d+/);
   if (digits) {
     const n = Number(digits[0]);
-    // Two digits is plenty of batches; beyond that the code stops being
-    // short enough to read off a poster, which is the point of it. A number
-    // out of range is usually a year ("2026-A"), so fall through to the
-    // letter rather than silently answering 0.
-    if (Number.isFinite(n) && n >= 0 && n <= 99) return n;
+    if (Number.isFinite(n) && n >= 1 && n <= 26) {
+      return String.fromCharCode(64 + n);
+    }
   }
 
-  const letter = value.match(/[a-z]/i);
-  if (letter) return letter[0].toUpperCase().charCodeAt(0) - 64;
-
-  return 0;
+  return NO_BATCH;
 }
 
-/** True for codes that follow the scheme, so old random ones stay readable. */
+/**
+ * True for codes that follow the scheme, so old random ones stay readable.
+ *
+ * One batch character, then at least two digits of serial. `DM54JGJ3` fails on
+ * the letters in the serial, which is what keeps a legacy code identifiable as
+ * legacy.
+ */
 export function isStructuredCode(code: string): boolean {
-  return new RegExp(`^${PREFIX}\\d{3,}$`).test(code);
+  return new RegExp(`^${PREFIX}[A-Z0]\\d{2,}$`).test(code);
 }
 
 /** The batch a structured code belongs to, or null for a legacy code. */
-export function batchFromCode(code: string): number | null {
+export function batchFromCode(code: string): string | null {
   if (!isStructuredCode(code)) return null;
-  const digits = code.slice(PREFIX.length);
-  // Everything but the two-digit serial is the batch.
-  return Number(digits.slice(0, digits.length - 2));
+  const key = code.charAt(PREFIX.length);
+  return key === NO_BATCH ? null : key;
 }

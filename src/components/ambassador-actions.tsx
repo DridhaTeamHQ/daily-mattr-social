@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin/actions";
 import { publicEnv } from "@/lib/env";
 import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
+import { batchLetter } from "@/lib/referral-code-shape";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -136,14 +137,6 @@ function CredentialsPanel({
   );
 }
 
-/** The digit a batch label contributes to the code, for the live hint. */
-function batchDigit(batch: string): number {
-  const digits = batch.match(/\d+/);
-  if (digits) return Number(digits[0]);
-  const letter = batch.replace(/batch/gi, " ").trim().match(/[a-z]/i);
-  return letter ? letter[0].toUpperCase().charCodeAt(0) - 64 : 0;
-}
-
 /** Create an ambassador with a temporary password and send the welcome email. */
 export function AddAmbassadorDialog() {
   const [open, setOpen] = React.useState(false);
@@ -241,16 +234,16 @@ export function AddAmbassadorDialog() {
                     </datalist>
                   </Field>
 
-                  {/* Picked, not typed. The batch chooses the digit in their
-                      referral code — DM2·01 is batch 2 — so a free text box
-                      that accepted "67" or "Batch A" was writing code
-                      prefixes nobody meant. */}
+                  {/* Picked, not typed. The batch chooses the letter in their
+                      referral code — DMA·01 is batch A — so a free text box
+                      that accepted "67" or "2" was writing code prefixes
+                      nobody meant. */}
                   <Field
                     label="Batch"
                     htmlFor="batch"
                     hint={
                       batch
-                        ? `Their code will start DM${batchDigit(batch)}`
+                        ? `Their code will start DM${batchLetter(batch)}`
                         : "Sets the digit in their referral code"
                     }
                   >

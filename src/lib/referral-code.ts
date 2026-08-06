@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
-import { batchKey } from "@/lib/referral-code-shape";
+import { batchLetter } from "@/lib/referral-code-shape";
 
 /**
  * Issuing a code. The shape of one lives in referral-code-shape, which is a
@@ -27,8 +27,7 @@ export async function nextReferralCode(
   batch: string | null | undefined,
   attempt = 0,
 ): Promise<string> {
-  const key = batchKey(batch);
-  const prefix = `${PREFIX}${key}`;
+  const prefix = `${PREFIX}${batchLetter(batch)}`;
 
   const { data } = await db
     .from("profiles")
@@ -37,8 +36,8 @@ export async function nextReferralCode(
 
   let highest = 0;
   for (const row of data ?? []) {
-    // Only the trailing digits, and only when the rest matches this exact
-    // prefix — DM1 must not read DM10's serial as its own.
+    // Only the trailing digits — a legacy code that happens to start DMA
+    // must not be read as a serial.
     const tail = row.referral_code.slice(prefix.length);
     if (!/^\d+$/.test(tail)) continue;
     highest = Math.max(highest, Number(tail));
@@ -47,4 +46,3 @@ export async function nextReferralCode(
   const serial = highest + 1 + attempt;
   return `${prefix}${String(serial).padStart(2, "0")}`;
 }
-

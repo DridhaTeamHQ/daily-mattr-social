@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { isSupabaseConfigured, publicEnv } from "@/lib/env";
+import { rateLimit } from "@/lib/rate-limit";
 import type { Database } from "@/lib/database.types";
 
 /**
@@ -20,10 +21,79 @@ import type { Database } from "@/lib/database.types";
 /** Prefixes that require a signed-in user. */
 const PROTECTED = ["/dashboard", "/admin"];
 
+/**
+ * What a burst on each public entrance is allowed to look like, per IP per
+ * minute.
+ *
+ * Tuned for a crowd, not for a single person. A campus shares one address, so
+ * these have to sit above "a lecture hall opens the link at once" and below
+ * "a script is working through the alphabet". The two auth routes are tighter
+ * because each attempt is a password guess or an email we pay to send.
+ */
+const LIMITS: { prefix: string; perMinute: number }[] = [
+  { prefix: "/forgot-password", perMinute: 60 },
+  { prefix: "/login", perMinute: 240 },
+  { prefix: "/r/", perMinute: 600 },
+  { prefix: "/s/", perMinute: 600 },
+];
+
+const WINDOW_MS = 60_000;
+
+/**
+ * Whether this request could possibly have a session to refresh.
+ *
+ * Supabase stores its tokens in cookies prefixed `sb-`. A visitor who has
+ * never signed in has none, and building a Supabase client to discover that
+ * costs work on exactly the traffic there is most of — the stranger opening a
+ * survey link. Protected paths still go through the full check, because that
+ * is where the redirect decision is made.
+ */
+function couldHaveSession(request: NextRequest): boolean {
+  return request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+}
+
+function clientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // ─── Rate limit ───────────────────────────────────────────────────────────
+  const limit = LIMITS.find((l) => pathname.startsWith(l.prefix));
+  if (limit) {
+    const verdict = rateLimit(
+      `${limit.prefix}:${clientIp(request)}`,
+      limit.perMinute,
+      WINDOW_MS,
+    );
+    if (!verdict.ok) {
+      return new NextResponse("Too many requests. Try again shortly.", {
+        status: 429,
+        headers: {
+          "retry-after": String(verdict.retryAfter),
+          "cache-control": "no-store",
+        },
+      });
+    }
+  }
+
   // Demo mode: no project to refresh a session against, and no auth to
   // enforce. Let every request through untouched.
   if (!isSupabaseConfigured()) {
+    return NextResponse.next({ request });
+  }
+
+  const needsAuth = PROTECTED.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+  // Nothing to refresh and nothing to guard: skip the client entirely.
+  if (!needsAuth && !couldHaveSession(request)) {
     return NextResponse.next({ request });
   }
 
@@ -61,11 +131,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const needsAuth = PROTECTED.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
 
   if (needsAuth && !user) {
     const login = request.nextUrl.clone();
