@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Coins, History } from "lucide-react";
+import { BadgeIndianRupee, Coins, TrendingUp, Wallet } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { BadgeWall } from "@/components/badge-wall";
@@ -37,6 +37,11 @@ export default async function RewardsPage() {
   ]);
   if (!rewards) redirect("/login?next=/dashboard/rewards");
 
+  // This month only. The stipend is a monthly award, so a lifetime total here
+  // would be a different number wearing the same label.
+  const month = stipend.current;
+  const met = month?.met ?? false;
+
   return (
     <div className="stagger space-y-4">
       <PageHeader
@@ -48,20 +53,41 @@ export default async function RewardsPage() {
         className="border-gray-200 bg-gray-50"
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Four numbers, and three of them are money.
+          "Balance" and "Earned" were two versions of the same points and
+          neither told a student what the month was worth to them. The
+          stipend and the incentive only appear once every target is met,
+          because a rupee figure shown before it is earned reads as a promise
+          — and the one thing this page must never do is imply money that has
+          not been qualified for. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
-          label="Balance"
+          label="Total points"
           value={formatNumber(rewards.balance)}
           sub="Points you hold"
           icon={Coins}
           tone="brand"
         />
         <Stat
-          label="Earned"
-          value={formatNumber(rewards.lifetimeEarned)}
-          sub="All time"
-          icon={History}
+          label="Stipend"
+          value={met ? `₹${formatNumber(stipend.thresholds.amountInr)}` : "—"}
+          sub={met ? "Targets met this month" : "Once the targets are met"}
+          icon={BadgeIndianRupee}
+          tone="rank"
+        />
+        <Stat
+          label="Incentive"
+          value={met ? `₹${formatNumber(month?.bonusInr ?? 0)}` : "—"}
+          sub={`₹${formatNumber(stipend.thresholds.bonusInr)} per extra ${stipend.thresholds.bonusPerDownloads} downloads`}
+          icon={TrendingUp}
           tone="poll"
+        />
+        <Stat
+          label="Total amount"
+          value={met ? `₹${formatNumber(month?.totalInr ?? 0)}` : "—"}
+          sub={met ? "Stipend plus incentive" : "Nothing qualified yet"}
+          icon={Wallet}
+          tone="invite"
         />
       </div>
 
