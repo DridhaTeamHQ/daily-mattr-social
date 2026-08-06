@@ -403,22 +403,30 @@
     animation: run-to 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  /* Two keyframes in opposite phase is the whole trick: arms and legs
-     crossing is what reads as running rather than as a figure being shaken. */
-  .runner-limb-a {
-    animation: runner-swing 420ms ease-in-out infinite alternate;
+  /* One stride, 560ms. Everything below is a phase of the same clock, so the
+     whole figure stays in step no matter which part you change. */
+  .runner-leg {
+    animation: runner-leg 560ms linear infinite;
   }
-  .runner-limb-b {
-    animation: runner-swing 420ms ease-in-out infinite alternate-reverse;
+  .runner-shin {
+    animation: runner-shin 560ms linear infinite;
+  }
+  .runner-arm {
+    animation: runner-arm 560ms linear infinite;
+  }
+  .runner-forearm {
+    animation: runner-forearm 560ms linear infinite;
+  }
+  /* The far side is the same limb half a stride behind. A negative delay
+     starts it mid-cycle instead of waiting 280ms to begin. */
+  .runner-late {
+    animation-delay: -280ms;
   }
   .runner-bob {
-    animation: runner-bob 210ms ease-in-out infinite alternate;
+    animation: runner-bob 560ms ease-in-out infinite;
   }
-  .runner-dust {
-    animation: runner-dust 840ms ease-out infinite;
-  }
-  .runner-dust-late {
-    animation-delay: 420ms;
+  .runner-shadow {
+    animation: runner-shadow 560ms ease-in-out infinite;
   }
   .flag-wave {
     animation: flag-wave 1.8s ease-in-out infinite alternate;
@@ -555,10 +563,12 @@
   .animate-throb,
   .animate-marquee,
   .doodle-band,
-  .runner-limb-a,
-  .runner-limb-b,
+  .runner-leg,
+  .runner-shin,
+  .runner-arm,
+  .runner-forearm,
   .runner-bob,
-  .runner-dust,
+  .runner-shadow,
   .flag-wave,
   .stagger > * {
     animation: none !important;
@@ -594,34 +604,112 @@
   }
 }
 
-@keyframes runner-swing {
-  from {
-    transform: rotate(-26deg);
-  }
-  to {
-    transform: rotate(26deg);
-  }
-}
-
-/* A stride lifts you; landing drops you. Half the limb period, because a
-   runner bobs once per step and there are two steps to a cycle. */
-@keyframes runner-bob {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-1.5px);
-  }
-}
-
-@keyframes runner-dust {
+/*
+ * A run cycle, in the four poses animators draw it in: contact, down,
+ * passing, up. Two keyframes and a rotate gives you scissors; these give you
+ * a knee that folds under on the recovery, which is the whole difference
+ * between a person running and a stick being waved.
+ */
+@keyframes runner-leg {
   0% {
-    transform: translate(0, 0) scale(0.4);
-    opacity: 0.22;
+    transform: rotate(34deg);
+  } /* contact — heel out front, shoe on the bar */
+  25% {
+    transform: rotate(-6deg);
+  } /* airborne — weight passing over */
+  50% {
+    transform: rotate(-42deg);
+  } /* push off — leg trails behind */
+  75% {
+    transform: rotate(26deg);
+  } /* recovery — knee swings through */
+  100% {
+    transform: rotate(34deg);
+  }
+}
+
+@keyframes runner-shin {
+  0% {
+    transform: rotate(-8deg);
+  } /* nearly straight, so the shoe reaches the ground */
+  25% {
+    transform: rotate(-36deg);
+  }
+  50% {
+    transform: rotate(-34deg);
+  }
+  75% {
+    transform: rotate(-72deg);
+  } /* heel tucked up under the hip */
+  100% {
+    transform: rotate(-8deg);
+  }
+}
+
+/* Opposite the leg on the same side. Arm and leg crossing on the diagonal is
+   what the eye reads as running rather than as hopping. */
+@keyframes runner-arm {
+  0% {
+    transform: rotate(-48deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(44deg);
+  }
+  75% {
+    transform: rotate(6deg);
   }
   100% {
-    transform: translate(-9px, -3px) scale(1.5);
-    opacity: 0;
+    transform: rotate(-48deg);
+  }
+}
+
+@keyframes runner-forearm {
+  0% {
+    transform: rotate(-30deg);
+  }
+  25% {
+    transform: rotate(-55deg);
+  }
+  50% {
+    transform: rotate(-22deg);
+  }
+  75% {
+    transform: rotate(-60deg);
+  }
+  100% {
+    transform: rotate(-30deg);
+  }
+}
+
+/* Twice per stride: you rise on each passing pose and drop on each contact.
+   A bob at stride frequency is a limp. */
+@keyframes runner-bob {
+  0%,
+  50%,
+  100% {
+    transform: translateY(1px);
+  }
+  25%,
+  75% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Widest and darkest at contact, when the weight is on the ground. */
+@keyframes runner-shadow {
+  0%,
+  50%,
+  100% {
+    transform: scale(1);
+    opacity: 0.16;
+  }
+  25%,
+  75% {
+    transform: scale(0.7);
+    opacity: 0.08;
   }
 }
 
