@@ -73,7 +73,11 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      <ReferralQr code={referrals.code} siteUrl={siteUrl} />
+      <ReferralQr
+        code={referrals.code}
+        siteUrl={siteUrl}
+        firstName={(data.profile.full_name || "A friend").trim().split(/\s+/)[0]}
+      />
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

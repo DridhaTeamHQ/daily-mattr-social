@@ -15,9 +15,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const SETTING_FALLBACKS = {
   download_goal: 10_000,
+  // The published programme terms. Every one of these is a row in
+  // app_settings, so the numbers on the poster and the numbers the app pays
+  // out cannot drift apart without somebody changing them on purpose.
   stipend_min_downloads: 30,
-  stipend_min_surveys: 3,
-  stipend_amount_inr: 2000,
+  stipend_min_surveys: 2,
+  stipend_min_responses_per_survey: 10,
+  stipend_amount_inr: 3000,
+  stipend_bonus_per_downloads: 50,
+  stipend_bonus_inr: 500,
+  activity_window_days: 10,
+  activity_min_days: 8,
   points_per_rupee: 10,
   min_redemption_points: 500,
   streak_bonus_weeks: 3,

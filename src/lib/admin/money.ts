@@ -47,9 +47,20 @@ export type EligibilityRow = {
   city: string | null;
   batch: string | null;
   downloads: number;
+  /** Surveys they collected anything on at all. */
   surveys: number;
+  /** Surveys that cleared the per-survey response floor — the ones that count. */
+  qualifyingSurveys: number;
   met: boolean;
   at_risk: boolean;
+  /** Earned above the target, in whole blocks of extra downloads. */
+  bonusInr: number;
+  /** Stipend plus bonus. Zero until the target is met — the bonus is a top-up. */
+  totalInr: number;
+  /** Days they opened the app inside the activity window. */
+  activeDays: number;
+  /** Below the attendance floor. Says nothing about this month's numbers. */
+  inactive: boolean;
   /** Whether a stipend has already been paid or queued for this month. */
   paid: boolean;
 };
@@ -57,12 +68,22 @@ export type EligibilityRow = {
 export type StipendPeriod = {
   month: string;
   label: string;
-  thresholds: { downloads: number; surveys: number; amountInr: number };
+  thresholds: {
+    downloads: number;
+    surveys: number;
+    responsesPerSurvey: number;
+    amountInr: number;
+    bonusPerDownloads: number;
+    bonusInr: number;
+    activeDays: number;
+    activityWindow: number;
+  };
   rows: EligibilityRow[];
   totals: {
     eligible: number;
     atRisk: number;
     notMet: number;
+    inactive: number;
     cohort: number;
     projectedCostInr: number;
     alreadyPaidInr: number;
@@ -82,7 +103,12 @@ export const getStipendPeriod = cache(
       getSettings(
         "stipend_min_downloads",
         "stipend_min_surveys",
+        "stipend_min_responses_per_survey",
         "stipend_amount_inr",
+        "stipend_bonus_per_downloads",
+        "stipend_bonus_inr",
+        "activity_min_days",
+        "activity_window_days",
       ),
       db
         .from("payouts")
@@ -103,8 +129,13 @@ export const getStipendPeriod = cache(
       batch: r.batch,
       downloads: Number(r.downloads),
       surveys: Number(r.surveys),
+      qualifyingSurveys: Number(r.qualifying_surveys),
       met: r.met,
       at_risk: r.at_risk,
+      bonusInr: Number(r.bonus_inr),
+      totalInr: Number(r.total_inr),
+      activeDays: Number(r.active_days),
+      inactive: r.inactive,
       paid: paidTo.has(r.ambassador_id),
     }));
 
@@ -116,18 +147,28 @@ export const getStipendPeriod = cache(
       thresholds: {
         downloads: settings.stipend_min_downloads,
         surveys: settings.stipend_min_surveys,
+        responsesPerSurvey: settings.stipend_min_responses_per_survey,
         amountInr: settings.stipend_amount_inr,
+        bonusPerDownloads: settings.stipend_bonus_per_downloads,
+        bonusInr: settings.stipend_bonus_inr,
+        activeDays: settings.activity_min_days,
+        activityWindow: settings.activity_window_days,
       },
       rows: list,
       totals: {
         eligible: eligible.length,
         atRisk: list.filter((r) => r.at_risk).length,
         notMet: list.filter((r) => !r.met && !r.at_risk).length,
+        inactive: list.filter((r) => r.inactive).length,
         cohort: list.length,
         // What it would cost to pay everyone who has qualified but hasn't been
         // paid yet — the number finance actually needs to hold.
-        projectedCostInr:
-          eligible.filter((r) => !r.paid).length * settings.stipend_amount_inr,
+        // Stipend plus whatever they earned above the target — the bonus is
+        // part of the bill, and leaving it out understated what finance has
+        // to hold by exactly the amount the best ambassadors earned.
+        projectedCostInr: eligible
+          .filter((r) => !r.paid)
+          .reduce((sum, r) => sum + r.totalInr, 0),
         alreadyPaidInr,
       },
     };

@@ -25,16 +25,47 @@ export type StipendMonth = {
   period: string;
   label: string;
   downloads: number;
+  /** Surveys they collected anything on. */
   surveys: number;
+  /** The ones that cleared the response floor — what the target counts. */
+  qualifyingSurveys: number;
   met: boolean;
+  bonusInr: number;
+  totalInr: number;
   paidStatus: string;
 };
 
+export type ProgrammeTermsView = {
+  downloads: number;
+  surveys: number;
+  responsesPerSurvey: number;
+  amountInr: number;
+  bonusPerDownloads: number;
+  bonusInr: number;
+  activeDays: number;
+  activityWindow: number;
+};
+
 export type StipendProgress = {
-  thresholds: { downloads: number; surveys: number; amountInr: number };
+  thresholds: ProgrammeTermsView;
   current: StipendMonth | null;
   history: StipendMonth[];
+  /** Days on the app inside the activity window. Their own count only. */
+  activeDays: number;
 };
+
+/**
+ * The first day of the activity window, in IST.
+ *
+ * Same boundary the database uses. Computing it here rather than in SQL keeps
+ * this a plain PostgREST filter instead of another function to grant.
+ */
+function windowStart(days = 10): string {
+  const now = new Date(Date.now() - (days - 1) * 86_400_000);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
+    now,
+  );
+}
 
 function label(period: string): string {
   const [y, m] = period.split("-").map(Number);
@@ -47,13 +78,24 @@ function label(period: string): string {
 export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
   const supabase = await createClient();
 
-  const [{ data }, thresholds] = await Promise.all([
+  const [{ data }, thresholds, { count: activeDays }] = await Promise.all([
     supabase.rpc("my_stipend_progress", { months_back: 6 }),
     getSettings(
       "stipend_min_downloads",
       "stipend_min_surveys",
+      "stipend_min_responses_per_survey",
       "stipend_amount_inr",
+      "stipend_bonus_per_downloads",
+      "stipend_bonus_inr",
+      "activity_min_days",
+      "activity_window_days",
     ),
+    // Their own attendance. RLS on active_days already limits this to the
+    // caller, so there is nothing to scope by hand.
+    supabase
+      .from("active_days")
+      .select("day", { count: "exact", head: true })
+      .gte("day", windowStart()),
   ]);
 
   const months: StipendMonth[] = (data ?? []).map((row) => ({
@@ -61,7 +103,10 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
     label: label(row.period),
     downloads: Number(row.downloads),
     surveys: Number(row.surveys),
+    qualifyingSurveys: Number(row.qualifying_surveys),
     met: row.met,
+    bonusInr: Number(row.bonus_inr),
+    totalInr: Number(row.total_inr),
     paidStatus: row.paid_status,
   }));
 
@@ -69,11 +114,17 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
     thresholds: {
       downloads: thresholds.stipend_min_downloads,
       surveys: thresholds.stipend_min_surveys,
+      responsesPerSurvey: thresholds.stipend_min_responses_per_survey,
       amountInr: thresholds.stipend_amount_inr,
+      bonusPerDownloads: thresholds.stipend_bonus_per_downloads,
+      bonusInr: thresholds.stipend_bonus_inr,
+      activeDays: thresholds.activity_min_days,
+      activityWindow: thresholds.activity_window_days,
     },
     // The RPC returns newest first, so the current month is simply the head.
     current: months[0] ?? null,
     history: months.slice(1),
+    activeDays: activeDays ?? 0,
   };
 });
 

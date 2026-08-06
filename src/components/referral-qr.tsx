@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 
 import { CopyButton } from "@/components/copy-button";
+import { InstallCard } from "@/components/install-card";
 
 /**
  * The shareable referral link, as a link and as a QR code.
@@ -16,9 +17,12 @@ import { CopyButton } from "@/components/copy-button";
 export async function ReferralQr({
   code,
   siteUrl,
+  firstName,
 }: {
   code: string;
   siteUrl: string;
+  /** Goes on the shareable card: "Priya is on DailyMattr — join them". */
+  firstName: string;
 }) {
   const link = `${siteUrl.replace(/\/$/, "")}/r/${code}`;
 
@@ -30,6 +34,11 @@ export async function ReferralQr({
     margin: 1,
     color: { dark: "#0a0a0a", light: "#ffffff" },
   });
+
+  // The same SVG the card draws with. base64 rather than a raw data URL:
+  // an SVG full of `#` and `<` characters has to be escaped either way, and
+  // base64 is the encoding that survives every browser's image loader.
+  const qrDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
@@ -53,6 +62,15 @@ export async function ReferralQr({
           </p>
 
           <div className="mt-4 flex justify-center sm:justify-start">
+            <InstallCard
+              code={code}
+              link={link}
+              name={firstName}
+              qrDataUrl={qrDataUrl}
+            />
+          </div>
+
+          <div className="mt-3 flex justify-center sm:justify-start">
             <CopyButton
               value={link}
               label="Copy link"

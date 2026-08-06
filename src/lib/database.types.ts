@@ -1091,6 +1091,22 @@ export type Database = {
         Relationships: [];
       };
 
+      /** One row per student per day they opened the app. */
+      active_days: {
+        Row: {
+          ambassador_id: string;
+          day: string;
+        };
+        Insert: {
+          ambassador_id: string;
+          day?: string;
+        };
+        Update: {
+          ambassador_id?: string;
+          day?: string;
+        };
+        Relationships: [];
+      };
       badge_awards: {
         Row: {
           id: string;
@@ -1245,9 +1261,16 @@ export type Database = {
           city: string | null;
           batch: string | null;
           downloads: number;
+          /** Surveys they collected anything on. */
           surveys: number;
+          /** Surveys that cleared the per-survey response floor. */
+          qualifying_surveys: number;
           met: boolean;
           at_risk: boolean;
+          bonus_inr: number;
+          total_inr: number;
+          active_days: number;
+          inactive: boolean;
         }[];
       };
       my_stipend_progress: {
@@ -1256,9 +1279,17 @@ export type Database = {
           period: string;
           downloads: number;
           surveys: number;
+          qualifying_surveys: number;
           met: boolean;
+          bonus_inr: number;
+          total_inr: number;
           paid_status: string;
         }[];
+      };
+      /** Records that the signed-in student was on the app today. */
+      touch_active_day: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
       };
       public_stats: {
         Args: Record<PropertyKey, never>;

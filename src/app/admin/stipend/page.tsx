@@ -67,8 +67,11 @@ export default async function StipendPage({
             Stipend &amp; payouts
           </h1>
           <p className="mt-2 text-[13px] font-semibold text-ink-soft">
-            {thresholds.downloads} downloads and {thresholds.surveys} surveys in
-            a month earns ₹{formatNumber(thresholds.amountInr)}.
+            {thresholds.downloads} downloads and {thresholds.surveys} surveys of{" "}
+            {thresholds.responsesPerSurvey}+ responses earns ₹
+            {formatNumber(thresholds.amountInr)}, plus ₹
+            {formatNumber(thresholds.bonusInr)} per extra{" "}
+            {thresholds.bonusPerDownloads} downloads.
           </p>
         </div>
 
@@ -124,6 +127,13 @@ export default async function StipendPage({
           tone="brand"
         />
         <Stat
+          label="Gone quiet"
+          value={totals.inactive}
+          sub={`Under ${thresholds.activeDays} of the last ${thresholds.activityWindow} days`}
+          icon={CircleAlert}
+          tone="reel"
+        />
+        <Stat
           label="Already paid"
           value={`₹${formatNumber(totals.alreadyPaidInr)}`}
           sub="This month"
@@ -170,9 +180,13 @@ export default async function StipendPage({
                 100,
                 Math.round((row.downloads / thresholds.downloads) * 100),
               );
+              // Against qualifying surveys, not touched ones: three links
+              // with one response each is not three surveys, and a bar that
+              // said it was would be telling an admin somebody is nearly there
+              // when they have not started.
               const svPct = Math.min(
                 100,
-                Math.round((row.surveys / thresholds.surveys) * 100),
+                Math.round((row.qualifyingSurveys / thresholds.surveys) * 100),
               );
 
               return (
@@ -198,6 +212,14 @@ export default async function StipendPage({
                       </p>
                     </div>
 
+                    {/* Attendance is its own fact. Somebody can be on track
+                        for the month and still have stopped opening the app,
+                        and that is the version worth catching early. */}
+                    {row.inactive && (
+                      <Badge tone="bad" dot>
+                        {row.activeDays}/{thresholds.activityWindow} days
+                      </Badge>
+                    )}
                     {row.paid && <Badge tone="neutral">in a batch</Badge>}
                     {row.met ? (
                       <Badge tone="ok" dot>
@@ -209,6 +231,9 @@ export default async function StipendPage({
                       </Badge>
                     ) : (
                       <Badge tone="neutral">not met</Badge>
+                    )}
+                    {row.bonusInr > 0 && (
+                      <Badge tone="ok">+₹{formatNumber(row.bonusInr)} bonus</Badge>
                     )}
                   </div>
 
@@ -240,24 +265,38 @@ export default async function StipendPage({
 
                     <div>
                       <div className="flex items-baseline justify-between text-[12px] font-bold">
-                        <span className="text-ink-soft">Surveys</span>
+                        <span className="text-ink-soft">
+                          Surveys with {thresholds.responsesPerSurvey}+
+                        </span>
                         <span
                           className={cn(
                             "tabular",
-                            row.surveys >= thresholds.surveys
+                            row.qualifyingSurveys >= thresholds.surveys
                               ? "text-ok"
                               : "text-ink",
                           )}
                         >
-                          {row.surveys}/{thresholds.surveys}
+                          {row.qualifyingSurveys}/{thresholds.surveys}
                         </span>
                       </div>
                       <ProgressBar
                         value={svPct}
                         max={100}
-                        tone={row.surveys >= thresholds.surveys ? "ok" : "poll"}
+                        tone={
+                          row.qualifyingSurveys >= thresholds.surveys
+                            ? "ok"
+                            : "poll"
+                        }
                         className="mt-1.5"
                       />
+                      {/* The gap between the two is the coaching note: links
+                          shared, responses not collected. */}
+                      {row.surveys > row.qualifyingSurveys && (
+                        <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
+                          {row.surveys - row.qualifyingSurveys} more started but
+                          under {thresholds.responsesPerSurvey} responses
+                        </p>
+                      )}
                     </div>
                   </div>
                 </li>

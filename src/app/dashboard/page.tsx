@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   ArrowRight,
   ClipboardCheck,
@@ -15,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
+import { markActiveToday } from "@/lib/activity";
 import { cn, formatDate, formatDelta } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
@@ -56,6 +58,11 @@ export default async function DashboardPage() {
     recentLedger.length === 0 &&
     surveyResponses === 0 &&
     campaigns.every((c) => c.tasks.every((t) => t.submission_status === null));
+
+  // Their attendance for today, written after the page has gone out. The
+  // programme measures showing up over a ten-day window, and the dashboard is
+  // the one screen everybody passes through.
+  after(() => markActiveToday(profile.id));
 
   // Confetti when an approval has landed that they haven't opened yet.
   const justApproved = data.notifications.some(

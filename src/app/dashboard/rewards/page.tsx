@@ -8,7 +8,8 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getMyBadges } from "@/lib/badges";
-import { getRewards } from "@/lib/rewards";
+import { getRewards, getStipendProgress } from "@/lib/rewards";
+import { ProgrammeTerms } from "@/components/programme-terms";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "Points & rewards" };
@@ -29,7 +30,11 @@ const STATUS_TONE = {
 } as const;
 
 export default async function RewardsPage() {
-  const [rewards, badges] = await Promise.all([getRewards(), getMyBadges()]);
+  const [rewards, badges, stipend] = await Promise.all([
+    getRewards(),
+    getMyBadges(),
+    getStipendProgress(),
+  ]);
   if (!rewards) redirect("/login?next=/dashboard/rewards");
 
   return (
@@ -87,6 +92,25 @@ export default async function RewardsPage() {
           </CardBody>
         </Card>
       )}
+
+      {/* The terms sit above the badges: a student on this page is asking
+          what their effort is worth, and the badges answer a smaller version
+          of that question than the stipend does. */}
+      <ProgrammeTerms
+        terms={stipend.thresholds}
+        progress={
+          stipend.current
+            ? {
+                downloads: stipend.current.downloads,
+                qualifyingSurveys: stipend.current.qualifyingSurveys,
+                activeDays: stipend.activeDays,
+                bonusInr: stipend.current.bonusInr,
+                totalInr: stipend.current.totalInr,
+                met: stipend.current.met,
+              }
+            : undefined
+        }
+      />
 
       <BadgeWall badges={badges} />
 
