@@ -452,6 +452,62 @@
   .flag-wave {
     animation: flag-wave 900ms steps(2) infinite alternate;
   }
+
+  /* ─── The level ──────────────────────────────────────────────────────────
+     Overworld sky, and a ground strip along the bottom so the bar has
+     something to stand on. Both are flat colour with hard edges — a gradient
+     anywhere here and the pixel art next to it starts to look like a
+     mistake. */
+  .mario-level {
+    background:
+      linear-gradient(
+        to bottom,
+        transparent 0 calc(100% - 18px),
+        #c86428 calc(100% - 18px) 100%
+      ),
+      repeating-linear-gradient(
+          90deg,
+          rgb(0 0 0 / 0.12) 0 3px,
+          transparent 3px 24px
+        )
+        bottom / 100% 18px no-repeat,
+      #5c94fc;
+  }
+
+  /* A game HUD's shadow, and not decoration: white on #5c94fc is 2.5:1, which
+     is unreadable. The hard offset takes it past 4.5:1 without tinting the
+     sky or boxing the text. */
+  .mario-hud {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-shadow:
+      2px 2px 0 rgb(0 0 0 / 0.85),
+      -1px 0 0 rgb(0 0 0 / 0.5),
+      0 -1px 0 rgb(0 0 0 / 0.5);
+  }
+
+  /* Clouds drift; they do not slide. Three speeds so they do not move as one
+     sheet, and each one crosses on its own clock. */
+  .cloud-drift {
+    animation: cloud-drift 26s linear infinite;
+  }
+  .cloud-slow {
+    animation-duration: 38s;
+  }
+  .cloud-slower {
+    animation-duration: 47s;
+  }
+
+  /* Four steps, like the sprite it is borrowed from — a coin that eases is a
+     coin from a different game. */
+  .coin-spin {
+    animation: coin-spin 900ms steps(1) infinite;
+  }
+  .block-bob {
+    animation: block-bob 1.6s steps(2) infinite alternate;
+  }
 }
 
 @keyframes rise {
@@ -587,6 +643,9 @@
   .runner-sprite,
   .pixel-fill,
   .flag-wave,
+  .cloud-drift,
+  .coin-spin,
+  .block-bob,
   .stagger > * {
     animation: none !important;
   }
@@ -657,5 +716,50 @@
   }
   to {
     background-position-x: -18px;
+  }
+}
+
+/* Right to left, because the runner is going the other way and the parallax
+   only reads if the background disagrees with him. Translating by a whole
+   viewport width and looping is what keeps it seamless without a second copy
+   of every cloud. */
+@keyframes cloud-drift {
+  from {
+    transform: translateX(6vw);
+  }
+  to {
+    transform: translateX(-40vw);
+  }
+}
+
+/* Squash on the horizontal only — a coin spinning about its vertical axis.
+   Face-on for half the cycle and edge-on for an eighth of it: an even split
+   spends most of the time as a sliver, which at 15px reads as a flicker
+   rather than as a coin. */
+@keyframes coin-spin {
+  0%,
+  50% {
+    transform: scaleX(1);
+  }
+  62.5% {
+    transform: scaleX(0.45);
+  }
+  75% {
+    transform: scaleX(0.12);
+  }
+  87.5% {
+    transform: scaleX(0.45);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes block-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
   }
 }

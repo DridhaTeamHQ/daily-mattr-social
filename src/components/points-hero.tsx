@@ -4,7 +4,7 @@ import * as React from "react";
 import { Flame, Lock, Star, Trophy, Zap } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
-import { MilestoneProgress } from "@/components/milestone-runner";
+import { MilestoneLevel } from "@/components/milestone-runner";
 import { cn, formatNumber } from "@/lib/utils";
 
 /**
@@ -141,21 +141,18 @@ export function tierFor(points: number) {
         </div>
       </div>
 
-      {/* Bottom Progress Card - Large & Prominent */}
+      {/* The one card on this page that is a place rather than a readout.
+          Everything else is a number in a box; this is a level with somebody
+          running across it, so it gets a sky, and the numbers on top of it
+          get the hard drop shadow a game HUD uses to stay readable over
+          scenery. */}
       {next && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 sm:p-7 shadow-xs space-y-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-bold">
-            <div className="flex items-center gap-2.5">
-              <span className="size-3 rounded-full bg-brand-strong animate-pulse" />
-              <span className="text-gray-700">Next Milestone: <strong className="text-black font-black">{next.name}</strong> <span className="text-xs text-gray-500 font-semibold">({next.at} pts)</span></span>
-            </div>
-            <span className="text-brand-strong font-black text-sm sm:text-base">
-              {formatNumber(next.at - points)} pts needed ({pct}%)
-            </span>
-          </div>
-
-          <MilestoneProgress pct={pct} />
-        </div>
+        <MilestoneLevel
+          name={next.name}
+          at={next.at}
+          remaining={next.at - points}
+          pct={pct}
+        />
       )}
     </div>
   );
