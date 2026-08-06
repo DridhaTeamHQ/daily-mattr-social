@@ -4,6 +4,7 @@ import * as React from "react";
 import { Flame, Lock, Star, Trophy, Zap } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
+import { MilestoneProgress } from "@/components/milestone-runner";
 import { cn, formatNumber } from "@/lib/utils";
 
 /**
@@ -153,12 +154,7 @@ export function tierFor(points: number) {
             </span>
           </div>
 
-          <div className="h-4 sm:h-5 w-full rounded-full bg-gray-100 overflow-hidden p-0.5 border border-gray-200/60">
-            <div
-              className="h-full bg-brand-strong rounded-full transition-all duration-500 shadow-xs"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+          <MilestoneProgress pct={pct} />
         </div>
       )}
     </div>
