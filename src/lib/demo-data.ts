@@ -60,6 +60,7 @@ export const demoDashboard: DashboardData = {
       title: "Monsoon reel — share it everywhere",
       description:
         "Our best-performing reel this quarter. Like it, drop a genuine comment, and put it on your story.",
+      platform: "Instagram",
       instagram_url: "https://www.instagram.com/reel/DEMO1/",
       expected_handle: "dailymattr",
       thumbnail_path: null,
@@ -104,6 +105,7 @@ export const demoDashboard: DashboardData = {
       id: "c2",
       title: "Founder interview clip",
       description: "Short clip from the founder Q&A. Likes and shares only.",
+      platform: "Instagram",
       instagram_url: "https://www.instagram.com/reel/DEMO2/",
       expected_handle: "dailymattr",
       thumbnail_path: null,

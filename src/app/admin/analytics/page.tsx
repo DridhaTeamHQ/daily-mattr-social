@@ -76,6 +76,9 @@ const PERIODS = [
   { key: "90", label: "Last 90 days" },
 ] as const;
 
+/** Always offered, so an empty network is visible rather than absent. */
+const PINNED_NETWORKS = ["Instagram", "YouTube", "X", "LinkedIn"];
+
 const DIMENSIONS = [
   { key: "city", label: "By city" },
   { key: "batch", label: "By batch" },
@@ -108,6 +111,7 @@ export default async function AnalyticsPage({
     ? (params.cat as Category)
     : "downloads";
   const net = params.net?.trim() || "";
+  const netLabel = net ? `${net}, all time` : "All networks, all time";
 
   const [
     data,
@@ -149,13 +153,47 @@ export default async function AnalyticsPage({
     ],
   }));
 
+  /**
+   * The four the programme runs on always get a chip, whether or not a
+   * campaign exists on them yet — an admin choosing where to put the next
+   * reel wants to see that YouTube is empty, and a filter that only lists
+   * what already exists can never tell them that. Anything else in use is
+   * appended, so no campaign is unreachable.
+   */
   const campaignNetworks = [
-    ...new Set(campaignRows.map((c) => c.platform).filter(Boolean)),
-  ].sort();
+    ...PINNED_NETWORKS,
+    ...campaignRows
+      .map((c) => c.platform)
+      .filter(
+        (p): p is string => Boolean(p) && !PINNED_NETWORKS.includes(p),
+      ),
+  ].filter((p, i, all) => all.indexOf(p) === i);
 
   const visibleCampaigns = net
     ? campaignRows.filter((c) => c.platform === net)
     : campaignRows;
+
+  /**
+   * The tiles and the chart read from the filtered campaigns, not from the
+   * window-wide submission counts.
+   *
+   * They used to read from `data`, which has no notion of a platform — so
+   * picking Instagram changed the table underneath and left four numbers
+   * above it unchanged. A filter that moves one thing on a screen of five is
+   * worse than no filter, because it looks like it worked.
+   */
+  const submitted = visibleCampaigns.reduce((n, c) => n + c.submitted, 0);
+  const approved = visibleCampaigns.reduce((n, c) => n + c.approved, 0);
+  const waiting = visibleCampaigns.reduce((n, c) => n + c.waiting, 0);
+  const rejected = Math.max(0, submitted - approved - waiting);
+  const decided = approved + rejected;
+  const successRate = decided > 0 ? `${Math.round((approved / decided) * 100)}%` : "—";
+
+  const outcomes = [
+    { label: "Approved", value: approved },
+    { label: "Needs review", value: waiting },
+    { label: "Rejected", value: rejected },
+  ].filter((row) => row.value > 0);
 
   const campaignLeague: LeagueRow[] = visibleCampaigns.map((c) => ({
     id: c.id,
@@ -225,11 +263,6 @@ export default async function AnalyticsPage({
       { label: "Points", ...num(r.pointsEarned) },
     ],
   }));
-
-  const success =
-    data.totals.approvalRate === null
-      ? "—"
-      : `${Math.round(data.totals.approvalRate * 100)}%`;
 
   const href = (next: Record<string, string>) => {
     const sp = new URLSearchParams({ days: String(days), by, cat, ...next });
@@ -398,59 +431,47 @@ export default async function AnalyticsPage({
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat
               label="Success rate"
-              value={success}
+              value={successRate}
               sub="Of reviewed screenshots"
               icon={Percent}
               tone="poll"
             />
             <Stat
               label="Approved"
-              value={formatNumber(
-                data.submissionsByStatus
-                  .filter((s) => s.label.includes("pproved"))
-                  .reduce((sum, s) => sum + s.value, 0),
-              )}
-              sub={windowLabel}
+              value={formatNumber(approved)}
+              sub={netLabel}
               icon={Clapperboard}
               tone="brand"
             />
             <Stat
               label="Waiting"
-              value={formatNumber(
-                data.submissionsByStatus
-                  .filter(
-                    (s) => s.label === "Needs review" || s.label === "Checking",
-                  )
-                  .reduce((sum, s) => sum + s.value, 0),
-              )}
+              value={formatNumber(waiting)}
               sub="In the review queue"
               icon={Clapperboard}
               tone="invite"
             />
             <Stat
               label="Rejected"
-              value={formatNumber(
-                data.submissionsByStatus
-                  .filter(
-                    (s) => s.label === "Rejected" || s.label === "Revoked",
-                  )
-                  .reduce((sum, s) => sum + s.value, 0),
-              )}
-              sub={windowLabel}
+              value={formatNumber(rejected)}
+              sub={netLabel}
               icon={Clapperboard}
               tone="reel"
             />
           </div>
 
-          <ChartCard title="Screenshot outcomes" hint={windowLabel}>
+          <ChartCard title="Screenshot outcomes" hint={netLabel}>
             <BarList
-              data={data.submissionsByStatus.map((row) => ({
+              data={outcomes.map((row) => ({
                 ...row,
                 color: STATUS_FILL[row.label],
               }))}
-              emptyMessage="Nothing submitted in this window."
+              emptyMessage={
+                net
+                  ? `Nothing submitted on ${net} yet.`
+                  : "Nothing submitted yet."
+              }
             />
-            <DataTable caption="Outcomes" rows={data.submissionsByStatus} />
+            <DataTable caption="Outcomes" rows={outcomes} />
           </ChartCard>
 
           <div>
@@ -458,11 +479,19 @@ export default async function AnalyticsPage({
               <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
                 Network
               </span>
-              <NetChip label="All" active={net === ""} href={href({ net: "" })} />
+              <NetChip
+                label="All"
+                count={campaignRows.length}
+                active={net === ""}
+                href={href({ net: "" })}
+              />
               {campaignNetworks.map((platform) => (
                 <NetChip
                   key={platform}
                   label={platform}
+                  count={
+                    campaignRows.filter((c) => c.platform === platform).length
+                  }
                   active={net === platform}
                   href={href({ net: platform })}
                   tone={PLATFORM_TONE[platform]}
@@ -681,27 +710,38 @@ function MoneyRow({
  */
 function NetChip({
   label,
+  count,
   active,
   href,
   tone,
 }: {
   label: string;
+  /** How many campaigns are on it. A zero here is the useful answer. */
+  count?: number;
   active: boolean;
   href: string;
   tone?: string;
 }) {
+  const empty = count === 0;
+
   return (
     <Link
       href={href}
       aria-current={active ? "true" : undefined}
       className={[
-        "rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors",
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors",
         active
           ? "bg-brand-strong text-white"
           : (tone ?? "bg-gray-100 text-ink-soft") + " hover:opacity-80",
+        // Dimmed rather than hidden: an admin deciding where the next reel
+        // should go needs to see which networks have nothing on them.
+        !active && empty ? "opacity-55" : "",
       ].join(" ")}
     >
       {label}
+      {count !== undefined && (
+        <span className={active ? "text-white/70" : "opacity-60"}>{count}</span>
+      )}
     </Link>
   );
 }

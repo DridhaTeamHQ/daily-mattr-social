@@ -65,6 +65,8 @@ export type CampaignCard = {
   id: string;
   title: string;
   description: string | null;
+  /** The network it runs on. Null on campaigns made before the field existed. */
+  platform: string | null;
   instagram_url: string;
   /** Shown in the upload dialog so students know what must be visible. */
   expected_handle: string;
@@ -240,7 +242,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     // Must stay a single string literal — postgrest-js infers the row shape
     // from it, and a concatenated expression degrades to `GenericStringError`.
     .select(
-      "id, title, description, instagram_url, expected_handle, thumbnail_path, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
+      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
     )
     .eq("status", "live")
     .order("starts_at", { ascending: false });
@@ -266,6 +268,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     id: c.id,
     title: c.title,
     description: c.description,
+    platform: c.platform,
     instagram_url: c.instagram_url,
     expected_handle: c.expected_handle,
     thumbnail_path: c.thumbnail_path,

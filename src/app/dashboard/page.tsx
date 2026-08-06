@@ -2,25 +2,20 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
-  Clapperboard,
   ClipboardCheck,
   ClipboardList,
   Gift,
-  Megaphone,
   TrendingDown,
   TrendingUp,
-  Video,
-  Zap,
 } from "lucide-react";
 
 import { LevelUpWatcher } from "@/components/level-up";
 import { PointsHero, TierTrack } from "@/components/points-hero";
-import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
-import { cn, formatDate, formatDelta, timeRemaining } from "@/lib/utils";
+import { cn, formatDate, formatDelta } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
 

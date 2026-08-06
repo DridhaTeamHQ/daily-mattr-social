@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -34,9 +35,36 @@ const TASK_META: Record<
   story: { label: "Post to your story", icon: Play },
 };
 
-export default async function CampaignsPage() {
+/**
+ * The networks that always get a button, in the order the programme cares
+ * about them. Any other network a campaign is on gets a button too, appended
+ * — a filter that can hide a campaign with no way to reach it is worse than
+ * no filter.
+ */
+const PINNED = ["Instagram", "YouTube", "X", "LinkedIn"];
+
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ platform?: string }>;
+}) {
   const campaigns = await getCampaigns();
   if (!campaigns) redirect("/login");
+
+  const { platform } = await searchParams;
+
+  const available = [
+    ...PINNED,
+    ...campaigns
+      .map((c) => c.platform)
+      .filter((p): p is string => Boolean(p) && !PINNED.includes(p!)),
+  ].filter((p, i, all) => all.indexOf(p) === i);
+
+  // An unknown value in the URL shows everything rather than an empty page.
+  const active = platform && available.includes(platform) ? platform : null;
+  const visible = active
+    ? campaigns.filter((c) => c.platform === active)
+    : campaigns;
 
   if (campaigns.length === 0) {
     return (
@@ -59,7 +87,34 @@ export default async function CampaignsPage() {
         description="Finish the challenge, submit your proof, and let the points roll in!"
       />
 
-      {campaigns.map((c) => {
+      {/* ─── Network filter ──────────────────────────────────────────────
+          Links rather than buttons with state: the filter belongs in the URL,
+          so a student can send "the YouTube ones" to a friend and the back
+          button does what they expect. */}
+      <nav aria-label="Filter by network" className="flex flex-wrap gap-2">
+        <FilterChip href="/dashboard/campaigns" label="All" active={!active} />
+        {available.map((p) => (
+          <FilterChip
+            key={p}
+            href={`/dashboard/campaigns?platform=${encodeURIComponent(p)}`}
+            label={p}
+            active={active === p}
+            count={campaigns.filter((c) => c.platform === p).length}
+          />
+        ))}
+      </nav>
+
+      {visible.length === 0 && (
+        <Card>
+          <EmptyState
+            icon={Clapperboard}
+            title={`Nothing on ${active} right now`}
+            description="Try another network, or All to see everything that is live."
+          />
+        </Card>
+      )}
+
+      {visible.map((c) => {
         const ended = timeRemaining(c.ends_at) === "Ended";
         const expectedHandle = c.expected_handle;
         const isClip = c.title.includes("CLIP");
@@ -178,5 +233,48 @@ export default async function CampaignsPage() {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * One network in the filter row.
+ *
+ * The count sits on the chip rather than in a tooltip because "0" is the most
+ * useful thing it can say — it tells you not to bother tapping.
+ */
+function FilterChip({
+  href,
+  label,
+  active,
+  count,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  count?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-bold transition-colors",
+        active
+          ? "border-ink bg-ink text-white"
+          : "border-gray-200 bg-white text-ink hover:border-gray-300 hover:bg-gray-50",
+      )}
+    >
+      {label}
+      {count !== undefined && (
+        <span
+          className={cn(
+            "tabular text-[12px] font-extrabold",
+            active ? "text-white/70" : "text-gray-400",
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </Link>
   );
 }
