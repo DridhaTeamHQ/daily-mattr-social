@@ -45,10 +45,10 @@ export function MilestoneProgress({
           stays glued to it as the bar changes height at the sm breakpoint. */}
       <div className="pixel-track relative h-4 w-full overflow-hidden sm:h-5">
         {/* Two elements, not one. `animation` is a shorthand, so the ride-in
-            and the flow cannot both live on the same node — the second
+            and the shine cannot both live on the same node — the second
             declaration would simply replace the first and one of them would
             silently never run. The outer one owns the width, the inner one
-            owns the moving blocks. */}
+            owns the ground it is made of. */}
         <div
           className="fill-to h-full"
           style={{ "--fill-to": `${clamped}%` } as React.CSSProperties}
