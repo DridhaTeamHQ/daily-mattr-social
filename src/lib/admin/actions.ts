@@ -10,6 +10,7 @@ import { assertAdmin, fail } from "@/lib/admin/guards";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
+import { canonicalBatch, canonicalCity } from "@/lib/batches";
 import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
@@ -244,6 +245,68 @@ export async function revokeSubmission(
 
 // ─── Ambassadors ────────────────────────────────────────────────────────────
 
+/**
+ * Correct someone's college, city and batch after the fact.
+ *
+ * City and batch were collectable only at creation, which left every profile
+ * made before those fields existed permanently unassigned — and every batch
+ * and geography breakdown reading "Unassigned" for most of the programme with
+ * no way in the product to fix it.
+ *
+ * Reissuing the referral code is opt-in and separate, because a code is an
+ * identifier that has already been printed on posters and pasted into bios.
+ * Changing it silently would break links that are out in the world.
+ */
+export async function updateAmbassadorSegments(
+  profileId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const supabase = await createClient();
+
+    const college = String(formData.get("college") ?? "").trim();
+    const city = canonicalCity(formData.get("city")?.toString());
+    const batch = canonicalBatch(formData.get("batch")?.toString());
+    const reissue = formData.get("reissue_code") === "on";
+
+    const newCode = reissue
+      ? await nextReferralCode(createAdminClient(), batch)
+      : null;
+
+    const patch = {
+      college: college || null,
+      city,
+      batch,
+      ...(newCode ? { referral_code: newCode } : {}),
+    };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", profileId);
+    if (error) throw error;
+
+    await audit(actorId, "ambassador.segments", "profile", profileId, {
+      college: college || null,
+      city,
+      batch,
+      referral_code: newCode,
+    });
+
+    revalidatePath("/admin/ambassadors");
+    revalidatePath(`/admin/ambassadors/${profileId}`);
+    revalidatePath("/admin/analytics");
+
+    return {
+      ok: true,
+      message: newCode ? `Saved — new code ${newCode}` : "Details saved",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function setAmbassadorStatus(
   profileId: string,
   status: Enums<"user_status">,
@@ -378,8 +441,10 @@ export async function createAmbassador(
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const fullName = String(formData.get("full_name") ?? "").trim();
     const college = String(formData.get("college") ?? "").trim();
-    const city = String(formData.get("city") ?? "").trim();
-    const batch = String(formData.get("batch") ?? "").trim();
+    // Stored in canonical form so "2", "batch 2" and "Batch 2" are one batch
+    // rather than three, in the grouping and in the code prefix alike.
+    const city = canonicalCity(formData.get("city")?.toString()) ?? "";
+    const batch = canonicalBatch(formData.get("batch")?.toString()) ?? "";
     const password = String(formData.get("password") ?? "");
 
     if (!email || !fullName) {

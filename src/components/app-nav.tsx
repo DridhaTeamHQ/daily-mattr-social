@@ -3,7 +3,6 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BadgeIndianRupee,
   Clapperboard,
   ClipboardList,
   Flame,
@@ -12,7 +11,6 @@ import {
   House,
   LogOut,
   Trophy,
-  Upload,
 } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
@@ -41,12 +39,6 @@ const ITEMS = [
     fill: "bg-reel",
   },
   {
-    href: "/dashboard/submit",
-    label: "Submit",
-    icon: Upload,
-    fill: "bg-reel",
-  },
-  {
     href: "/dashboard/surveys",
     label: "Surveys",
     icon: ClipboardList,
@@ -59,22 +51,12 @@ const ITEMS = [
     fill: "bg-invite",
   },
   {
-    // Off the phone bar for the same reason Stipend is: adding Submit took it
-    // back to seven targets. Ranks is the one people check occasionally rather
-    // than act on, and it is still one tap from Home and the top bar.
+    // Off the phone bar: it is the one people check occasionally rather than
+    // act on, and it is still one tap from Home and the top bar.
     href: "/dashboard/leaderboard",
     label: "Ranks",
     icon: Trophy,
     fill: "bg-rank",
-    desktopOnly: true,
-  },
-  {
-    // Also off the phone bar. Of the two money screens, Rewards is the one
-    // students open repeatedly.
-    href: "/dashboard/stipend",
-    label: "Stipend",
-    icon: BadgeIndianRupee,
-    fill: "bg-brand",
     desktopOnly: true,
   },
   {

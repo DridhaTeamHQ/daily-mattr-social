@@ -149,7 +149,6 @@ export async function submitProof(
     if (error) throw error;
 
     revalidatePath("/dashboard/campaigns");
-    revalidatePath("/dashboard/submit");
     revalidatePath("/admin/review");
 
     return {

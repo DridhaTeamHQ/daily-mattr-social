@@ -14,6 +14,7 @@ import {
   AdjustPointsDialog,
   ResetPasswordDialog,
 } from "@/components/ambassador-actions";
+import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,16 @@ export default async function AmbassadorDetailPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <AmbassadorDetailsDialog
+              profile={{
+                id: profile.id,
+                full_name: profile.full_name,
+                college: profile.college,
+                city: profile.city,
+                batch: profile.batch,
+                referral_code: profile.referral_code,
+              }}
+            />
             <AdjustPointsDialog profileId={profile.id} name={name} />
             <ResetPasswordDialog profileId={profile.id} name={name} />
             {profile.status === "suspended" ? (

@@ -13,6 +13,68 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * read off a per-campaign page without opening every one of them.
  */
 
+/**
+ * Which earning route a ledger row belongs to.
+ *
+ * Attribution goes by `source_type`, never by `reason`. A reversal is written
+ * as a compensating row with reason 'revoke' and the SAME source_type as the
+ * credit it cancels — so filtering on `reason = 'instagram_task'` counted the
+ * credit and silently dropped the row that took it back. Every league table
+ * did this, each under a comment promising that revoked work stops counting.
+ * One ambassador showed 400 referral points of which 200 had been reversed.
+ *
+ * Seed rows and anything written before source_type existed carry only a
+ * reason, so that is the fallback rather than the rule.
+ */
+export type EarningRoute = "campaign" | "survey" | "referral";
+
+const ROUTE_BY_SOURCE: Record<string, EarningRoute> = {
+  submission: "campaign",
+  survey_response: "survey",
+  referral_conversion: "referral",
+};
+
+const ROUTE_BY_REASON: Record<string, EarningRoute> = {
+  instagram_task: "campaign",
+  survey_response: "survey",
+  referral: "referral",
+};
+
+type LedgerRow = { reason: string; source_type: string | null };
+
+export function earningRoute(row: LedgerRow): EarningRoute | null {
+  if (row.source_type && ROUTE_BY_SOURCE[row.source_type]) {
+    return ROUTE_BY_SOURCE[row.source_type];
+  }
+  return ROUTE_BY_REASON[row.reason] ?? null;
+}
+
+/**
+ * Everyone's actual balance, every reason included.
+ *
+ * The three routes do not add up to what an ambassador holds — a manual
+ * adjustment, a streak bonus or a badge award belongs to no route. A league
+ * table that sums the routes therefore shows a number that disagrees with the
+ * same person's own page, which is worse than showing nothing.
+ */
+export const getPointsByAmbassador = cache(
+  async (): Promise<Map<string, number>> => {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("point_ledger")
+      .select("ambassador_id, delta");
+
+    const totals = new Map<string, number>();
+    for (const row of data ?? []) {
+      totals.set(
+        row.ambassador_id,
+        (totals.get(row.ambassador_id) ?? 0) + row.delta,
+      );
+    }
+    return totals;
+  },
+);
+
 export type CampaignParticipation = {
   id: string;
   name: string;
@@ -45,8 +107,7 @@ export const getCampaignParticipation = cache(
           .select("ambassador_id, status, campaign_tasks(campaign_id)"),
         db
           .from("point_ledger")
-          .select("ambassador_id, delta")
-          .eq("reason", "instagram_task"),
+          .select("ambassador_id, delta, reason, source_type"),
         db
           .from("campaigns")
           .select("id", { count: "exact", head: true })
@@ -87,8 +148,10 @@ export const getCampaignParticipation = cache(
     }
 
     // Points read from the ledger rather than summed from task values, so an
-    // approval that was later revoked stops counting.
+    // approval that was later revoked stops counting — which only works if
+    // the reversal is read too. See earningRoute.
     for (const entry of ledger ?? []) {
+      if (earningRoute(entry) !== "campaign") continue;
       const row = byPerson.get(entry.ambassador_id);
       if (row) row.pointsEarned += entry.delta;
     }
@@ -136,8 +199,7 @@ export const getSurveyParticipation = cache(
         db.from("survey_responses").select("ambassador_id, status"),
         db
           .from("point_ledger")
-          .select("ambassador_id, delta")
-          .eq("reason", "survey_response"),
+          .select("ambassador_id, delta, reason, source_type"),
       ]);
 
     const byPerson = new Map<string, SurveyParticipation>();
@@ -172,6 +234,7 @@ export const getSurveyParticipation = cache(
     }
 
     for (const entry of ledger ?? []) {
+      if (earningRoute(entry) !== "survey") continue;
       const row = byPerson.get(entry.ambassador_id);
       if (row) row.pointsEarned += entry.delta;
     }
@@ -211,8 +274,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
       db.from("referral_conversions").select("ambassador_id, status"),
       db
         .from("point_ledger")
-        .select("ambassador_id, delta")
-        .eq("reason", "referral"),
+        .select("ambassador_id, delta, reason, source_type"),
     ]);
 
   const rows = new Map<string, DownloadLeader>();
@@ -236,6 +298,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
   }
 
   for (const entry of ledger ?? []) {
+    if (earningRoute(entry) !== "referral") continue;
     const row = rows.get(entry.ambassador_id);
     if (row) row.pointsEarned += entry.delta;
   }
@@ -270,8 +333,7 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
         .select("id, ambassador_id, status, campaign_tasks(campaign_id)"),
       db
         .from("point_ledger")
-        .select("delta, source_id")
-        .eq("reason", "instagram_task"),
+        .select("delta, source_id, reason, source_type"),
     ]);
 
   // A campaign-task ledger row points at the SUBMISSION it paid for, so the
@@ -314,6 +376,7 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
   }
 
   for (const entry of ledger ?? []) {
+    if (earningRoute(entry) !== "campaign") continue;
     const campaignId = entry.source_id
       ? submissionToCampaign.get(entry.source_id)
       : undefined;

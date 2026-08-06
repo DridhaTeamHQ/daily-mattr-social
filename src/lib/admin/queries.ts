@@ -3,6 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { earningRoute } from "@/lib/admin/participation";
 import type { Enums, Tables } from "@/lib/database.types";
 
 /**
@@ -419,10 +420,12 @@ export async function getReferralSummary(): Promise<ReferralSummary> {
       supabase
         .from("referral_conversions")
         .select("ambassador_id, status, converted_at"),
+      // Not `.eq("reason", "referral")`: a reversal is written with reason
+      // 'revoke', so filtering on the label counted every credit and dropped
+      // every row that took one back. See earningRoute.
       supabase
         .from("point_ledger")
-        .select("ambassador_id, delta")
-        .eq("reason", "referral"),
+        .select("ambassador_id, delta, reason, source_type"),
     ]);
 
   const counted = new Map<string, number>();
@@ -441,6 +444,7 @@ export async function getReferralSummary(): Promise<ReferralSummary> {
 
   const paid = new Map<string, number>();
   for (const l of ledger ?? []) {
+    if (earningRoute(l) !== "referral") continue;
     paid.set(l.ambassador_id, (paid.get(l.ambassador_id) ?? 0) + l.delta);
   }
 
@@ -771,6 +775,8 @@ export type AmbassadorDetail = {
     id: number;
     delta: number;
     reason: Enums<"ledger_reason">;
+    /** What the row paid for. A reversal carries the source it cancels. */
+    source_type: string | null;
     note: string | null;
     created_at: string;
   }[];
@@ -837,7 +843,7 @@ export async function getAmbassadorDetail(
   ] = await Promise.all([
     supabase
       .from("point_ledger")
-      .select("id, delta, reason, note, created_at")
+      .select("id, delta, reason, source_type, note, created_at")
       .eq("ambassador_id", profileId)
       .order("created_at", { ascending: false }),
     // Everyone's totals, so this person's rank is a real position in the
@@ -978,7 +984,7 @@ export async function getAmbassadorDetail(
       voided: conversions.length - counted.length,
       last: convertedDates.length ? convertedDates[convertedDates.length - 1] : null,
       points: ledger
-        .filter((l) => l.reason === "referral")
+        .filter((l) => earningRoute(l) === "referral")
         .reduce((n, l) => n + l.delta, 0),
     },
   };

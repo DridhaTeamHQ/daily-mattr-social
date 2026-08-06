@@ -77,7 +77,6 @@ export async function addCampaignTask(
 
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
-    revalidatePath("/dashboard/submit");
 
     return { ok: true, message: "Task added." };
   } catch (err) {
@@ -119,7 +118,6 @@ export async function updateCampaignTask(
 
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
-    revalidatePath("/dashboard/submit");
 
     // Said plainly, because it is the surprising half: already-approved work
     // keeps whatever it was paid, and only future approvals use the new value.
@@ -157,7 +155,6 @@ export async function removeCampaignTask(
 
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
-    revalidatePath("/dashboard/submit");
 
     return { ok: true, message: "Task removed." };
   } catch (err) {

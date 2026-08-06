@@ -27,9 +27,9 @@ import { getAnalytics, requireAdmin } from "@/lib/admin/queries";
 import { getMoneySummary } from "@/lib/admin/money";
 import { getGeography, getGoalTracking } from "@/lib/admin/growth";
 import {
-  getCampaignParticipation,
   getCampaignTotals,
   getDownloadLeaders,
+  getPointsByAmbassador,
   getSurveyParticipation,
   getSurveyTotals,
 } from "@/lib/admin/participation";
@@ -118,7 +118,7 @@ export default async function AnalyticsPage({
     campaignRows,
     surveyRows,
     surveyPeople,
-    campaignPeople,
+    balances,
   ] = await Promise.all([
     getAnalytics(days),
     getGoalTracking(days),
@@ -128,7 +128,7 @@ export default async function AnalyticsPage({
     getCampaignTotals(),
     getSurveyTotals(),
     getSurveyParticipation(),
-    getCampaignParticipation(),
+    getPointsByAmbassador(),
   ]);
 
   const num = (n: number) => ({ value: formatNumber(n), muted: n === 0 });
@@ -181,20 +181,20 @@ export default async function AnalyticsPage({
     ],
   }));
 
-  // One row per person across all three earning routes. Merged here rather
-  // than in SQL because each half is already fetched for its own category, and
-  // a fourth query would be the same three joins again.
+  // One row per person. Downloads and responses are merged here rather than in
+  // SQL because each half is already fetched for its own category, and a
+  // fourth query would be the same three joins again.
+  //
+  // Points is their BALANCE, not the three routes added up. A manual
+  // adjustment or a streak bonus belongs to no route, so the sum came out
+  // lower than the number on the same person's own page — two figures called
+  // "points" that disagreed with each other.
   const responsesById = new Map(surveyPeople.map((r) => [r.id, r]));
-  const campaignsById = new Map(campaignPeople.rows.map((r) => [r.id, r]));
 
   const ambassadorLeague: LeagueRow[] = downloaders
     .map((r) => {
       const survey = responsesById.get(r.id);
-      const campaign = campaignsById.get(r.id);
-      const points =
-        r.pointsEarned +
-        (survey?.pointsEarned ?? 0) +
-        (campaign?.pointsEarned ?? 0);
+      const points = balances.get(r.id) ?? 0;
 
       return {
         id: r.id,
@@ -557,8 +557,9 @@ export default async function AnalyticsPage({
           <div>
             <h2 className="display text-[16px] text-ink">Every ambassador</h2>
             <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              Points across all three earning routes, so somebody strong on
-              surveys and absent on downloads is visible as both.
+              Downloads and survey responses side by side, so somebody strong
+              on one and absent on the other is visible as both. Points is the
+              balance they hold today, reversals already taken off.
             </p>
             <LeagueTable
               rows={ambassadorLeague}

@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { Banknote, Coins, History, Wallet } from "lucide-react";
+import { Coins, History } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { BadgeWall } from "@/components/badge-wall";
-import { RedeemForm } from "@/components/redeem-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -33,22 +32,18 @@ export default async function RewardsPage() {
   const [rewards, badges] = await Promise.all([getRewards(), getMyBadges()]);
   if (!rewards) redirect("/login?next=/dashboard/rewards");
 
-  const reserved = rewards.requests
-    .filter((r) => r.status === "requested" || r.status === "approved")
-    .reduce((sum, r) => sum + r.points, 0);
-
   return (
     <div className="stagger space-y-4">
       <PageHeader
         icon={Coins}
         tone="brand"
         title="Points & rewards"
-        description="Everything you've earned, what it's worth, and how to cash it in."
+        description="Everything you've earned, and every badge you've unlocked."
         variant="outline"
         className="border-gray-200 bg-gray-50"
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <Stat
           label="Balance"
           value={formatNumber(rewards.balance)}
@@ -57,45 +52,13 @@ export default async function RewardsPage() {
           tone="brand"
         />
         <Stat
-          label="Worth"
-          value={`₹${formatNumber(rewards.redeemableInr)}`}
-          sub={`${rewards.pointsPerRupee} points = ₹1`}
-          icon={Banknote}
-          tone="rank"
-        />
-        <Stat
           label="Earned"
           value={formatNumber(rewards.lifetimeEarned)}
           sub="All time"
           icon={History}
           tone="poll"
         />
-        <Stat
-          label="Redeemed"
-          value={formatNumber(rewards.lifetimeSpent)}
-          sub="Points spent"
-          icon={Wallet}
-          tone="invite"
-        />
       </div>
-
-      {/* ─── Ask for a payout ──────────────────────────────────────────────── */}
-      <Card>
-        <CardBody>
-          <h2 className="display text-[16px] text-ink">Cash out</h2>
-          <p className="mt-1 mb-4 text-[12.5px] font-semibold text-ink-soft">
-            Points come off your balance when an admin approves, not when you
-            ask.
-          </p>
-
-          <RedeemForm
-            balance={rewards.balance}
-            minPoints={rewards.minPoints}
-            pointsPerRupee={rewards.pointsPerRupee}
-            reserved={reserved}
-          />
-        </CardBody>
-      </Card>
 
       {/* ─── Requests ──────────────────────────────────────────────────────── */}
       {rewards.requests.length > 0 && (

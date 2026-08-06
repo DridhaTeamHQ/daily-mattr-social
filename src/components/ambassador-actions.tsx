@@ -16,6 +16,7 @@ import {
   type CreatedAmbassador,
 } from "@/lib/admin/actions";
 import { publicEnv } from "@/lib/env";
+import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -135,9 +136,18 @@ function CredentialsPanel({
   );
 }
 
+/** The digit a batch label contributes to the code, for the live hint. */
+function batchDigit(batch: string): number {
+  const digits = batch.match(/\d+/);
+  if (digits) return Number(digits[0]);
+  const letter = batch.replace(/batch/gi, " ").trim().match(/[a-z]/i);
+  return letter ? letter[0].toUpperCase().charCodeAt(0) - 64 : 0;
+}
+
 /** Create an ambassador with a temporary password and send the welcome email. */
 export function AddAmbassadorDialog() {
   const [open, setOpen] = React.useState(false);
+  const [batch, setBatch] = React.useState("");
   const [password, setPassword] = React.useState(suggestPassword);
   const [issued, setIssued] = React.useState<
     CreatedAmbassador["credentials"] | null
@@ -151,6 +161,7 @@ export function AddAmbassadorDialog() {
     setOpen(false);
     setIssued(null);
     setEmailDelivery(null);
+    setBatch("");
     setPassword(suggestPassword());
   }
 
@@ -224,14 +235,39 @@ export function AddAmbassadorDialog() {
                       placeholder="Hyderabad"
                     />
                     <datalist id="dm-cities">
-                      <option value="Hyderabad" />
-                      <option value="Vijayawada" />
-                      <option value="Warangal" />
+                      {CITY_OPTIONS.map((city) => (
+                        <option key={city} value={city} />
+                      ))}
                     </datalist>
                   </Field>
 
-                  <Field label="Batch" htmlFor="batch">
-                    <Input id="batch" name="batch" placeholder="Batch A" />
+                  {/* Picked, not typed. The batch chooses the digit in their
+                      referral code — DM2·01 is batch 2 — so a free text box
+                      that accepted "67" or "Batch A" was writing code
+                      prefixes nobody meant. */}
+                  <Field
+                    label="Batch"
+                    htmlFor="batch"
+                    hint={
+                      batch
+                        ? `Their code will start DM${batchDigit(batch)}`
+                        : "Sets the digit in their referral code"
+                    }
+                  >
+                    <select
+                      id="batch"
+                      name="batch"
+                      value={batch}
+                      onChange={(e) => setBatch(e.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
+                    >
+                      <option value="">Not set</option>
+                      {BATCH_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                 </div>
 
