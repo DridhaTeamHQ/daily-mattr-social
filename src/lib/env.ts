@@ -68,8 +68,12 @@ export function serverEnv() {
     get openaiApiKey() {
       return process.env.OPENAI_API_KEY || null;
     },
+    /**
+     * Kept in step with `visionModel()` in lib/ai.ts. gpt-4o-mini is not a
+     * valid choice here — it misreads handles and rejects real work.
+     */
     get openaiVisionModel() {
-      return process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+      return process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini";
     },
     /** Optional. If absent, ambassador welcome emails are skipped. */
     get brevoApiKey() {

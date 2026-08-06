@@ -3,7 +3,10 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import Link from "next/link";
+
 import { signIn, type SignInState } from "./actions";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
@@ -39,16 +42,32 @@ export function LoginForm({ next }: { next: string }) {
         />
       </Field>
 
-      <Field label="Password" htmlFor="password" required>
-        <Input
+      <div>
+        <div className="mb-1.5 flex items-baseline justify-between gap-3">
+          <label
+            htmlFor="password"
+            className="text-[13px] font-medium text-ink"
+          >
+            Password <span className="text-bad">*</span>
+          </label>
+          {/* Beside the field, not buried under the button — this is where
+              somebody looks the moment their password does not work. */}
+          <Link
+            href="/forgot-password"
+            className="text-[12.5px] font-bold text-brand-strong hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
-          aria-invalid={state.error ? true : undefined}
+          invalid={Boolean(state.error)}
         />
-      </Field>
+      </div>
 
       {state.error && <Note tone="bad">{state.error}</Note>}
 

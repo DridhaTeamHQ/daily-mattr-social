@@ -40,7 +40,7 @@ function textModel(): string {
  * 0.95. It costs about the same. The cheaper model was not a saving, it was a
  * defect.
  */
-function visionModel(): string {
+export function visionModel(): string {
   return process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini";
 }
 
@@ -270,6 +270,8 @@ const TASK_EVIDENCE: Record<string, string> = {
 export async function adjudicateScreenshot(input: {
   imageDataUrl: string;
   taskType: string;
+  /** The human name of the task, when there is one. Sharpens the prompt. */
+  taskLabel?: string | null;
   expectedHandle: string;
   captionHint: string | null;
 }): Promise<AiResult<ScreenshotVerdict>> {
@@ -281,21 +283,30 @@ export async function adjudicateScreenshot(input: {
     TASK_EVIDENCE[input.taskType] ?? "the described action has been performed";
 
   const system = [
-    "You verify Instagram screenshots submitted by student ambassadors.",
-    "You are shown one image and must decide whether it is genuine evidence of a specific action.",
+    "You verify Instagram screenshots submitted by student ambassadors, one image at a time.",
     "",
-    "Set matches: true ONLY if all of these hold:",
-    `- the post is from @${input.expectedHandle}`,
-    `- ${evidence}`,
-    "- the image is an unedited screenshot of Instagram, taken EITHER in the phone app OR in a desktop web browser",
+    "WORK THROUGH IT IN THIS ORDER, and put each answer in the reason:",
+    "1. What is in the image? An Instagram post, a profile, a story, a DM, or something else entirely.",
+    `2. Which account posted it? Read the handle character by character. The expected handle is "${input.expectedHandle}".`,
+    `3. Is the required action visibly done? Required: ${evidence}`,
+    "4. Is the image an untouched screenshot, or a camera photo of another screen, or edited?",
     "",
-    "A desktop browser screenshot is completely valid evidence. Do not mark something false for being landscape, for showing browser chrome, tabs, a sidebar or a taskbar, or for having the post occupy only part of a wide screen. Judge the Instagram content itself, not the device it was viewed on.",
+    "Only then decide. matches: true requires yes to steps 2, 3 and 4 together.",
     "",
-    "Set matches: false if the handle clearly differs, the action is visibly not done, the image is a photo of another screen taken with a camera, or it shows signs of editing.",
+    "READING THE HANDLE",
+    "Handles render small, especially on a desktop screenshot where the post is a narrow column in a wide window. Look at the header above the post and at the caption's first word — the same handle usually appears twice, which lets you check one reading against the other.",
+    "Common misreads: rn looks like m, l looks like I, 0 looks like o. If your reading differs from the expected handle by one or two characters of that kind, look again before concluding they are different accounts.",
+    "If you genuinely cannot read it, say so, leave handle_seen empty and set confidence at or below 0.5. NEVER state a guessed handle as fact — a confident misread is the single worst thing you can do here, because it rejects real work.",
     "",
-    "If the handle is too small or blurry to read with confidence, do NOT report a guess as fact — say so in the reason, leave handle_seen empty, and lower your confidence. A misread handle that you stated confidently is worse than admitting you couldn't read it.",
+    "WHAT IS NOT A PROBLEM",
+    "A desktop browser screenshot is completely valid evidence. Landscape orientation, browser chrome, tabs, a sidebar, a taskbar, dark mode, a notification banner, or the post occupying only part of a wide screen are all normal. Judge the Instagram content, never the device it was viewed on.",
+    "Cropping is normal too. A cropped screenshot that still shows the handle and the action is fine.",
     "",
-    "Be strict. If you are unsure, answer false with low confidence — a human reviews everything you decline, so a wrong 'no' costs seconds while a wrong 'yes' pays out for a fake.",
+    "WHAT IS A PROBLEM",
+    "A clearly different account, the action visibly not done, a photograph of another screen, or visible editing of counts or controls.",
+    "",
+    "CALIBRATION",
+    "Everything you decline goes to a human, so a wrong 'no' costs a few seconds of review. A wrong 'yes' pays a fake. Be strict — but 'strict' means answering false when the evidence is genuinely against it, NOT when you simply could not see well enough. When you could not see well enough, say exactly that and use a low confidence.",
     "confidence is your certainty in the answer you gave, from 0 to 1.",
     "handle_seen is the handle you could actually read, or an empty string if none was legible.",
   ].join("\n");
@@ -311,9 +322,15 @@ export async function adjudicateScreenshot(input: {
           content: [
             {
               type: "text",
-              text: input.captionHint
-                ? `The caption should mention: ${input.captionHint}`
-                : "Verify this screenshot.",
+              text: [
+                `Task being claimed: ${input.taskLabel ?? input.taskType}.`,
+                `Expected account: @${input.expectedHandle}.`,
+                input.captionHint
+                  ? `The caption should mention: ${input.captionHint}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join("\n"),
             },
             {
               type: "image_url",

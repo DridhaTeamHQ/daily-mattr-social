@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { adjudicateScreenshot, aiEnabled } from "@/lib/ai";
+import { adjudicateScreenshot, aiEnabled, visionModel } from "@/lib/ai";
 import { readImageFacts } from "@/lib/images";
 import { notify } from "@/lib/notifications";
 import { decide, runChecks } from "@/lib/submissions/checks";
@@ -109,7 +109,7 @@ export async function uploadSubmission(
     // The task, its campaign, and whether the campaign is still open.
     const { data: task } = await db
       .from("campaign_tasks")
-      .select("id, type, points, campaigns(id, title, status, ends_at, expected_handle, caption_hint)")
+      .select("id, type, points, label_override, campaigns(id, title, status, ends_at, expected_handle, caption_hint)")
       .eq("id", taskId)
       .maybeSingle();
 
@@ -220,6 +220,7 @@ export async function uploadSubmission(
       const result = await adjudicateScreenshot({
         imageDataUrl: `data:${file.type};base64,${buffer.toString("base64")}`,
         taskType: task.type,
+        taskLabel: task.label_override,
         expectedHandle: campaign.expected_handle,
         captionHint: campaign.caption_hint,
       });
@@ -227,7 +228,7 @@ export async function uploadSubmission(
       if (result.ok) {
         verdict = { matches: result.data.matches, confidence: result.data.confidence };
         aiVerdictRaw = result.data as unknown as Json;
-        aiModel = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+        aiModel = visionModel();
       }
       // A failed AI call is not a failed upload — it just means a human looks.
     }

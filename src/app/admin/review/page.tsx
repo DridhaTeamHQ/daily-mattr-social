@@ -1,5 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
+
+import { ProofImage } from "@/components/proof-image";
 import { CircleAlert, ExternalLink, Inbox, Sparkles } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
@@ -88,16 +89,11 @@ export default async function ReviewPage({
                           panel renders whichever one this submission carries
                           rather than an empty 9:16 box. */}
                       {item.signedUrl ? (
-                        <div className="brut-sm relative aspect-[9/16] overflow-hidden rounded-sm bg-canvas-sunk">
-                          <Image
-                            src={item.signedUrl}
-                            alt={`Screenshot from ${item.ambassador.full_name}`}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 15rem"
-                            className="object-contain"
-                            unoptimized
-                          />
-                        </div>
+                        <ProofImage
+                          src={item.signedUrl}
+                          alt={`Screenshot from ${item.ambassador.full_name}`}
+                          className="brut-sm aspect-[9/16] bg-canvas-sunk"
+                        />
                       ) : item.proof_url ? (
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                           <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
