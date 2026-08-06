@@ -8,16 +8,15 @@ import { cn } from "@/lib/utils";
  * there is a distance, you are somewhere along it, and the flag at the end is
  * a place you arrive at rather than a percentage you reach.
  *
- * The first version was a thin stick figure at 40px, and at that size
- * overlapping 2px limbs read as a smudge rather than a person. What fixed it
- * was not more animation — it was silhouette: a bigger head, a filled torso,
- * limbs thick enough to stay separate, shoes, and the far arm and leg in flat
- * grey instead of a translucent ghost. A shape you recognise in a single frame
- * is worth more than a clever cycle you cannot make out.
+ * The runner is a four-frame sprite sheet — an illustrated character, not a
+ * stick figure. Two attempts at drawing one in SVG both read as a squiggle at
+ * this size: a 60px figure has no room for a face, and without a face it is a
+ * shape doing something rather than a person. `public/runner-sprite.webp` is
+ * 22KB for the whole cycle, which is cheaper than the CSS the stick figure
+ * needed.
  *
- * All motion is CSS. The bar and the runner share one duration and one easing,
- * so the runner arrives exactly as the fill stops; nothing here needs an
- * effect, a timer, or a re-render.
+ * The frames are one image and one `steps(4)` animation, so the browser does
+ * no compositing work per frame and there is nothing to preload mid-cycle.
  */
 export function MilestoneProgress({
   pct,
@@ -36,7 +35,7 @@ export function MilestoneProgress({
   const marker = Math.max(5, Math.min(92, clamped));
 
   return (
-    <div className={cn("relative pt-20 text-ink", className)}>
+    <div className={cn("relative pt-16 text-ink", className)}>
       {/* ─── Track ─────────────────────────────────────────────────────────
           Last in the flow, so the wrapper's bottom edge IS the track's bottom
           edge. Everything standing on the bar is then positioned from
@@ -54,12 +53,15 @@ export function MilestoneProgress({
 
       {/* ─── Runner ────────────────────────────────────────────────────────── */}
       <div
-        className="run-to absolute bottom-4 mb-[-6px] w-0 sm:bottom-5"
+        className="run-to absolute bottom-4 mb-[-2px] w-0 sm:bottom-5"
         style={{ "--run-to": `${marker}%` } as React.CSSProperties}
         aria-hidden
       >
-        <div className="-translate-x-1/2">
-          <Runner />
+        <div className="relative -translate-x-1/2">
+          {/* Grounds him. The sprite has no shadow of its own, and without one
+              he reads as pasted on rather than standing on the bar. */}
+          <span className="absolute inset-x-1 bottom-0 h-[3px] rounded-[50%] bg-ink/15 blur-[1px]" />
+          <span className="runner-sprite block" />
         </div>
       </div>
 
@@ -71,114 +73,6 @@ export function MilestoneProgress({
         <Flag />
       </div>
     </div>
-  );
-}
-
-/** Rotation about a joint, in the SVG's own coordinates. */
-function joint(x: number, y: number): React.CSSProperties {
-  return { transformBox: "view-box", transformOrigin: `${x}px ${y}px` };
-}
-
-/** Thigh and shin, hinged at the knee inside the thigh's rotated space. */
-function Leg({ back }: { back?: boolean }) {
-  const late = back ? " runner-late" : "";
-  return (
-    <g
-      className={`runner-leg${late}`}
-      style={joint(24, 35)}
-      stroke="var(--color-ink)"
-      opacity={back ? 0.28 : 1}
-    >
-      <path d="M24 35 L24 45" strokeWidth="5" strokeLinecap="round" />
-      <g className={`runner-shin${late}`} style={joint(24, 45)}>
-        <path d="M24 45 L24 54" strokeWidth="5" strokeLinecap="round" />
-        {/* The shoe. Without it the leg ends in a point and the figure floats. */}
-        <path d="M23 55 L30 55" strokeWidth="4.5" strokeLinecap="round" />
-      </g>
-    </g>
-  );
-}
-
-/** Upper arm and forearm, hinged at the elbow. */
-function Arm({ back }: { back?: boolean }) {
-  const late = back ? " runner-late" : "";
-  return (
-    <g
-      className={`runner-arm${late}`}
-      style={joint(26, 21)}
-      stroke="var(--color-ink)"
-      opacity={back ? 0.28 : 1}
-    >
-      <path d="M26 21 L23 30" strokeWidth="4.5" strokeLinecap="round" />
-      <g className={`runner-forearm${late}`} style={joint(23, 30)}>
-        <path d="M23 30 L28 36" strokeWidth="4.5" strokeLinecap="round" />
-      </g>
-    </g>
-  );
-}
-
-/**
- * The runner.
- *
- * The thing that separates a running figure from a scissoring stick is the
- * knee. Each leg is two segments — thigh from the hip, shin from the knee —
- * and the shin group is nested inside the thigh group, so bending the knee
- * happens in the thigh's rotated space, exactly as a leg does.
- *
- * One keyframe set drives both sides; the far arm and leg just start half a
- * stride late, via a negative delay. The arms run half a stride from the leg
- * on their own side, so opposite arm meets opposite leg — the diagonal that
- * reads as running rather than as hopping.
- */
-function Runner() {
-  return (
-    <svg
-      width="58"
-      height="72"
-      viewBox="0 0 48 60"
-      fill="none"
-      className="overflow-visible"
-    >
-      {/* Contact shadow. Widest when the weight is on the ground. */}
-      <ellipse
-        className="runner-shadow"
-        cx="26"
-        cy="57"
-        rx="9"
-        ry="2"
-        fill="currentColor"
-        opacity="0.15"
-        style={joint(26, 57)}
-      />
-
-      <g className="runner-bob">
-        {/* Far side first, so it sits behind everything else. */}
-        <Leg back />
-        <Arm back />
-
-        {/* Shirt, then shorts. Filled shapes rather than outlines: this is the
-            silhouette that makes the whole thing legible at this size. */}
-        <path
-          d="M27 19 L25 31"
-          stroke="var(--color-brand-strong)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        <path
-          d="M25 32 L24 35"
-          stroke="var(--color-ink)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-
-        <Leg />
-        <Arm />
-
-        {/* Head last, so every join sits under it. */}
-        <circle cx="30" cy="10" r="7.5" fill="var(--color-ink)" />
-        <path d="M34 4 Q40 2 37 8" fill="var(--color-ink)" />
-      </g>
-    </svg>
   );
 }
 
@@ -196,7 +90,7 @@ function Flag() {
         className="flag-wave"
         d="M3 4 L16 8.5 L3 13 Z"
         fill="currentColor"
-        style={joint(3, 8.5)}
+        style={{ transformBox: "view-box", transformOrigin: "3px 8.5px" }}
       />
     </svg>
   );
