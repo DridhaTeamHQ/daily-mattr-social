@@ -12,7 +12,7 @@ import { getRewards, getStipendProgress } from "@/lib/rewards";
 import { ProgrammeTerms } from "@/components/programme-terms";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
-export const metadata = { title: "Points & rewards" };
+export const metadata = { title: "Your rewards" };
 
 const REASON_LABEL: Record<string, string> = {
   survey_response: "Survey response",
@@ -47,7 +47,7 @@ export default async function RewardsPage() {
       <PageHeader
         icon={Coins}
         tone="brand"
-        title="Points & rewards"
+        title="Your rewards"
         description="Everything you've earned, and every badge you've unlocked."
         variant="outline"
         className="border-gray-200 bg-gray-50"

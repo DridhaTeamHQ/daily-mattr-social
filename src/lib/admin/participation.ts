@@ -253,6 +253,8 @@ export const getSurveyParticipation = cache(
 export type DownloadLeader = {
   id: string;
   name: string;
+  /** The third grouping axis, beside city and batch. */
+  college: string | null;
   city: string | null;
   batch: string | null;
   downloads: number;
@@ -268,7 +270,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
     await Promise.all([
       db
         .from("profiles")
-        .select("id, full_name, city, batch")
+        .select("id, full_name, college, city, batch")
         .eq("role", "ambassador")
         .eq("status", "active"),
       db.from("referral_conversions").select("ambassador_id, status"),
@@ -282,6 +284,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
     rows.set(p.id, {
       id: p.id,
       name: p.full_name,
+      college: p.college,
       city: p.city,
       batch: p.batch,
       downloads: 0,

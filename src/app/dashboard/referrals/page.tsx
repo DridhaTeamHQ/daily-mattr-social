@@ -43,7 +43,7 @@ export default async function ReferralsPage() {
           <Button asChild variant="outline-blue" className="shrink-0">
             <Link href="/dashboard/rewards">
               <Coins aria-hidden />
-              Points &amp; rewards
+              Your rewards
             </Link>
           </Button>
         </div>

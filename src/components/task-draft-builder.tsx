@@ -5,7 +5,6 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
-import { cn } from "@/lib/utils";
 
 /**
  * Choosing a campaign's tasks while creating it.
@@ -36,15 +35,13 @@ export type LibraryTask = {
 
 export type DraftTask = {
   key: string;
-  library_id: string;
+  /** Null for a task somebody typed. The server files it in the library. */
+  library_id: string | null;
   label: string;
   points: number;
   required: boolean;
   proof_type: string;
 };
-
-const SELECT =
-  "h-10 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-[13.5px] font-semibold text-ink focus:border-brand focus:outline-none";
 
 let nextKey = 0;
 
@@ -105,18 +102,31 @@ export function TaskDraftBuilder({
     onChange(tasks.map((t) => (t.key === key ? { ...t, ...patch } : t)));
   }
 
-  function add(libraryId: string) {
-    const found = library.find((l) => l.id === libraryId);
-    if (!found) return;
+  /**
+   * Adds whatever was typed.
+   *
+   * If the words match something in the library, the row inherits that item's
+   * points and proof type — the library is still useful, it just no longer
+   * decides what a task may be called. Anything else is a new task with the
+   * defaults, which is the whole point of a text box.
+   */
+  function add(text: string) {
+    const label = text.trim();
+    if (!label) return;
+
+    const known = library.find(
+      (l) => l.label.toLowerCase() === label.toLowerCase(),
+    );
+
     onChange([
       ...tasks,
       {
         key: `t${nextKey++}`,
-        library_id: found.id,
-        label: found.label,
-        points: found.default_points,
+        library_id: known?.id ?? null,
+        label,
+        points: known?.default_points ?? 10,
         required: false,
-        proof_type: found.proof_type,
+        proof_type: known?.proof_type ?? "screenshot",
       },
     ]);
     setPicking(false);
@@ -206,24 +216,37 @@ export function TaskDraftBuilder({
 
       {picking ? (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <select
+          {/* Typed, not chosen. A dropdown made the library the vocabulary —
+              every campaign had to be described in words somebody added
+              months ago. The datalist keeps those words one keystroke away
+              without making them the only ones allowed. */}
+          <input
             value={choice}
             onChange={(e) => setChoice(e.target.value)}
-            aria-label="Task to add"
-            className={cn(SELECT, "min-w-56 flex-1")}
-          >
-            <option value="">Choose a task…</option>
+            onKeyDown={(e) => {
+              // Enter inside a dialog form would submit the campaign.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add(choice);
+              }
+            }}
+            list="dm-task-suggestions"
+            placeholder="What should they do? e.g. Comment on the reel"
+            aria-label="Task name"
+            autoFocus
+            className="min-w-56 flex-1 rounded-lg border border-gray-200 bg-surface px-3 py-2 text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
+          />
+          <datalist id="dm-task-suggestions">
             {sorted.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.platform ? `${option.platform} · ` : ""}
-                {option.label}
+              <option key={option.id} value={option.label}>
+                {option.platform ?? ""}
               </option>
             ))}
-          </select>
+          </datalist>
           <Button
             type="button"
             size="sm"
-            disabled={!choice}
+            disabled={!choice.trim()}
             onClick={() => add(choice)}
           >
             Add

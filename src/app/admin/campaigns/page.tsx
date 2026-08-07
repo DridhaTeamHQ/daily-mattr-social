@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { setCampaignStatus } from "@/lib/admin/actions";
 import { getAdminCampaigns } from "@/lib/admin/queries";
 import { aiEnabled } from "@/lib/ai";
-import { formatDate, timeRemaining } from "@/lib/utils";
+import { cn, formatDate, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Campaigns" };
 
@@ -29,9 +29,9 @@ const STATUS_TONE = {
 export default async function AdminCampaignsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; net?: string }>;
 }) {
-  const [{ q }, all, { data: library }, queue] = await Promise.all([
+  const [{ q, net }, all, { data: library }, queue] = await Promise.all([
     searchParams,
     getAdminCampaigns(),
     createAdminClient()
@@ -48,9 +48,26 @@ export default async function AdminCampaignsPage({
       .then(({ count }) => count ?? 0),
   ]);
   const query = q ?? "";
-  const campaigns = all.filter((c) =>
-    matches(query, c.title, c.description, c.expected_handle, c.status),
-  );
+
+  /**
+   * The four the programme runs on always get a chip, plus anything else in
+   * use. An admin deciding where the next reel should go needs to see that
+   * YouTube is empty, and a row built only from what exists can never say so.
+   */
+  const networks = [
+    ...PINNED_NETWORKS,
+    ...all
+      .map((c) => c.platform)
+      .filter((p): p is string => Boolean(p) && !PINNED_NETWORKS.includes(p)),
+  ].filter((p, i, list) => list.indexOf(p) === i);
+
+  const active = net && networks.includes(net) ? net : null;
+
+  const campaigns = all
+    .filter((c) => !active || c.platform === active)
+    .filter((c) =>
+      matches(query, c.title, c.description, c.expected_handle, c.status),
+    );
 
   return (
     <div className="stagger space-y-5">
@@ -91,6 +108,26 @@ export default async function AdminCampaignsPage({
         placeholder="Search campaigns by title, handle or status…"
         className="max-w-md"
       />
+
+      {/* Links rather than state: the filter belongs in the URL, so a
+          half-written campaign list is something an admin can send. */}
+      <nav aria-label="Filter by network" className="flex flex-wrap gap-2">
+        <NetworkChip
+          href={query ? `/admin/campaigns?q=${encodeURIComponent(query)}` : "/admin/campaigns"}
+          label="All"
+          count={all.length}
+          active={!active}
+        />
+        {networks.map((p) => (
+          <NetworkChip
+            key={p}
+            href={`/admin/campaigns?net=${encodeURIComponent(p)}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+            label={p}
+            count={all.filter((c) => c.platform === p).length}
+            active={active === p}
+          />
+        ))}
+      </nav>
 
       {campaigns.length === 0 ? (
         <Card>
@@ -215,5 +252,46 @@ export default async function AdminCampaignsPage({
         </ul>
       )}
     </div>
+  );
+}
+
+/** Always offered, so an empty network is visible rather than absent. */
+const PINNED_NETWORKS = ["Instagram", "YouTube", "X", "LinkedIn"];
+
+/**
+ * One network in the filter row.
+ *
+ * The count is on the chip because zero is the most useful thing it can say
+ * before you press it, and an empty one is dimmed rather than hidden — the
+ * gap is the point.
+ */
+function NetworkChip({
+  href,
+  label,
+  count,
+  active,
+}: {
+  href: string;
+  label: string;
+  count: number;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition-colors",
+        active
+          ? "border-ink bg-ink text-white"
+          : "border-gray-200 bg-white text-ink hover:bg-gray-50",
+        !active && count === 0 && "opacity-55",
+      )}
+    >
+      {label}
+      <span className={cn("tabular", active ? "text-white/70" : "text-gray-400")}>
+        {count}
+      </span>
+    </Link>
   );
 }

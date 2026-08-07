@@ -239,8 +239,8 @@ export default async function AnalyticsPage({
         name: r.name,
         href: `/admin/ambassadors/${r.id}`,
         meta:
-          [r.city, r.batch].filter(Boolean).join(" · ") ||
-          "No city or batch set",
+          [r.college, r.city, r.batch].filter(Boolean).join(" · ") ||
+          "No college, city or batch set",
         points,
         columns: [
           { label: "Downloads", ...num(r.downloads) },
@@ -373,55 +373,12 @@ export default async function AnalyticsPage({
             />
           </div>
 
-          <Card>
-            <CardBody>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="display text-[16px] text-ink">Breakdown</h2>
-                  <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-                    Downloads per head as well as the total — a group of thirty
-                    will always out-total a group of six.
-                  </p>
-                </div>
-                <NavSelect
-                  label="Group"
-                  value={href({ by })}
-                  options={dimensionOptions}
-                />
-              </div>
-
-              {cohort.length === 0 ? (
-                <p className="mt-4 text-[12.5px] font-semibold text-ink-soft">
-                  Nothing recorded yet.
-                </p>
-              ) : (
-                <ul className="mt-3 divide-y divide-gray-100">
-                  {cohort.slice(0, 12).map((row) => (
-                    <li key={row.label} className="flex items-center gap-3 py-2.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13.5px] font-bold text-ink">
-                          {row.label}
-                        </p>
-                        <p className="text-[11.5px] text-ink-soft">
-                          {row.ambassadors} ambassador
-                          {row.ambassadors === 1 ? "" : "s"} ·{" "}
-                          {formatNumber(row.points)} points
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="tabular text-[14px] font-extrabold text-ink">
-                          {formatNumber(row.downloads)}
-                        </p>
-                        <p className="text-[11px] text-ink-soft">
-                          {row.perHead} each
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardBody>
-          </Card>
+          <CohortBreakdown
+            rows={cohort}
+            groupHref={href({ by })}
+            options={dimensionOptions}
+            hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
+          />
         </>
       )}
 
@@ -583,6 +540,16 @@ export default async function AnalyticsPage({
             </Card>
           </div>
 
+          {/* The same cohort split as Downloads, because "which college is
+              carrying this" is a question about people, and this is the
+              people category. */}
+          <CohortBreakdown
+            rows={cohort}
+            groupHref={href({ by })}
+            options={dimensionOptions}
+            hint="Grouped by city, batch or college. Per head as well as the total, since a big cohort out-totals a good one."
+          />
+
           <div>
             <h2 className="display text-[16px] text-ink">Every ambassador</h2>
             <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
@@ -743,5 +710,68 @@ function NetChip({
         <span className={active ? "text-white/70" : "opacity-60"}>{count}</span>
       )}
     </Link>
+  );
+}
+
+/**
+ * One cohort split — city, batch or college.
+ *
+ * Shown in both Downloads and Ambassadors. The grouping lives in the URL, so
+ * switching to colleges and sending the page keeps the colleges.
+ */
+function CohortBreakdown({
+  rows,
+  groupHref,
+  options,
+  hint,
+}: {
+  rows: { label: string; ambassadors: number; points: number; downloads: number; perHead: number }[];
+  groupHref: string;
+  options: NavOption[];
+  hint: string;
+}) {
+  return (
+    <Card>
+      <CardBody>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="display text-[16px] text-ink">Breakdown</h2>
+            <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
+              {hint}
+            </p>
+          </div>
+          <NavSelect label="Group" value={groupHref} options={options} />
+        </div>
+
+        {rows.length === 0 ? (
+          <p className="mt-4 text-[12.5px] font-semibold text-ink-soft">
+            Nothing recorded yet.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-gray-100">
+            {rows.slice(0, 12).map((row) => (
+              <li key={row.label} className="flex items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13.5px] font-bold text-ink">
+                    {row.label}
+                  </p>
+                  <p className="text-[11.5px] text-ink-soft">
+                    {row.ambassadors} ambassador
+                    {row.ambassadors === 1 ? "" : "s"} ·{" "}
+                    {formatNumber(row.points)} points
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="tabular text-[14px] font-extrabold text-ink">
+                    {formatNumber(row.downloads)}
+                  </p>
+                  <p className="text-[11px] text-ink-soft">{row.perHead} each</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
   );
 }

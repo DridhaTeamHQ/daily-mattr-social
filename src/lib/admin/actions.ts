@@ -26,6 +26,15 @@ import type { Enums } from "@/lib/database.types";
  * ledger, so it is not optional and it is not "belt and braces".
  */
 
+/** Same shape the library page uses, so slugs stay consistent either way. */
+function slugify(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 40);
+}
+
 async function audit(
   actorId: string,
   action: string,
@@ -856,23 +865,72 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
 
     const tasks = drafts
       .map((t, i) => ({
-        library_id: String(t.library_id ?? ""),
+        library_id: t.library_id ? String(t.library_id) : null,
         label: String(t.label ?? "").trim(),
         points: Number(t.points ?? 0),
         required: Boolean(t.required),
         proof_type: String(t.proof_type ?? "screenshot"),
         order_index: i,
       }))
-      // Zero points means "not part of this campaign", same as before.
-      .filter(
-        (t) => t.library_id && Number.isFinite(t.points) && t.points > 0,
-      );
+      // Zero points means "not part of this campaign", same as before. A task
+      // needs a name; where it came from is the next problem, not this one.
+      .filter((t) => t.label && Number.isFinite(t.points) && t.points > 0);
 
     if (tasks.length === 0) {
       return {
         ok: false,
         message: "Add at least one task worth more than zero points.",
       };
+    }
+
+    /**
+     * Tasks somebody typed get filed in the library on the way past.
+     *
+     * `campaign_tasks_identified` requires either an enum type or a library
+     * row, and the four enum values are reserved for campaigns that predate
+     * the library — so a typed task has to become a library row. Which is the
+     * right outcome anyway: the vocabulary grows from what the team actually
+     * asks for rather than from a list somebody curated up front, and the
+     * next campaign gets it as a suggestion.
+     *
+     * Matched case-insensitively on the same network first, so typing "Like
+     * the reel" twice does not file it twice.
+     */
+    const existing = await supabase
+      .from("task_library")
+      .select("id, label, platform");
+
+    for (const task of tasks) {
+      if (task.library_id) continue;
+
+      const match = (existing.data ?? []).find(
+        (l) =>
+          l.label.toLowerCase() === task.label.toLowerCase() &&
+          (l.platform ?? "") === (platform || "Instagram"),
+      );
+
+      if (match) {
+        task.library_id = match.id;
+        continue;
+      }
+
+      const { data: created, error: libError } = await supabase
+        .from("task_library")
+        .insert({
+          label: task.label,
+          slug: `${slugify(task.label)}-${Date.now().toString(36)}`,
+          platform: platform || "Instagram",
+          default_points: task.points,
+          proof_type: task.proof_type as Enums<"proof_type">,
+          created_by: actorId,
+        })
+        .select("id")
+        .single();
+
+      if (libError || !created) {
+        return { ok: false, message: `Couldn't save the task "${task.label}".` };
+      }
+      task.library_id = created.id;
     }
 
     const { error: taskError } = await supabase.from("campaign_tasks").insert(
