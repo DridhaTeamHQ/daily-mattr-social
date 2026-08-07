@@ -556,29 +556,66 @@ export async function getSurveyResponses(
     .maybeSingle();
   if (!survey) return null;
 
-  const [{ data: questions }, { data: responses }] = await Promise.all([
+  const [{ data: questions }, responses] = await Promise.all([
     supabase
       .from("survey_questions")
       .select("*")
       .eq("survey_id", surveyId)
       .order("order_index", { ascending: true }),
-    supabase
-      .from("survey_responses")
-      .select("id, status, submitted_at, respondent_name, respondent_email, respondent_phone, flag_reason, profiles(full_name)")
-      .eq("survey_id", surveyId)
-      .order("submitted_at", { ascending: false }),
+    readAll<{
+      id: string;
+      status: Enums<"response_status">;
+      submitted_at: string;
+      respondent_name: string | null;
+      respondent_email: string | null;
+      respondent_phone: string | null;
+      flag_reason: string | null;
+      profiles: { full_name: string } | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("survey_responses")
+          .select(
+            "id, status, submitted_at, respondent_name, respondent_email, respondent_phone, flag_reason, profiles(full_name)",
+          )
+          .eq("survey_id", surveyId)
+          .order("submitted_at", { ascending: false })
+          // submitted_at is not unique — two responses in the same millisecond
+          // could otherwise swap between pages, losing one and repeating another.
+          .order("id")
+          .range(from, to),
+      "surveyResponses.responses",
+    ),
   ]);
 
-  const ids = (responses ?? []).map((r) => r.id);
-
-  // One query for every answer, then grouped in memory — a per-response query
-  // would be a round trip each and this page shows hundreds at a time.
-  const { data: answers } = ids.length
-    ? await supabase
+  /**
+   * Answers are filtered through their parent, not through a list of ids.
+   *
+   * This was `.in("response_id", ids)`. At 422 responses that is 422 uuids in
+   * a query string — a 15,600-character URL, which the server refuses. The
+   * error was discarded (only `data` was destructured), so `answers` came back
+   * null and every question on the page rendered "Nobody has answered this one
+   * yet" underneath a header that said 422 responses. It broke at roughly 400
+   * responses, which this programme reaches on a single survey.
+   *
+   * An embedded `!inner` filter asks the database the question directly and
+   * the URL stays one constant length whatever the response count.
+   */
+  const answers = await readAll<{
+    response_id: string;
+    question_id: string;
+    value: unknown;
+  }>(
+    (from, to) =>
+      supabase
         .from("survey_answers")
-        .select("response_id, question_id, value")
-        .in("response_id", ids)
-    : { data: [] };
+        .select("response_id, question_id, value, survey_responses!inner(survey_id)")
+        .eq("survey_responses.survey_id", surveyId)
+        .order("response_id")
+        .order("question_id")
+        .range(from, to),
+    "surveyResponses.answers",
+  );
 
   const byResponse = new Map<string, Map<string, unknown>>();
   for (const a of answers ?? []) {

@@ -64,6 +64,28 @@ export async function decideRedemption(
         };
       }
 
+      /**
+       * The money is recomputed here, never read from the row.
+       *
+       * This checked the POINTS against the balance and then paid whatever
+       * rupee figure the row happened to carry. The two are only related by a
+       * line of application code, and the row can be written without going
+       * through it — a direct insert could claim ₹500,000 against 500 real
+       * points, pass this balance check, and be copied verbatim into the bank
+       * export. A database trigger now pins the amount on write; this is the
+       * second lock, so a request created before that trigger existed cannot
+       * be approved at its old forged value either.
+       */
+      const { points_per_rupee: rate } = await getSettings("points_per_rupee");
+      const owed = Math.floor(request.points / (rate || 10));
+
+      if (Number(request.amount_inr) !== owed) {
+        return {
+          ok: false,
+          message: `This request says ₹${Number(request.amount_inr).toLocaleString("en-IN")} but ${request.points} points is worth ₹${owed.toLocaleString("en-IN")}. It has not been approved. Reject it and ask them to request again.`,
+        };
+      }
+
       const { error: ledgerError } = await db.from("point_ledger").insert({
         ambassador_id: request.ambassador_id,
         delta: -request.points,

@@ -13,6 +13,66 @@ const nextConfig: NextConfig = {
     },
   },
 
+  /**
+   * Security headers.
+   *
+   * There were none. The three that matter here, in order of what they stop:
+   *
+   *  - HSTS: the session cookie travels on every request, and without it a
+   *    single plain-http navigation is enough to hand it over.
+   *  - frame-ancestors / X-Frame-Options: nothing in this app should ever be
+   *    framed, and admin approve/reject buttons are exactly what clickjacking
+   *    is for.
+   *  - CSP: the survey pages render text a stranger typed. Everything else is
+   *    defence in depth behind React's escaping.
+   *
+   * `unsafe-inline`/`unsafe-eval` on script-src are not an oversight — Next's
+   * inlined bootstrap and React Compiler output need them, and a nonce-based
+   * policy needs the middleware to rewrite every response. This is the honest
+   * ceiling for a CSP added without that work; it still blocks a foreign
+   * script host, which is the realistic delivery route.
+   */
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      // Supabase storage serves screenshots; data: covers the canvas share card.
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "font-src 'self' data:",
+      // Supabase REST/auth/realtime, and the OpenAI call for screenshot review.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: csp },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+        ],
+      },
+    ];
+  },
+
+  // The banner tells an attacker which framework and version to look up.
+  poweredByHeader: false,
+
   async redirects() {
     return [
       {

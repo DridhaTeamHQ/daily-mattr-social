@@ -56,7 +56,7 @@ export async function submitSurvey(
   // ─── Load the link, survey and questions ──────────────────────────────────
   const { data: link } = await db
     .from("survey_links")
-    .select("id, survey_id, ambassador_id, surveys(id, title, status, points_per_response, require_email, require_phone)")
+    .select("id, survey_id, ambassador_id, surveys(id, title, status, points_per_response, require_email, require_phone, response_cap)")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -66,6 +66,28 @@ export async function submitSurvey(
   }
   if (survey.status !== "live") {
     return { status: "error", message: "This survey has closed." };
+  }
+
+  /**
+   * The cap an admin set is now actually a cap.
+   *
+   * `surveys.response_cap` was collected in the builder and shown as a limit
+   * and never read by anything. An admin who capped a survey at 200 got as
+   * many as arrived.
+   */
+  if (survey.response_cap && survey.response_cap > 0) {
+    const { count } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id)
+      .eq("status", "valid");
+
+    if ((count ?? 0) >= survey.response_cap) {
+      return {
+        status: "error",
+        message: "This survey has all the responses it needs. Thanks anyway!",
+      };
+    }
   }
 
   const { data: questions } = await db
@@ -160,8 +182,68 @@ export async function submitSurvey(
     user_agent: (await headers()).get("user-agent")?.slice(0, 500) ?? null,
   };
 
+  /**
+   * A duplicate check that does not depend on the respondent volunteering PII.
+   *
+   * The two partial unique indexes only bite when an email or a phone is
+   * present — `where status = 'valid' and respondent_email is not null`. Both
+   * fields are per-survey optional, and on a survey with both switched off
+   * nothing was unique about a second submission: every reload wrote a fresh
+   * valid row and credited the ambassador again. One public URL, no account, a
+   * loop, unlimited points — and points become stipend, which becomes cash.
+   *
+   * `ip_hash` was already being computed, stored and indexed. It was simply
+   * never read. It is a coarse signal — a lecture hall behind one NAT shares an
+   * address — so it is a window rather than a hard unique constraint: a second
+   * submission from the same address to the same survey inside the window is
+   * recorded but not paid for. That is the same treatment a duplicate email
+   * gets, and it keeps an honest second respondent's answers while refusing to
+   * mint a second point for them.
+   */
+  const IP_WINDOW_MINUTES = 30;
+  let ipRepeat = false;
+
+  if (base.ip_hash) {
+    const since = new Date(
+      Date.now() - IP_WINDOW_MINUTES * 60_000,
+    ).toISOString();
+
+    const { count } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id)
+      .eq("ip_hash", base.ip_hash)
+      .eq("status", "valid")
+      .gte("submitted_at", since);
+
+    ipRepeat = (count ?? 0) > 0;
+  }
+
   let responseId: string | null = null;
   let counted = false;
+
+  if (ipRepeat) {
+    // Kept, flagged, and not paid for.
+    const { data: repeat } = await db
+      .from("survey_responses")
+      .insert({
+        ...base,
+        status: "duplicate",
+        flag_reason: `Another response came from the same network within ${IP_WINDOW_MINUTES} minutes`,
+      })
+      .select("id")
+      .single();
+
+    if (repeat) {
+      // The respondent is told the same thing either way. Whether their answer
+      // earned the ambassador a point is not their business, and saying so
+      // would teach anyone farming the link exactly where the line is.
+      return {
+        status: "done",
+        message: "Thanks — your answers were recorded.",
+      };
+    }
+  }
 
   const { data: inserted, error: insertError } = await db
     .from("survey_responses")

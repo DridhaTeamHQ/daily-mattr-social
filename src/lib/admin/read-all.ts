@@ -35,15 +35,48 @@ const PAGE = 1000;
  */
 const MAX = 1_000_000;
 
+/**
+ * Two ways this used to return a wrong number in silence, both fixed here.
+ *
+ * 1. A failed page was swallowed. `data` was destructured without `error`, so
+ *    a timeout or a refused request produced `null`, which became `[]`, which
+ *    became a total computed from the pages that happened to succeed. The
+ *    survey page did exactly this and rendered "422 responses / nobody has
+ *    answered" — see getSurveyResponses.
+ * 2. Hitting MAX logged to a server console nobody reads and returned the
+ *    truncated rows anyway, so an admin saw half a ledger presented as a
+ *    balance.
+ *
+ * Both now throw. A page that fails to load is a bad outcome; a page that
+ * quietly shows the wrong money is a worse one.
+ *
+ * Still OFFSET-based, and OFFSET is quadratic: page k makes Postgres walk and
+ * discard k*1000 rows first, so a full read of N rows examines ~N²/2000. At
+ * 24k rows that is nothing; at millions it is the dominant cost of the admin
+ * pages, and the fix is not a better loop — it is not reading raw rows at all.
+ * These callers should become SQL aggregates (`sum(delta) group by
+ * ambassador_id`) which return thousands of rows instead of millions. Tracked
+ * in docs/STRESS-AND-SECURITY-REPORT.md.
+ */
 export async function readAll<T>(
   /** `range` is inclusive at both ends, which is what PostgREST expects. */
-  page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error?: { message: string } | null }>,
   label = "readAll",
 ): Promise<T[]> {
   const rows: T[] = [];
 
   for (let from = 0; from < MAX; from += PAGE) {
-    const { data } = await page(from, from + PAGE - 1);
+    const { data, error } = await page(from, from + PAGE - 1);
+
+    if (error) {
+      throw new Error(
+        `[${label}] page at offset ${from} failed: ${error.message}`,
+      );
+    }
+
     const batch = data ?? [];
     rows.push(...batch);
 
@@ -52,8 +85,7 @@ export async function readAll<T>(
     if (batch.length < PAGE) return rows;
   }
 
-  console.error(
-    `[${label}] stopped at ${MAX} rows — the table is larger than this was built for.`,
+  throw new Error(
+    `[${label}] exceeded ${MAX} rows. Returning a truncated total would be a wrong number shown as an authoritative one; this read must move to a SQL aggregate.`,
   );
-  return rows;
 }
