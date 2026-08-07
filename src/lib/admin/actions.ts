@@ -274,16 +274,23 @@ export async function updateAmbassadorSegments(
     const actorId = await assertAdmin();
     const supabase = await createClient();
 
+    const fullName = String(formData.get("full_name") ?? "").trim();
     const college = String(formData.get("college") ?? "").trim();
     const city = canonicalCity(formData.get("city")?.toString());
     const batch = canonicalBatch(formData.get("batch")?.toString());
     const reissue = formData.get("reissue_code") === "on";
+
+    // A blank name would leave rows identified by nothing but their initials.
+    if (!fullName) {
+      return { ok: false, message: "A name is required." };
+    }
 
     const newCode = reissue
       ? await nextReferralCode(createAdminClient(), batch)
       : null;
 
     const patch = {
+      full_name: fullName,
       college: college || null,
       city,
       batch,
@@ -297,6 +304,7 @@ export async function updateAmbassadorSegments(
     if (error) throw error;
 
     await audit(actorId, "ambassador.segments", "profile", profileId, {
+      full_name: fullName,
       college: college || null,
       city,
       batch,

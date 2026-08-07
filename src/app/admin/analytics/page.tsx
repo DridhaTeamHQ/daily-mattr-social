@@ -33,7 +33,7 @@ import {
   getSurveyParticipation,
   getSurveyTotals,
 } from "@/lib/admin/participation";
-import { formatNumber } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { PLATFORM_TONE } from "@/lib/platforms";
 
 export const metadata = { title: "Analytics" };
@@ -95,6 +95,7 @@ export default async function AnalyticsPage({
     by?: string;
     cat?: string;
     net?: string;
+    by2?: string;
   }>;
 }) {
   await requireAdmin();
@@ -110,6 +111,25 @@ export default async function AnalyticsPage({
   const cat: Category = CATEGORIES.some((c) => c.key === params.cat)
     ? (params.cat as Category)
     : "downloads";
+  /**
+   * The second grouping, side by side with the first.
+   *
+   * One grouping answers "which colleges are ahead". Two answer "is that a
+   * college effect or a city effect", which is the question that actually
+   * changes what you do next — and switching back and forth between two
+   * single views to compare them is how you end up misremembering one of
+   * them. "off" is a real choice, not a missing value: on a narrow screen one
+   * list is enough.
+   */
+  const by2: Dimension | "off" =
+    params.by2 === "off"
+      ? "off"
+      : DIMENSIONS.some((d) => d.key === params.by2)
+        ? (params.by2 as Dimension)
+        : by === "college"
+          ? "city"
+          : "college";
+
   const net = params.net?.trim() || "";
   const netLabel = net ? `${net}, all time` : "All networks, all time";
 
@@ -265,7 +285,13 @@ export default async function AnalyticsPage({
   }));
 
   const href = (next: Record<string, string>) => {
-    const sp = new URLSearchParams({ days: String(days), by, cat, ...next });
+    const sp = new URLSearchParams({
+      days: String(days),
+      by,
+      by2,
+      cat,
+      ...next,
+    });
     // An empty network means "all", and a stray `net=` in the URL is noise.
     if (!sp.get("net")) sp.delete("net");
     return `/admin/analytics?${sp.toString()}`;
@@ -286,12 +312,20 @@ export default async function AnalyticsPage({
     label: d.label,
   }));
 
-  const cohort =
-    by === "batch"
+  const cohortFor = (dimension: Dimension) =>
+    dimension === "batch"
       ? geography.batches
-      : by === "college"
+      : dimension === "college"
         ? geography.colleges
         : geography.cities;
+
+  const cohort = cohortFor(by);
+  const cohort2 = by2 === "off" ? null : cohortFor(by2);
+
+  const secondOptions: NavOption[] = [
+    { value: href({ by2: "off" }), label: "Off" },
+    ...DIMENSIONS.map((d) => ({ value: href({ by2: d.key }), label: d.label })),
+  ];
 
   const windowLabel = `Last ${days} days`;
   const active = CATEGORIES.find((c) => c.key === cat)!;
@@ -373,12 +407,28 @@ export default async function AnalyticsPage({
             />
           </div>
 
-          <CohortBreakdown
-            rows={cohort}
-            groupHref={href({ by })}
-            options={dimensionOptions}
-            hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
-          />
+          <div
+            className={cn(
+              "grid gap-4",
+              cohort2 && "lg:grid-cols-2",
+            )}
+          >
+            <CohortBreakdown
+              rows={cohort}
+              groupHref={href({ by })}
+              options={dimensionOptions}
+              hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
+            />
+            {cohort2 && (
+              <CohortBreakdown
+                rows={cohort2}
+                groupHref={href({ by2: by2 })}
+                options={secondOptions}
+                label="And by"
+                hint="The same downloads, split a second way. Two cuts side by side is what separates a college effect from a city one."
+              />
+            )}
+          </div>
         </>
       )}
 
@@ -543,12 +593,23 @@ export default async function AnalyticsPage({
           {/* The same cohort split as Downloads, because "which college is
               carrying this" is a question about people, and this is the
               people category. */}
-          <CohortBreakdown
-            rows={cohort}
-            groupHref={href({ by })}
-            options={dimensionOptions}
-            hint="Grouped by city, batch or college. Per head as well as the total, since a big cohort out-totals a good one."
-          />
+          <div className={cn("grid gap-4", cohort2 && "lg:grid-cols-2")}>
+            <CohortBreakdown
+              rows={cohort}
+              groupHref={href({ by })}
+              options={dimensionOptions}
+              hint="Per head as well as the total, since a big cohort out-totals a good one."
+            />
+            {cohort2 && (
+              <CohortBreakdown
+                rows={cohort2}
+                groupHref={href({ by2: by2 })}
+                options={secondOptions}
+                label="And by"
+                hint="The same people, split a second way."
+              />
+            )}
+          </div>
 
           <div>
             <h2 className="display text-[16px] text-ink">Every ambassador</h2>
@@ -724,11 +785,14 @@ function CohortBreakdown({
   groupHref,
   options,
   hint,
+  label = "Group",
 }: {
   rows: { label: string; ambassadors: number; points: number; downloads: number; perHead: number }[];
   groupHref: string;
   options: NavOption[];
   hint: string;
+  /** "Group" on the first, "And by" on the second. */
+  label?: string;
 }) {
   return (
     <Card>
@@ -740,7 +804,7 @@ function CohortBreakdown({
               {hint}
             </p>
           </div>
-          <NavSelect label="Group" value={groupHref} options={options} />
+          <NavSelect label={label} value={groupHref} options={options} />
         </div>
 
         {rows.length === 0 ? (

@@ -78,6 +78,18 @@ export function AmbassadorDetailsDialog({
           </Dialog.Description>
 
           <form onSubmit={submit} className="mt-4 space-y-4">
+            {/* Names get typed wrong, married, shortened and corrected. It was
+                the one field on this record with no way to fix it. */}
+            <Field label="Full name" htmlFor="full_name" required>
+              <Input
+                id="full_name"
+                name="full_name"
+                defaultValue={profile.full_name}
+                required
+                autoFocus
+              />
+            </Field>
+
             <Field label="College" htmlFor="college">
               <Input
                 id="college"

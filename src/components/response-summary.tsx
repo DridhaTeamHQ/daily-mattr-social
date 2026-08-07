@@ -2,28 +2,60 @@ import { MessageSquareText } from "lucide-react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import type { SurveyWithResponses } from "@/lib/admin/queries";
-import { cn, formatNumber } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 
 /**
- * Per-question summary, the way Google Forms does it.
+ * Per-question results, as charts.
  *
  * A list of individual responses answers "what did this person say"; nobody
- * reads three hundred of them. The summary answers "what did people say",
- * which is the question a survey was run to answer in the first place.
+ * reads three hundred of them. This answers "what did people say", which is
+ * the question the survey was run for.
  *
- * Choice questions become ranked bars. Free text stays a list, because
- * charting prose is how you end up with a bar chart of two hundred bars each
- * of height one.
+ * The previous version was one full-width bar list per question, stacked. With
+ * eight questions that is a page you scroll rather than read, and every
+ * question looked identical whatever it asked. So the form follows the
+ * question now:
+ *
+ *   one answer each      → a donut, because the parts make a whole
+ *   several answers each → bars, because they do not (percentages exceed 100)
+ *   1–5 rating           → a column per point, in order, with the average
+ *   free text            → still a list, since charting prose gives you two
+ *                          hundred bars of height one
+ *
+ * Two per row on a desktop, so eight questions is one screen instead of eight.
  */
 
 type Bucket = { label: string; count: number };
 
+/**
+ * Categorical colours, in fixed order, never cycled.
+ *
+ * Darker steps of the app's own accents: the bright UI versions are tuned for
+ * large fills behind black text and fail as small chart marks. Assignment is
+ * by position in the ranked list and stays put, so a legend read once holds
+ * for the whole chart.
+ */
+const SERIES = [
+  "#2d67e8",
+  "#0f9d58",
+  "#c2610a",
+  "#6d4aff",
+  "#0891b2",
+  "#b45309",
+  "#0b7285",
+  "#7a3ea1",
+];
+
+/** Anything past the palette folds into one honest bucket. */
+const MAX_SLICES = SERIES.length;
+
 function bucketsFor(
   questionId: string,
   data: SurveyWithResponses,
-): { buckets: Bucket[]; answered: number } {
+): { buckets: Bucket[]; answered: number; votes: number } {
   const counts = new Map<string, number>();
   let answered = 0;
+  let votes = 0;
 
   for (const response of data.responses) {
     // Only valid responses. A duplicate or a flagged one is exactly what an
@@ -41,23 +73,18 @@ function bucketsFor(
     for (const part of answer.answer.split(",").map((p) => p.trim())) {
       if (!part) continue;
       counts.set(part, (counts.get(part) ?? 0) + 1);
+      votes += 1;
     }
   }
 
   return {
     answered,
+    votes,
     buckets: [...counts.entries()]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count),
   };
 }
-
-const CHART_TYPES = new Set([
-  "single_choice",
-  "multi_choice",
-  "rating",
-  "number",
-]);
 
 export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
   if (data.questions.length === 0) {
@@ -73,11 +100,9 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 lg:grid-cols-2">
       {data.questions.map((question, index) => {
-        const { buckets, answered } = bucketsFor(question.id, data);
-        const chartable = CHART_TYPES.has(question.type);
-        const top = buckets[0]?.count ?? 0;
+        const { buckets, answered, votes } = bucketsFor(question.id, data);
 
         return (
           <Card key={question.id}>
@@ -86,7 +111,7 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
                 <span className="text-[11.5px] font-bold text-ink-faint">
                   Q{index + 1}
                 </span>
-                <h3 className="text-[15px] font-extrabold text-ink">
+                <h3 className="text-[15px] leading-snug font-extrabold text-ink">
                   {question.prompt}
                 </h3>
               </div>
@@ -101,64 +126,15 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
                 <p className="mt-4 text-[13px] font-semibold text-ink-faint">
                   Nobody has answered this one yet.
                 </p>
-              ) : chartable ? (
-                <ul className="mt-4 space-y-2.5">
-                  {buckets.map((bucket) => {
-                    const share = answered > 0 ? bucket.count / answered : 0;
-                    return (
-                      <li key={bucket.label}>
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
-                            {bucket.label}
-                          </span>
-                          <span className="tabular shrink-0 text-[12.5px] font-extrabold text-ink">
-                            {bucket.count}
-                            <span className="ml-1.5 font-bold text-ink-soft">
-                              {Math.round(share * 100)}%
-                            </span>
-                          </span>
-                        </div>
-                        <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                          <div
-                            className={cn(
-                              "h-full rounded-full",
-                              // The most-picked answer is the one being looked
-                              // for; the rest are context.
-                              bucket.count === top ? "bg-brand" : "bg-brand/40",
-                            )}
-                            style={{
-                              width: `${Math.max(2, (bucket.count / Math.max(1, top)) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+              ) : question.type === "rating" ? (
+                <RatingChart buckets={buckets} answered={answered} />
+              ) : question.type === "single_choice" ? (
+                <DonutChart buckets={buckets} total={votes} />
+              ) : question.type === "multi_choice" ||
+                question.type === "number" ? (
+                <BarChart buckets={buckets} answered={answered} />
               ) : (
-                <ul className="mt-4 space-y-2">
-                  {buckets.slice(0, 25).map((bucket) => (
-                    <li
-                      key={bucket.label}
-                      className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
-                    >
-                      <MessageSquareText className="mt-0.5 size-3.5 shrink-0 text-ink-faint" />
-                      <span className="text-[13px] font-medium text-ink">
-                        {bucket.label}
-                      </span>
-                      {bucket.count > 1 && (
-                        <span className="ml-auto shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft">
-                          ×{bucket.count}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                  {buckets.length > 25 && (
-                    <li className="text-[12px] font-semibold text-ink-soft">
-                      {buckets.length - 25} more in the individual responses.
-                    </li>
-                  )}
-                </ul>
+                <TextAnswers buckets={buckets} />
               )}
             </CardBody>
           </Card>
@@ -166,4 +142,258 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
       })}
     </div>
   );
+}
+
+/**
+ * One answer each, so the slices make a whole.
+ *
+ * A donut rather than a pie: the hole carries the total, which is the number
+ * every other figure on the card is a share of, and putting it there means it
+ * never has to be read off a caption.
+ */
+function DonutChart({ buckets, total }: { buckets: Bucket[]; total: number }) {
+  const slices = fold(buckets);
+
+  // 2πr for r=54. Every arc is drawn as a dash of the right length on the
+  // same circle, which is what makes them meet exactly.
+  const R = 54;
+  const C = 2 * Math.PI * R;
+
+  // Offsets computed up front rather than accumulated inside the map: a
+  // counter mutated during render is exactly what the compiler rejects, and
+  // it would be wrong the moment React rendered the list twice.
+  const arcs = slices.reduce<{ slice: Bucket; dash: number; offset: number }[]>(
+    (acc, slice) => {
+      const previous = acc[acc.length - 1];
+      const dash = (total > 0 ? slice.count / total : 0) * C;
+      acc.push({
+        slice,
+        dash,
+        offset: previous ? previous.offset + previous.dash : 0,
+      });
+      return acc;
+    },
+    [],
+  );
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-5">
+      <svg width="132" height="132" viewBox="0 0 132 132" className="shrink-0">
+        <g transform="rotate(-90 66 66)">
+          {arcs.map((arc, i) => (
+            <circle
+              key={arc.slice.label}
+              cx="66"
+              cy="66"
+              r={R}
+              fill="none"
+              stroke={SERIES[i % SERIES.length]}
+              strokeWidth="20"
+              strokeDasharray={`${arc.dash} ${C - arc.dash}`}
+              strokeDashoffset={-arc.offset}
+            />
+          ))}
+        </g>
+        <text
+          x="66"
+          y="62"
+          textAnchor="middle"
+          className="fill-ink text-[22px] font-black"
+        >
+          {formatNumber(total)}
+        </text>
+        <text
+          x="66"
+          y="80"
+          textAnchor="middle"
+          className="fill-ink-soft text-[10px] font-bold"
+        >
+          answers
+        </text>
+      </svg>
+
+      <Legend slices={slices} total={total} />
+    </div>
+  );
+}
+
+/** Several answers each, so shares are of respondents and can exceed 100%. */
+function BarChart({
+  buckets,
+  answered,
+}: {
+  buckets: Bucket[];
+  answered: number;
+}) {
+  const top = buckets[0]?.count ?? 1;
+
+  return (
+    <ul className="mt-4 space-y-2.5">
+      {fold(buckets).map((bucket, i) => (
+        <li key={bucket.label}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
+              {bucket.label}
+            </span>
+            <span className="tabular shrink-0 text-[12.5px] font-extrabold text-ink">
+              {bucket.count}
+              <span className="ml-1.5 font-bold text-ink-soft">
+                {Math.round((bucket.count / Math.max(1, answered)) * 100)}%
+              </span>
+            </span>
+          </div>
+          <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(2, (bucket.count / top) * 100)}%`,
+                background: SERIES[i % SERIES.length],
+              }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A 1–5 scale, in scale order rather than ranked.
+ *
+ * Sorting a rating by popularity destroys the only thing it has to say: 1 and
+ * 5 next to each other is a split, 4 and 5 next to each other is agreement,
+ * and a ranked list hides the difference.
+ */
+function RatingChart({
+  buckets,
+  answered,
+}: {
+  buckets: Bucket[];
+  answered: number;
+}) {
+  const byValue = new Map(buckets.map((b) => [b.label.trim(), b.count]));
+  const points = [1, 2, 3, 4, 5].map((n) => ({
+    n,
+    // Answers arrive as "4" or "4 out of 5" depending on how they were saved.
+    count: byValue.get(String(n)) ?? byValue.get(`${n} out of 5`) ?? 0,
+  }));
+
+  const tallest = Math.max(1, ...points.map((p) => p.count));
+  const total = points.reduce((sum, p) => sum + p.count, 0);
+  const average =
+    total > 0
+      ? points.reduce((sum, p) => sum + p.n * p.count, 0) / total
+      : 0;
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-end gap-2" style={{ height: 96 }}>
+        {points.map((point) => (
+          <div key={point.n} className="flex flex-1 flex-col items-center gap-1">
+            <span className="tabular text-[11.5px] font-extrabold text-ink">
+              {point.count || ""}
+            </span>
+            <div
+              className="w-full rounded-t-md bg-brand-strong"
+              style={{
+                height: `${Math.max(2, (point.count / tallest) * 68)}px`,
+                opacity: point.count === 0 ? 0.18 : 1,
+              }}
+            />
+            <span className="text-[11.5px] font-bold text-ink-soft">
+              {point.n}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 text-[12.5px] font-semibold text-ink-soft">
+        Average{" "}
+        <strong className="tabular text-ink">{average.toFixed(1)}</strong> out
+        of 5 · {formatNumber(answered)} rated
+      </p>
+    </div>
+  );
+}
+
+/** Prose. Charting it would give two hundred bars of height one. */
+function TextAnswers({ buckets }: { buckets: Bucket[] }) {
+  return (
+    <ul className="mt-4 space-y-2">
+      {buckets.slice(0, 12).map((bucket) => (
+        <li
+          key={bucket.label}
+          className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+        >
+          <MessageSquareText className="mt-0.5 size-3.5 shrink-0 text-ink-faint" />
+          <span className="text-[13px] leading-snug font-medium text-ink">
+            {bucket.label}
+          </span>
+          {bucket.count > 1 && (
+            <span className="ml-auto shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft">
+              ×{bucket.count}
+            </span>
+          )}
+        </li>
+      ))}
+      {buckets.length > 12 && (
+        <li className="text-[12px] font-semibold text-ink-soft">
+          {buckets.length - 12} more in the individual responses.
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/**
+ * The key beside the donut.
+ *
+ * Always present, and every entry carries its own number — identity never
+ * depends on telling two colours apart, which is the failure mode a legend is
+ * supposed to prevent rather than cause.
+ */
+function Legend({ slices, total }: { slices: Bucket[]; total: number }) {
+  return (
+    <ul className="min-w-0 flex-1 space-y-1.5">
+      {slices.map((slice, i) => (
+        <li key={slice.label} className="flex items-baseline gap-2">
+          <span
+            aria-hidden
+            className="mt-1 size-2.5 shrink-0 rounded-full"
+            style={{ background: SERIES[i % SERIES.length] }}
+          />
+          <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
+            {slice.label}
+          </span>
+          <span className="tabular shrink-0 text-[12.5px] font-extrabold text-ink">
+            {slice.count}
+            <span className="ml-1.5 font-bold text-ink-soft">
+              {Math.round((slice.count / Math.max(1, total)) * 100)}%
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Everything past the palette becomes one "Other".
+ *
+ * A ninth colour would have to be generated, and a generated hue is the point
+ * at which a categorical palette stops being readable. One honest bucket beats
+ * two slices nobody can tell apart.
+ */
+function fold(buckets: Bucket[]): Bucket[] {
+  if (buckets.length <= MAX_SLICES) return buckets;
+
+  const kept = buckets.slice(0, MAX_SLICES - 1);
+  const rest = buckets.slice(MAX_SLICES - 1);
+  return [
+    ...kept,
+    {
+      label: `Other (${rest.length})`,
+      count: rest.reduce((sum, b) => sum + b.count, 0),
+    },
+  ];
 }

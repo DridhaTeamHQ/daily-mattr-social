@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   CalendarDays,
   FileText,
@@ -44,11 +45,11 @@ const PROOF_META: Record<
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; net?: string }>;
 }) {
   await requireAdmin();
 
-  const { q } = await searchParams;
+  const { q, net } = await searchParams;
   const query = q ?? "";
 
   const db = createAdminClient();
@@ -60,9 +61,26 @@ export default async function LibraryPage({
     .order("label", { ascending: true });
 
   const all = (data ?? []) as Tables<"task_library">[];
-  const rows = all.filter((task) =>
-    matches(query, task.label, task.platform, task.cadence),
-  );
+
+  /**
+   * The four the programme runs on, plus every platform the library already
+   * has something for. Same rule as Campaigns: an empty one is dimmed rather
+   * than absent, because "we have nothing for YouTube" is the useful answer.
+   */
+  const networks = [
+    ...PINNED_NETWORKS,
+    ...all
+      .map((t) => t.platform)
+      .filter((p): p is string => !!p && !PINNED_NETWORKS.includes(p)),
+  ].filter((p, i, list) => list.indexOf(p) === i);
+
+  const network = net && networks.includes(net) ? net : null;
+
+  const rows = all
+    .filter((task) => !network || task.platform === network)
+    .filter((task) =>
+      matches(query, task.label, task.platform ?? "", task.cadence ?? ""),
+    );
 
   const active = rows.filter((t) => t.active);
   const retired = rows.filter((t) => !t.active);
@@ -95,6 +113,24 @@ export default async function LibraryPage({
         placeholder="Search by name, platform or cadence…"
         className="max-w-md"
       />
+
+      <nav aria-label="Filter by platform" className="flex flex-wrap gap-2">
+        <PlatformChip
+          href={link({ q: query })}
+          label="All"
+          count={all.length}
+          active={!network}
+        />
+        {networks.map((p) => (
+          <PlatformChip
+            key={p}
+            href={link({ q: query, net: p })}
+            label={p}
+            count={all.filter((t) => t.platform === p).length}
+            active={network === p}
+          />
+        ))}
+      </nav>
 
       {rows.length === 0 ? (
         <Card>
@@ -186,5 +222,48 @@ function TaskCard({ task }: { task: Tables<"task_library"> }) {
         </CardBody>
       </Card>
     </li>
+  );
+}
+
+/** Always offered, so a platform with nothing in the library is visible. */
+const PINNED_NETWORKS = ["Instagram", "YouTube", "X", "LinkedIn"];
+
+/** Keeps the search term when the platform changes, and vice versa. */
+function link({ q, net }: { q?: string; net?: string }): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (net) params.set("net", net);
+  const query = params.toString();
+  return query ? `/admin/library?${query}` : "/admin/library";
+}
+
+function PlatformChip({
+  href,
+  label,
+  count,
+  active,
+}: {
+  href: string;
+  label: string;
+  count: number;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition-colors",
+        active
+          ? "border-ink bg-ink text-white"
+          : "border-gray-200 bg-white text-ink hover:bg-gray-50",
+        !active && count === 0 && "opacity-55",
+      )}
+    >
+      {label}
+      <span className={cn("tabular", active ? "text-white/70" : "text-gray-400")}>
+        {count}
+      </span>
+    </Link>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Upload, Users } from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
+import { NavSelect } from "@/components/nav-select";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { SearchBox } from "@/components/search-box";
@@ -30,13 +31,51 @@ const STATUS_TONE = {
 export default async function AmbassadorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; group?: string }>;
 }) {
-  const [{ q }, all] = await Promise.all([searchParams, getAmbassadors()]);
+  const [{ q, group }, all] = await Promise.all([
+    searchParams,
+    getAmbassadors(),
+  ]);
   const query = q ?? "";
+  const groupBy: Grouping = GROUPINGS.some((g) => g.key === group)
+    ? (group as Grouping)
+    : "none";
+
   const rows = all.filter((r) =>
     matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
   );
+
+  /**
+   * Rows in groups, or one unlabelled group when grouping is off.
+   *
+   * Sorted by size — the biggest college or batch is usually the one being
+   * looked for, and alphabetical order buries it behind whoever happens to
+   * start with an A. "Not set" always sinks to the bottom: it is a gap to
+   * fill, not a cohort to compare.
+   */
+  const grouped: [string | null, typeof rows][] =
+    groupBy === "none"
+      ? [[null, rows]]
+      : (() => {
+          const buckets = new Map<string, typeof rows>();
+          for (const row of rows) {
+            const key =
+              (groupBy === "city"
+                ? row.city
+                : groupBy === "batch"
+                  ? row.batch
+                  : row.college) || NOT_SET;
+            const list = buckets.get(key) ?? [];
+            list.push(row);
+            buckets.set(key, list);
+          }
+          return [...buckets.entries()].sort((a, b) => {
+            if (a[0] === NOT_SET) return 1;
+            if (b[0] === NOT_SET) return -1;
+            return b[1].length - a[1].length || a[0].localeCompare(b[0]);
+          });
+        })();
 
   return (
     <div className="stagger space-y-5">
@@ -54,6 +93,14 @@ export default async function AmbassadorsPage({
 
         <div className="flex flex-wrap items-center gap-2">
           <AmbassadorNav />
+          <NavSelect
+            label="Group"
+            value={groupHref(groupBy, query)}
+            options={GROUPINGS.map((g) => ({
+              value: groupHref(g.key, query),
+              label: g.label,
+            }))}
+          />
           <Button variant="secondary" asChild>
             <Link href="/admin/ambassadors/import">
               <Upload aria-hidden />
@@ -99,7 +146,23 @@ export default async function AmbassadorsPage({
               </thead>
 
               <tbody className="divide-y divide-line">
-                {rows.map((row) => (
+                {grouped.flatMap(([heading, members]) => [
+                  // A header row rather than a table per group: the columns
+                  // have to keep lining up down the whole page.
+                  heading !== null && (
+                    <tr key={`h-${heading}`} className="bg-canvas-sunk">
+                      <td
+                        colSpan={6}
+                        className="px-4 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
+                      >
+                        {heading}
+                        <span className="tabular ml-2 font-bold text-ink-faint">
+                          {members.length}
+                        </span>
+                      </td>
+                    </tr>
+                  ),
+                  ...members.map((row) => (
                   <tr key={row.id} className="hover:bg-canvas-sunk/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -187,7 +250,8 @@ export default async function AmbassadorsPage({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )),
+                ])}
               </tbody>
             </table>
           </div>
@@ -195,4 +259,24 @@ export default async function AmbassadorsPage({
       )}
     </div>
   );
+}
+
+const NOT_SET = "Not set";
+
+const GROUPINGS = [
+  { key: "none", label: "No grouping" },
+  { key: "college", label: "By college" },
+  { key: "city", label: "By city" },
+  { key: "batch", label: "By batch" },
+] as const;
+
+type Grouping = (typeof GROUPINGS)[number]["key"];
+
+/** Keeps the search term when the grouping changes. */
+function groupHref(group: Grouping, q: string): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (group !== "none") params.set("group", group);
+  const query = params.toString();
+  return query ? `/admin/ambassadors?${query}` : "/admin/ambassadors";
 }
