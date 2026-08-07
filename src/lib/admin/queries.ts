@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { earningRoute } from "@/lib/admin/participation";
+import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
 /**
@@ -612,7 +613,11 @@ function istDay(iso: string): string {
     .slice(0, 10);
 }
 
-export async function getAnalytics(days = 30): Promise<Analytics> {
+export async function getAnalytics(
+  days = 30,
+  /** Restrict every figure to one cohort. Null is the whole programme. */
+  scope: CohortIds = null,
+): Promise<Analytics> {
   const supabase = await createClient();
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
@@ -622,16 +627,21 @@ export async function getAnalytics(days = 30): Promise<Analytics> {
         .from("point_ledger")
         .select("ambassador_id, delta, reason, created_at")
         .gte("created_at", since),
-      supabase.from("submissions").select("status"),
+      supabase.from("submissions").select("ambassador_id, status"),
       supabase
         .from("profiles")
         .select("id, full_name, college")
         .eq("role", "ambassador"),
       supabase.from("surveys").select("id, title"),
-      supabase.from("survey_responses").select("survey_id, status"),
+      supabase
+        .from("survey_responses")
+        .select("ambassador_id, survey_id, status"),
     ]);
 
-  const ledger = ledgerRes.data ?? [];
+  const mine = <T extends { ambassador_id: string }>(list: T[] | null) =>
+    (list ?? []).filter((row) => !scope || scope.has(row.ambassador_id));
+
+  const ledger = mine(ledgerRes.data);
   const names = new Map(
     (profilesRes.data ?? []).map((p) => [p.id, { name: p.full_name, college: p.college }]),
   );
@@ -692,7 +702,7 @@ export async function getAnalytics(days = 30): Promise<Analytics> {
     revoked: "Revoked",
   };
   const statusCount = new Map<string, number>();
-  for (const s of subsRes.data ?? []) {
+  for (const s of mine(subsRes.data)) {
     statusCount.set(s.status, (statusCount.get(s.status) ?? 0) + 1);
   }
 
@@ -709,7 +719,7 @@ export async function getAnalytics(days = 30): Promise<Analytics> {
     (surveysRes.data ?? []).map((s) => [s.id, s.title]),
   );
   const perSurvey = new Map<string, number>();
-  for (const r of responsesRes.data ?? []) {
+  for (const r of mine(responsesRes.data)) {
     if (r.status !== "valid") continue;
     perSurvey.set(r.survey_id, (perSurvey.get(r.survey_id) ?? 0) + 1);
   }

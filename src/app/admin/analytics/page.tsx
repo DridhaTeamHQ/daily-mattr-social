@@ -26,6 +26,7 @@ import { Stat } from "@/components/ui/stat";
 import { getAnalytics, requireAdmin } from "@/lib/admin/queries";
 import { getMoneySummary } from "@/lib/admin/money";
 import { getGeography, getGoalTracking } from "@/lib/admin/growth";
+import { DIMENSIONS, getCohort, type Dimension } from "@/lib/admin/scope";
 import {
   getCampaignTotals,
   getDownloadLeaders,
@@ -79,13 +80,16 @@ const PERIODS = [
 /** Always offered, so an empty network is visible rather than absent. */
 const PINNED_NETWORKS = ["Instagram", "YouTube", "X", "LinkedIn"];
 
-const DIMENSIONS = [
-  { key: "city", label: "By city" },
-  { key: "batch", label: "By batch" },
-  { key: "college", label: "By college" },
-] as const;
-
-type Dimension = (typeof DIMENSIONS)[number]["key"];
+/**
+ * Past this many values the picker stops being chips and becomes a dropdown.
+ *
+ * Three cities read best as chips — every option visible, one click, and the
+ * counts comparable at a glance. Thirty colleges as chips is a paragraph of
+ * buttons that pushes the page down, so those get a select instead. The
+ * threshold is on the number of values, not the dimension, because a
+ * programme in one city has three colleges and a national one has ninety.
+ */
+const CHIP_LIMIT = 8;
 
 export default async function AnalyticsPage({
   searchParams,
@@ -96,6 +100,7 @@ export default async function AnalyticsPage({
     cat?: string;
     net?: string;
     by2?: string;
+    only?: string;
   }>;
 }) {
   await requireAdmin();
@@ -133,6 +138,18 @@ export default async function AnalyticsPage({
   const net = params.net?.trim() || "";
   const netLabel = net ? `${net}, all time` : "All networks, all time";
 
+  /**
+   * The cohort every figure below is about.
+   *
+   * Resolved before anything else, because it is an argument to all of them
+   * rather than something applied to their results — a success rate filtered
+   * after the fact is the rate of the rows that survived, which is a
+   * different number from the rate of the cohort.
+   */
+  const only = params.only?.trim() || "";
+  const cohortPick = await getCohort(by, only || null);
+  const scope = cohortPick.ids;
+
   const [
     data,
     goal,
@@ -144,22 +161,29 @@ export default async function AnalyticsPage({
     surveyPeople,
     balances,
   ] = await Promise.all([
-    getAnalytics(days),
-    getGoalTracking(days),
-    getGeography(),
-    getMoneySummary(),
+    getAnalytics(days, scope),
+    getGoalTracking(days, scope),
+    getGeography(scope),
+    getMoneySummary(scope),
     getDownloadLeaders(),
-    getCampaignTotals(),
-    getSurveyTotals(),
+    getCampaignTotals(scope),
+    getSurveyTotals(scope),
     getSurveyParticipation(),
     getPointsByAmbassador(),
   ]);
+
+  /** The two per-person tables are filtered here; they are already per-id. */
+  const inScope = <T extends { id: string }>(rows: T[]) =>
+    scope ? rows.filter((row) => scope.has(row.id)) : rows;
+
+  const people = inScope(downloaders);
+  const surveyCollectors = inScope(surveyPeople);
 
   const num = (n: number) => ({ value: formatNumber(n), muted: n === 0 });
 
   // Every category ends in a list of the actual things, because a total tells
   // you the size of a problem and a row tells you whose it is.
-  const downloadLeague: LeagueRow[] = downloaders.map((r) => ({
+  const downloadLeague: LeagueRow[] = people.map((r) => ({
     id: r.id,
     name: r.name,
     href: `/admin/ambassadors/${r.id}`,
@@ -247,9 +271,9 @@ export default async function AnalyticsPage({
   // adjustment or a streak bonus belongs to no route, so the sum came out
   // lower than the number on the same person's own page — two figures called
   // "points" that disagreed with each other.
-  const responsesById = new Map(surveyPeople.map((r) => [r.id, r]));
+  const responsesById = new Map(surveyCollectors.map((r) => [r.id, r]));
 
-  const ambassadorLeague: LeagueRow[] = downloaders
+  const ambassadorLeague: LeagueRow[] = people
     .map((r) => {
       const survey = responsesById.get(r.id);
       const points = balances.get(r.id) ?? 0;
@@ -271,7 +295,7 @@ export default async function AnalyticsPage({
     })
     .sort((a, b) => b.points - a.points);
 
-  const surveyPeopleLeague: LeagueRow[] = surveyPeople.map((r) => ({
+  const surveyPeopleLeague: LeagueRow[] = surveyCollectors.map((r) => ({
     id: r.id,
     name: r.name,
     href: `/admin/ambassadors/${r.id}`,
@@ -290,10 +314,12 @@ export default async function AnalyticsPage({
       by,
       by2,
       cat,
+      only,
       ...next,
     });
     // An empty network means "all", and a stray `net=` in the URL is noise.
     if (!sp.get("net")) sp.delete("net");
+    if (!sp.get("only")) sp.delete("only");
     return `/admin/analytics?${sp.toString()}`;
   };
 
@@ -307,10 +333,21 @@ export default async function AnalyticsPage({
     label: p.label,
   }));
 
+  // Changing the dimension clears the value. "College: GIET" carried over to
+  // batches is a filter for a batch called GIET, which nobody is in — the page
+  // would empty itself for no reason a user could see.
   const dimensionOptions: NavOption[] = DIMENSIONS.map((d) => ({
-    value: href({ by: d.key }),
+    value: href({ by: d.key, only: "" }),
     label: d.label,
   }));
+
+  const valueOptions: NavOption[] = [
+    { value: href({ only: "" }), label: `Everyone (${cohortPick.total})` },
+    ...cohortPick.values.map((v) => ({
+      value: href({ only: v.label }),
+      label: `${v.label} (${v.ambassadors})`,
+    })),
+  ];
 
   const cohortFor = (dimension: Dimension) =>
     dimension === "batch"
@@ -328,6 +365,18 @@ export default async function AnalyticsPage({
   ];
 
   const windowLabel = `Last ${days} days`;
+
+  // The heading names the split, because "Breakdown" on two cards side by side
+  // says nothing about which is which.
+  const groupTitle = `By ${by}`;
+
+  /**
+   * With a value picked, the first breakdown is one row — the cohort itself,
+   * split by the dimension it was selected on. So it is dropped, and the
+   * second split carries the card: inside GIET, which cities. That is the
+   * question a filtered page is being asked.
+   */
+  const showPrimarySplit = !cohortPick.value;
   const active = CATEGORIES.find((c) => c.key === cat)!;
   const ActiveIcon = active.icon;
 
@@ -361,11 +410,58 @@ export default async function AnalyticsPage({
       </div>
 
       {/* The tag repeats the choice as a heading, so a screenshot of this page
-          says what it is without the dropdown being in frame. */}
+          says what it is without the dropdown being in frame. The cohort is
+          part of that sentence: a screenshot of GIET's numbers that does not
+          say GIET is the most expensive kind of mistake this page can make. */}
       <span className="inline-flex items-center gap-2 rounded-full bg-brand-tint px-3.5 py-1.5 text-[12.5px] font-extrabold text-brand-press">
         <ActiveIcon className="size-3.5" />
         {active.label} · {windowLabel}
+        {cohortPick.value ? ` · ${cohortPick.value}` : ""}
       </span>
+
+      {/* ─── The filter the whole page obeys ────────────────────────────────
+          Grouping used to change one card. Now it picks who every tile,
+          chart and table below is about — in all four categories — so the
+          heading and the numbers under it are always about the same people. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3">
+        <NavSelect label="Group" value={href({ by })} options={dimensionOptions} />
+
+        <span aria-hidden className="hidden h-6 w-px bg-gray-200 sm:block" />
+
+        {cohortPick.values.length > CHIP_LIMIT ? (
+          <NavSelect
+            label="Only"
+            value={href({ only })}
+            options={valueOptions}
+          />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterChip
+              label="Everyone"
+              count={cohortPick.total}
+              active={!cohortPick.value}
+              href={href({ only: "" })}
+            />
+            {cohortPick.values.map((value) => (
+              <FilterChip
+                key={value.label}
+                label={value.label}
+                count={value.ambassadors}
+                active={cohortPick.value === value.label}
+                href={href({ only: value.label })}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {cohortPick.empty && (
+        <Note tone="warn">
+          Nobody is in <strong>{cohortPick.value}</strong> any more, so every
+          figure below is zero. It was probably renamed — pick another group,
+          or set it back on the ambassadors themselves.
+        </Note>
+      )}
 
       {/* ─── Downloads ─────────────────────────────────────────────────────── */}
       {cat === "downloads" && (
@@ -410,22 +506,23 @@ export default async function AnalyticsPage({
           <div
             className={cn(
               "grid gap-4",
-              cohort2 && "lg:grid-cols-2",
+              cohort2 && showPrimarySplit && "lg:grid-cols-2",
             )}
           >
-            <CohortBreakdown
-              rows={cohort}
-              groupHref={href({ by })}
-              options={dimensionOptions}
-              hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
-            />
+            {showPrimarySplit && (
+              <CohortBreakdown
+                rows={cohort}
+                title={groupTitle}
+                hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
+              />
+            )}
             {cohort2 && (
               <CohortBreakdown
                 rows={cohort2}
+                title="Split a second way"
                 groupHref={href({ by2: by2 })}
                 options={secondOptions}
-                label="And by"
-                hint="The same downloads, split a second way. Two cuts side by side is what separates a college effect from a city one."
+                hint="The same downloads, cut again. Two splits side by side is what separates a college effect from a city one."
               />
             )}
           </div>
@@ -486,14 +583,14 @@ export default async function AnalyticsPage({
               <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
                 Network
               </span>
-              <NetChip
+              <FilterChip
                 label="All"
                 count={campaignRows.length}
                 active={net === ""}
                 href={href({ net: "" })}
               />
               {campaignNetworks.map((platform) => (
-                <NetChip
+                <FilterChip
                   key={platform}
                   label={platform}
                   count={
@@ -593,20 +690,26 @@ export default async function AnalyticsPage({
           {/* The same cohort split as Downloads, because "which college is
               carrying this" is a question about people, and this is the
               people category. */}
-          <div className={cn("grid gap-4", cohort2 && "lg:grid-cols-2")}>
-            <CohortBreakdown
-              rows={cohort}
-              groupHref={href({ by })}
-              options={dimensionOptions}
-              hint="Per head as well as the total, since a big cohort out-totals a good one."
-            />
+          <div
+            className={cn(
+              "grid gap-4",
+              cohort2 && showPrimarySplit && "lg:grid-cols-2",
+            )}
+          >
+            {showPrimarySplit && (
+              <CohortBreakdown
+                rows={cohort}
+                title={groupTitle}
+                hint="Per head as well as the total, since a big cohort out-totals a good one."
+              />
+            )}
             {cohort2 && (
               <CohortBreakdown
                 rows={cohort2}
+                title="Split a second way"
                 groupHref={href({ by2: by2 })}
                 options={secondOptions}
-                label="And by"
-                hint="The same people, split a second way."
+                hint="The same people, cut again."
               />
             )}
           </div>
@@ -731,12 +834,14 @@ function MoneyRow({
 }
 
 /**
- * A network filter chip.
+ * One value of a filter, with the size of what it selects.
  *
- * Only networks that actually have campaigns are offered — a filter that can
- * return nothing is a filter nobody trusts a second time.
+ * The count is the point. "Instagram" tells you a filter exists; "Instagram 7"
+ * tells you whether clicking it is worth it, and a zero tells you something no
+ * amount of clicking would have — that the network is empty. Used for networks
+ * and for cohorts alike.
  */
-function NetChip({
+function FilterChip({
   label,
   count,
   active,
@@ -782,16 +887,22 @@ function NetChip({
  */
 function CohortBreakdown({
   rows,
+  title,
   groupHref,
   options,
   hint,
-  label = "Group",
+  label = "And by",
 }: {
   rows: { label: string; ambassadors: number; points: number; downloads: number; perHead: number }[];
-  groupHref: string;
-  options: NavOption[];
+  title: string;
+  /**
+   * The second breakdown keeps its own picker. The first one has none: its
+   * dimension is the page filter, chosen at the top, and a second control
+   * bound to the same parameter is two places to change one thing.
+   */
+  groupHref?: string;
+  options?: NavOption[];
   hint: string;
-  /** "Group" on the first, "And by" on the second. */
   label?: string;
 }) {
   return (
@@ -799,12 +910,14 @@ function CohortBreakdown({
       <CardBody>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="display text-[16px] text-ink">Breakdown</h2>
+            <h2 className="display text-[16px] text-ink">{title}</h2>
             <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
               {hint}
             </p>
           </div>
-          <NavSelect label={label} value={groupHref} options={options} />
+          {options && groupHref && (
+            <NavSelect label={label} value={groupHref} options={options} />
+          )}
         </div>
 
         {rows.length === 0 ? (

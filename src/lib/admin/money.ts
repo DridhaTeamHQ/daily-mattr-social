@@ -5,6 +5,7 @@ import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
+import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
 /**
@@ -274,20 +275,27 @@ export type MoneySummary = {
   costPerDownloadInr: number | null;
 };
 
-export const getMoneySummary = cache(async (): Promise<MoneySummary> => {
+export const getMoneySummary = cache(async (
+  scope: CohortIds = null,
+): Promise<MoneySummary> => {
   const db = createAdminClient();
 
-  const [{ data: payouts }, { data: redemptions }, { count: downloads }] =
+  const [{ data: payouts }, { data: redemptions }, { data: conversions }] =
     await Promise.all([
-      db.from("payouts").select("kind, amount_inr, status"),
-      db.from("redemption_requests").select("status"),
+      db.from("payouts").select("ambassador_id, kind, amount_inr, status"),
+      db.from("redemption_requests").select("ambassador_id, status"),
       db
         .from("referral_conversions")
-        .select("id", { count: "exact", head: true })
+        .select("ambassador_id")
         .eq("status", "counted"),
     ]);
 
-  const rows = payouts ?? [];
+  const mine = <T extends { ambassador_id: string }>(list: T[] | null) =>
+    (list ?? []).filter((row) => !scope || scope.has(row.ambassador_id));
+
+  const rows = mine(payouts);
+  const downloads = mine(conversions).length;
+
   const sum = (kind: string, status: Enums<"payout_status">) =>
     rows
       .filter((p) => p.kind === kind && p.status === status)
@@ -300,13 +308,13 @@ export const getMoneySummary = cache(async (): Promise<MoneySummary> => {
     .reduce((total, p) => total + Number(p.amount_inr), 0);
 
   const totalPaid = stipendPaidInr + redemptionPaidInr;
-  const installs = downloads ?? 0;
+  const installs = downloads;
 
   return {
     stipendPaidInr,
     redemptionPaidInr,
     pendingInr,
-    redemptionsOpen: (redemptions ?? []).filter(
+    redemptionsOpen: mine(redemptions).filter(
       (r) => r.status === "requested" || r.status === "approved",
     ).length,
     downloads: installs,

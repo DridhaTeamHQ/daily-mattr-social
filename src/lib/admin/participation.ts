@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { CohortIds } from "@/lib/admin/scope";
 
 /**
  * Per-ambassador views of campaign and survey activity.
@@ -321,8 +322,17 @@ export type CampaignTotals = {
   pointsPaid: number;
 };
 
-/** Every campaign with the numbers that say whether it worked. */
-export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
+/**
+ * Every campaign with the numbers that say whether it worked.
+ *
+ * `scope` narrows it to one cohort's work. The campaigns themselves stay in
+ * the list either way — a campaign nobody in the cohort touched showing zero
+ * submissions is the answer to "did GIET engage with this", and dropping the
+ * row would leave the question unanswerable.
+ */
+export const getCampaignTotals = cache(async (
+  scope: CohortIds = null,
+): Promise<CampaignTotals[]> => {
   const db = createAdminClient();
 
   const [{ data: campaigns }, { data: submissions }, { data: ledger }] =
@@ -336,7 +346,7 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
         .select("id, ambassador_id, status, campaign_tasks(campaign_id)"),
       db
         .from("point_ledger")
-        .select("delta, source_id, reason, source_type"),
+        .select("ambassador_id, delta, source_id, reason, source_type"),
     ]);
 
   // A campaign-task ledger row points at the SUBMISSION it paid for, so the
@@ -364,6 +374,8 @@ export const getCampaignTotals = cache(async (): Promise<CampaignTotals[]> => {
   }
 
   for (const s of submissions ?? []) {
+    if (scope && !scope.has(s.ambassador_id)) continue;
+
     const campaignId = (
       s.campaign_tasks as unknown as { campaign_id: string } | null
     )?.campaign_id;
@@ -406,7 +418,9 @@ export type SurveyTotals = {
   pointsPaid: number;
 };
 
-export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
+export const getSurveyTotals = cache(async (
+  scope: CohortIds = null,
+): Promise<SurveyTotals[]> => {
   const db = createAdminClient();
 
   const [{ data: surveys }, { data: links }, { data: responses }] =
@@ -415,8 +429,8 @@ export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
         .from("surveys")
         .select("id, title, status, points_per_response")
         .order("created_at", { ascending: false }),
-      db.from("survey_links").select("survey_id, click_count"),
-      db.from("survey_responses").select("survey_id, status"),
+      db.from("survey_links").select("ambassador_id, survey_id, click_count"),
+      db.from("survey_responses").select("ambassador_id, survey_id, status"),
     ]);
 
   const rows = new Map<string, SurveyTotals>();
@@ -437,6 +451,7 @@ export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
   }
 
   for (const l of links ?? []) {
+    if (scope && !scope.has(l.ambassador_id)) continue;
     const row = rows.get(l.survey_id);
     if (!row) continue;
     row.links += 1;
@@ -444,6 +459,7 @@ export const getSurveyTotals = cache(async (): Promise<SurveyTotals[]> => {
   }
 
   for (const r of responses ?? []) {
+    if (scope && !scope.has(r.ambassador_id)) continue;
     const row = rows.get(r.survey_id);
     if (!row) continue;
     if (r.status === "valid") row.responses += 1;

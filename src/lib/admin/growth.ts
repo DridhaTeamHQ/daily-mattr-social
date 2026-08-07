@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
+import { cohortLabel, type CohortIds, type Dimension } from "@/lib/admin/scope";
 
 /**
  * Goal tracking, the download funnel, geography and review operations.
@@ -49,16 +50,21 @@ export type GoalTracking = {
 };
 
 export const getGoalTracking = cache(
-  async (days = 30): Promise<GoalTracking> => {
+  async (days = 30, scope: CohortIds = null): Promise<GoalTracking> => {
   const db = createAdminClient();
   const { download_goal: goal } = await getSettings("download_goal");
 
   const { data: conversions } = await db
     .from("referral_conversions")
-    .select("converted_at, store")
+    .select("ambassador_id, converted_at, store")
     .eq("status", "counted");
 
-  const rows = conversions ?? [];
+  // Filtered here rather than in the query: the cohort is a set of ids the
+  // page already holds, and an `.in()` with a few hundred uuids is a URL long
+  // enough to be refused before it is a query.
+  const rows = (conversions ?? []).filter(
+    (row) => !scope || scope.has(row.ambassador_id),
+  );
   const total = rows.length;
 
   const span = dayRange(days);
@@ -176,41 +182,10 @@ export type CohortSlice = {
   perHead: number;
 };
 
-/**
- * Canonical label for a grouping value.
- *
- * Admins type these by hand and import them from spreadsheets, so "hyderabad",
- * "Hyderabad" and "Hyderabad " all arrive. Grouping on the raw string split
- * one city into three rows that each looked like a small city, which is worse
- * than useless — it understates every one of them.
- *
- * Batches keep their number and get a consistent "Batch N" form, so "2",
- * "batch 2" and "Batch 2" are one group.
- */
-function canonical(field: "city" | "batch" | "college", raw: string): string {
-  const value = raw.trim().replace(/\s+/g, " ");
-  if (!value) return "Unassigned";
-
-  if (field === "batch") {
-    const digits = value.match(/\d+/);
-    if (digits) return `Batch ${Number(digits[0])}`;
-    const letter = value.replace(/batch/gi, " ").trim().match(/[a-z]/i);
-    if (letter) return `Batch ${letter[0].toUpperCase()}`;
-  }
-
-  // Title case, but only for words that are lower case already — "VIT" and
-  // "JNTU" must not become "Vit" and "Jntu".
-  return value
-    .split(" ")
-    .map((word) =>
-      word === word.toLowerCase()
-        ? word.charAt(0).toUpperCase() + word.slice(1)
-        : word,
-    )
-    .join(" ");
-}
-
-async function sliceBy(field: "city" | "batch" | "college"): Promise<CohortSlice[]> {
+async function sliceBy(
+  field: Dimension,
+  scope: CohortIds,
+): Promise<CohortSlice[]> {
   const db = createAdminClient();
 
   const [{ data: profiles }, { data: conversions }, { data: ledger }] =
@@ -231,7 +206,13 @@ async function sliceBy(field: "city" | "batch" | "college"): Promise<CohortSlice
   const groups = new Map<string, CohortSlice>();
 
   for (const profile of profiles ?? []) {
-    const key = canonical(field, profile[field] ?? "");
+    // A cohort filter narrows the split rather than replacing it: inside
+    // "College: GIET", splitting by city answers which GIET campuses are
+    // carrying it, and a group nobody in the cohort belongs to must not
+    // appear at all — a row of zeroes reads as a failing group.
+    if (scope && !scope.has(profile.id)) continue;
+
+    const key = cohortLabel(field, profile[field] ?? "");
     groupOf.set(profile.id, key);
     const existing = groups.get(key);
     if (existing) existing.ambassadors += 1;
@@ -271,11 +252,13 @@ async function sliceBy(field: "city" | "batch" | "college"): Promise<CohortSlice
 }
 
 export const getGeography = cache(
-  async (): Promise<{ cities: CohortSlice[]; batches: CohortSlice[]; colleges: CohortSlice[] }> => {
+  async (
+    scope: CohortIds = null,
+  ): Promise<{ cities: CohortSlice[]; batches: CohortSlice[]; colleges: CohortSlice[] }> => {
     const [cities, batches, colleges] = await Promise.all([
-      sliceBy("city"),
-      sliceBy("batch"),
-      sliceBy("college"),
+      sliceBy("city", scope),
+      sliceBy("batch", scope),
+      sliceBy("college", scope),
     ]);
     return { cities, batches, colleges };
   },

@@ -3,7 +3,6 @@ import { unstable_cache } from "next/cache";
 import { after } from "next/server";
 
 import { SurveyForm, type PublicQuestion } from "./survey-form";
-import { Marquee } from "@/components/marquee";
 import { Card, CardBody } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { countSurveyClick } from "@/lib/click-counter";
@@ -41,7 +40,7 @@ const loadSurvey = unstable_cache(
 
     const { data: link } = await db
       .from("survey_links")
-      .select("id, survey_id, surveys(id, title, description, status, points_per_response, require_email, require_phone), profiles(full_name, college)")
+      .select("id, survey_id, surveys(id, title, description, status, points_per_response, require_email, require_phone), profiles(full_name)")
       .eq("slug", slug)
       .maybeSingle();
 
@@ -99,25 +98,13 @@ export default async function PublicSurveyPage({ params }: Params) {
   return (
     <div className="min-h-dvh bg-canvas">
       {/* ─── Header ────────────────────────────────────────────────────── */}
+      {/* No scrolling bands here.
+          The doodle strip and the tape masthead both moved on their own, which
+          is fine on a page somebody chose to visit and wrong on this one: a
+          stranger arrives from a link with one thing to do, and two animations
+          above the question compete with it. The header is the survey's own
+          title now. */}
       <header className="border-b-[3px] border-ink bg-brand">
-        {/* Doodle band. Purely decorative, and tiled rather than stretched so
-            each doodle shows whole at band height. Its own black border makes
-            the slightly more acid yellow read as a deliberate strip rather
-            than a mismatch with the brand colour below. */}
-        <div aria-hidden className="doodle-band w-full border-b-[3px] border-ink" />
-
-        {/* Scrolling tape masthead. Carries the wordmark, moves on its own,
-            and is real text rather than a picture of text. */}
-        <Marquee
-          items={[
-            "DAILYMATTR",
-            "REP YOUR CAMPUS",
-            "DAILYMATTR",
-            "TAKE 60 SECONDS",
-          ]}
-          className="border-t-0"
-        />
-
         <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
           <h1 className="display text-[32px] leading-[0.95] text-ink sm:text-[44px]">
             {survey.title}
@@ -129,10 +116,13 @@ export default async function PublicSurveyPage({ params }: Params) {
             </p>
           )}
 
+          {/* The name, and nothing else. The college used to sit beside it,
+              which told a stranger where the person sharing the link studies
+              — someone else's affiliation, published to everyone who opens
+              the link, for no benefit to the survey. */}
           {ambassador?.full_name && (
             <p className="sticker sticker-r mt-5 inline-block rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-extrabold text-ink">
               Shared by {ambassador.full_name}
-              {ambassador.college ? ` · ${ambassador.college}` : ""}
             </p>
           )}
         </div>
