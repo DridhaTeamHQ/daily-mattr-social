@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Inbox, Mail, Phone } from "lucide-react";
+import { ArrowLeft, Inbox } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
+import { ResponseTable } from "@/components/response-table";
 import { SurveyAmbassadors } from "@/components/survey-ambassadors";
 import { SearchBox } from "@/components/search-box";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
-import { EmptyState, Note } from "@/components/ui/feedback";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
 import { getSurveyAmbassadors } from "@/lib/admin/participation";
@@ -21,23 +21,21 @@ import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Responses" };
 
-const STATUS_TONE = {
-  valid: "ok",
-  duplicate: "warn",
-  flagged: "warn",
-  rejected: "bad",
-} as const;
-
 export default async function SurveyResponsesPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; status?: string; view?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    view?: string;
+    page?: string;
+  }>;
 }) {
   await requireAdmin();
 
-  const [{ id }, { q, status, view }] = await Promise.all([
+  const [{ id }, { q, status, view, page }] = await Promise.all([
     params,
     searchParams,
   ]);
@@ -69,6 +67,28 @@ export default async function SurveyResponsesPage({
         ...r.answers.map((a) => a.answer),
       ),
     );
+
+  /**
+   * Pages, not an endless list.
+   *
+   * A survey that works has hundreds of responses, and rendering all of them
+   * means the browser holds every answer in the DOM to show twenty-five. A
+   * page number in the URL also makes "the ones I was looking at" a place you
+   * can come back to, which a scroll position is not.
+   */
+  const PER_PAGE = 25;
+  const pages = Math.max(1, Math.ceil(responses.length / PER_PAGE));
+  const current = Math.min(Math.max(1, Number(page) || 1), pages);
+  const start = (current - 1) * PER_PAGE;
+  const visible = responses.slice(start, start + PER_PAGE);
+
+  const pageHref = (n: number) => {
+    const sp = new URLSearchParams({ view: "responses" });
+    if (q) sp.set("q", q);
+    if (status) sp.set("status", status);
+    if (n > 1) sp.set("page", String(n));
+    return `/admin/surveys/${id}/responses?${sp.toString()}`;
+  };
 
   return (
     <div className="stagger space-y-5">
@@ -148,148 +168,145 @@ export default async function SurveyResponsesPage({
           />
         </Card>
       ) : (
-        <ul className="space-y-4">
-          {responses.map((response, index) => (
-            <li key={response.id}>
-              <Card>
-                <CardBody>
-                  {/* ─── Who ─────────────────────────────────────────────── */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="brut-sm display grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[12px] text-ink">
-                      {index + 1}
-                    </span>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-extrabold text-ink">
-                        {response.name || "Anonymous"}
-                      </p>
-                      <p className="text-[12px] font-semibold text-ink-soft">
-                        via {response.ambassador} ·{" "}
-                        {formatDate(response.submittedAt, true)}
-                      </p>
-                    </div>
-
-                    <Badge tone={STATUS_TONE[response.status]} dot>
-                      {response.status}
-                    </Badge>
-                  </div>
-
-                  {(response.email || response.phone) && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {response.email && (
-                        <span className="brut-sm inline-flex items-center gap-1.5 rounded-full bg-canvas-sunk px-2.5 py-1 text-[12px] font-bold text-ink">
-                          <Mail className="size-3.5" />
-                          {response.email}
-                        </span>
+        <div className="space-y-3">
+          <ResponseTable
+            questions={data.questions.map((question) => ({
+              id: question.id,
+              prompt: question.prompt,
+            }))}
+            rows={visible.map((response, index) => ({
+              id: response.id,
+              index: start + index + 1,
+              name: response.name,
+              ambassador: response.ambassador,
+              submitted: formatDate(response.submittedAt, true),
+              email: response.email,
+              phone: response.phone,
+              status: response.status,
+              flagReason: response.flagReason,
+              answers: response.answers,
+              // Flagging reverses the point the response earned — leaving the
+              // points on the balance would make the flag cosmetic and let
+              // somebody farm their own link.
+              actions:
+                response.status === "valid" ? (
+                  <>
+                    <ReasonDialog
+                      title="Mark as duplicate"
+                      description="The point this earned is reversed. The original credit stays in their history next to the reversal."
+                      label="Why"
+                      placeholder="Same person answered twice"
+                      confirmLabel="Mark duplicate"
+                      action={setResponseStatus.bind(
+                        null,
+                        response.id,
+                        "duplicate",
                       )}
-                      {response.phone && (
-                        <span className="brut-sm inline-flex items-center gap-1.5 rounded-full bg-canvas-sunk px-2.5 py-1 text-[12px] font-bold text-ink">
-                          <Phone className="size-3.5" />
-                          {response.phone}
-                        </span>
+                      trigger={
+                        <Button size="sm" variant="secondary">
+                          Duplicate
+                        </Button>
+                      }
+                    />
+                    <ReasonDialog
+                      title="Flag this response"
+                      description="Use for answers that look made up or copied. The point is reversed."
+                      label="Why"
+                      placeholder="Every answer identical to the one above"
+                      confirmLabel="Flag"
+                      action={setResponseStatus.bind(
+                        null,
+                        response.id,
+                        "flagged",
                       )}
-                    </div>
-                  )}
-
-                  {response.flagReason && (
-                    <Note tone="warn" className="mt-3">
-                      {response.flagReason}
-                    </Note>
-                  )}
-
-                  {/* ─── Answers ─────────────────────────────────────────── */}
-                  <dl className="mt-4 space-y-2.5">
-                    {response.answers.map((answer) => (
-                      <div
-                        key={answer.questionId}
-                        className="brut-sm rounded-sm bg-canvas-sunk px-3.5 py-2.5"
-                      >
-                        <dt className="text-[12px] font-extrabold tracking-wide text-ink/70 uppercase">
-                          {answer.prompt}
-                        </dt>
-                        <dd
-                          className={
-                            answer.answer === "—"
-                              ? "mt-1 text-[14px] font-semibold text-ink-faint"
-                              : "mt-1 text-[14.5px] leading-relaxed font-bold text-ink"
-                          }
-                        >
-                          {answer.answer === "—" ? "Skipped" : answer.answer}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-
-                  {/* Moderation. Flagging reverses the point the response
-                      earned — leaving the points on the balance would make the
-                      flag cosmetic and let somebody farm their own link. */}
-                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3">
-                    {response.status === "valid" ? (
-                      <>
-                        <ReasonDialog
-                          title="Mark as duplicate"
-                          description="The point this earned is reversed. The original credit stays in their history next to the reversal."
-                          label="Why"
-                          placeholder="Same person answered twice"
-                          confirmLabel="Mark duplicate"
-                          action={setResponseStatus.bind(
-                            null,
-                            response.id,
-                            "duplicate",
-                          )}
-                          trigger={
-                            <Button size="sm" variant="secondary">
-                              Duplicate
-                            </Button>
-                          }
-                        />
-                        <ReasonDialog
-                          title="Flag this response"
-                          description="Use for answers that look made up or copied. The point is reversed."
-                          label="Why"
-                          placeholder="Every answer identical to the one above"
-                          confirmLabel="Flag"
-                          action={setResponseStatus.bind(
-                            null,
-                            response.id,
-                            "flagged",
-                          )}
-                          trigger={
-                            <Button size="sm" variant="secondary">
-                              Flag
-                            </Button>
-                          }
-                        />
-                      </>
-                    ) : (
-                      <ActionButton
-                        size="sm"
-                        variant="secondary"
-                        action={setResponseStatus.bind(
-                          null,
-                          response.id,
-                          "valid",
-                          undefined,
-                        )}
-                        confirmMessage="Count this response again? The point goes back."
-                      >
-                        Restore
-                      </ActionButton>
+                      trigger={
+                        <Button size="sm" variant="secondary">
+                          Flag
+                        </Button>
+                      }
+                    />
+                  </>
+                ) : (
+                  <ActionButton
+                    size="sm"
+                    variant="secondary"
+                    action={setResponseStatus.bind(
+                      null,
+                      response.id,
+                      "valid",
+                      undefined,
                     )}
+                    confirmMessage="Count this response again? The point goes back."
+                  >
+                    Restore
+                  </ActionButton>
+                ),
+            }))}
+          />
 
-                    {response.flagReason && (
-                      <span className="text-[12px] font-semibold text-ink-soft">
-                        {response.flagReason}
-                      </span>
-                    )}
-                  </div>
-                </CardBody>
-              </Card>
-            </li>
-          ))}
-        </ul>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[12.5px] font-semibold text-ink-soft">
+              Showing {start + 1}–{start + visible.length} of{" "}
+              {responses.length}
+              {responses.length === data.responses.length
+                ? ""
+                : ` (of ${data.responses.length} in total)`}
+            </p>
+
+            {pages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <PageLink
+                  href={pageHref(current - 1)}
+                  disabled={current === 1}
+                  label="Previous"
+                />
+                <span className="tabular px-2 text-[12.5px] font-bold text-ink">
+                  {current} / {pages}
+                </span>
+                <PageLink
+                  href={pageHref(current + 1)}
+                  disabled={current === pages}
+                  label="Next"
+                />
+              </div>
+            )}
+          </div>
+        </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * One step through the pages.
+ *
+ * A span rather than a disabled link at the ends: there is nothing to
+ * navigate to, and a link that goes nowhere is worse than no link.
+ */
+function PageLink({
+  href,
+  disabled,
+  label,
+}: {
+  href: string;
+  disabled: boolean;
+  label: string;
+}) {
+  if (disabled) {
+    return (
+      <span className="rounded-lg border border-gray-200 px-3 py-1.5 text-[12.5px] font-bold text-ink-faint">
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="rounded-lg border border-gray-200 bg-surface px-3 py-1.5 text-[12.5px] font-bold text-ink hover:bg-gray-50"
+    >
+      {label}
+    </Link>
   );
 }
 
