@@ -926,6 +926,9 @@ function CohortBreakdown({
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-gray-100">
+            {/* Twelve, and then it says so. A list that stops at twelve of
+                forty without a word reads as "these are the colleges", which
+                is a different and wrong statement. */}
             {rows.slice(0, 12).map((row) => (
               <li key={row.label} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
@@ -946,6 +949,12 @@ function CohortBreakdown({
                 </div>
               </li>
             ))}
+            {rows.length > 12 && (
+              <li className="py-2.5 text-[12px] font-semibold text-ink-soft">
+                {rows.length - 12} more, not shown. Pick one above to see only
+                it.
+              </li>
+            )}
           </ul>
         )}
       </CardBody>

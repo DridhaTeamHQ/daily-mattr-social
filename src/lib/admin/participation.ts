@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readAll } from "@/lib/admin/read-all";
 import type { CohortIds } from "@/lib/admin/scope";
 
 /**
@@ -61,9 +62,15 @@ export function earningRoute(row: LedgerRow): EarningRoute | null {
 export const getPointsByAmbassador = cache(
   async (): Promise<Map<string, number>> => {
     const db = createAdminClient();
-    const { data } = await db
-      .from("point_ledger")
-      .select("ambassador_id, delta");
+    const data = await readAll<{ ambassador_id: string; delta: number }>(
+      (from, to) =>
+        db
+          .from("point_ledger")
+          .select("ambassador_id, delta")
+          .order("id")
+          .range(from, to),
+      "getPointsByAmbassador",
+    );
 
     const totals = new Map<string, number>();
     for (const row of data ?? []) {
@@ -96,24 +103,55 @@ export const getCampaignParticipation = cache(
   async (): Promise<{ rows: CampaignParticipation[]; campaigns: number }> => {
     const db = createAdminClient();
 
-    const [{ data: profiles }, { data: submissions }, { data: ledger }, { count }] =
-      await Promise.all([
-        db
-          .from("profiles")
-          .select("id, full_name, city, batch")
-          .eq("role", "ambassador")
-          .eq("status", "active"),
-        db
-          .from("submissions")
-          .select("ambassador_id, status, campaign_tasks(campaign_id)"),
-        db
-          .from("point_ledger")
-          .select("ambassador_id, delta, reason, source_type"),
-        db
-          .from("campaigns")
-          .select("id", { count: "exact", head: true })
-          .neq("status", "draft"),
-      ]);
+    const [profiles, submissions, ledger, { count }] = await Promise.all([
+      readAll<{
+        id: string;
+        full_name: string;
+        city: string | null;
+        batch: string | null;
+      }>(
+        (from, to) =>
+          db
+            .from("profiles")
+            .select("id, full_name, city, batch")
+            .eq("role", "ambassador")
+            .eq("status", "active")
+            .order("id")
+            .range(from, to),
+        "campaignParticipation.profiles",
+      ),
+      readAll<{
+        ambassador_id: string;
+        status: string;
+        campaign_tasks: unknown;
+      }>(
+        (from, to) =>
+          db
+            .from("submissions")
+            .select("ambassador_id, status, campaign_tasks(campaign_id)")
+            .order("id")
+            .range(from, to),
+        "campaignParticipation.submissions",
+      ),
+      readAll<{
+        ambassador_id: string;
+        delta: number;
+        reason: string;
+        source_type: string | null;
+      }>(
+        (from, to) =>
+          db
+            .from("point_ledger")
+            .select("ambassador_id, delta, reason, source_type")
+            .order("id")
+            .range(from, to),
+        "campaignParticipation.ledger",
+      ),
+      db
+        .from("campaigns")
+        .select("id", { count: "exact", head: true })
+        .neq("status", "draft"),
+    ]);
 
     const byPerson = new Map<string, CampaignParticipation>();
     const campaignsSeen = new Map<string, Set<string>>();
@@ -189,19 +227,56 @@ export const getSurveyParticipation = cache(
   async (): Promise<SurveyParticipation[]> => {
     const db = createAdminClient();
 
-    const [{ data: profiles }, { data: links }, { data: responses }, { data: ledger }] =
-      await Promise.all([
-        db
-          .from("profiles")
-          .select("id, full_name, city, batch")
-          .eq("role", "ambassador")
-          .eq("status", "active"),
-        db.from("survey_links").select("ambassador_id, click_count"),
-        db.from("survey_responses").select("ambassador_id, status"),
-        db
-          .from("point_ledger")
-          .select("ambassador_id, delta, reason, source_type"),
-      ]);
+    const [profiles, links, responses, ledger] = await Promise.all([
+      readAll<{
+        id: string;
+        full_name: string;
+        city: string | null;
+        batch: string | null;
+      }>(
+        (from, to) =>
+          db
+            .from("profiles")
+            .select("id, full_name, city, batch")
+            .eq("role", "ambassador")
+            .eq("status", "active")
+            .order("id")
+            .range(from, to),
+        "surveyParticipation.profiles",
+      ),
+      readAll<{ ambassador_id: string; click_count: number }>(
+        (from, to) =>
+          db
+            .from("survey_links")
+            .select("ambassador_id, click_count")
+            .order("id")
+            .range(from, to),
+        "surveyParticipation.links",
+      ),
+      readAll<{ ambassador_id: string; status: string }>(
+        (from, to) =>
+          db
+            .from("survey_responses")
+            .select("ambassador_id, status")
+            .order("id")
+            .range(from, to),
+        "surveyParticipation.responses",
+      ),
+      readAll<{
+        ambassador_id: string;
+        delta: number;
+        reason: string;
+        source_type: string | null;
+      }>(
+        (from, to) =>
+          db
+            .from("point_ledger")
+            .select("ambassador_id, delta, reason, source_type")
+            .order("id")
+            .range(from, to),
+        "surveyParticipation.ledger",
+      ),
+    ]);
 
     const byPerson = new Map<string, SurveyParticipation>();
 
@@ -267,18 +342,48 @@ export type DownloadLeader = {
 export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
   const db = createAdminClient();
 
-  const [{ data: profiles }, { data: conversions }, { data: ledger }] =
-    await Promise.all([
-      db
-        .from("profiles")
-        .select("id, full_name, college, city, batch")
-        .eq("role", "ambassador")
-        .eq("status", "active"),
-      db.from("referral_conversions").select("ambassador_id, status"),
-      db
-        .from("point_ledger")
-        .select("ambassador_id, delta, reason, source_type"),
-    ]);
+  const [profiles, conversions, ledger] = await Promise.all([
+    readAll<{
+      id: string;
+      full_name: string;
+      college: string | null;
+      city: string | null;
+      batch: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("profiles")
+          .select("id, full_name, college, city, batch")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "downloadLeaders.profiles",
+    ),
+    readAll<{ ambassador_id: string; status: string }>(
+      (from, to) =>
+        db
+          .from("referral_conversions")
+          .select("ambassador_id, status")
+          .order("id")
+          .range(from, to),
+      "downloadLeaders.conversions",
+    ),
+    readAll<{
+      ambassador_id: string;
+      delta: number;
+      reason: string;
+      source_type: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("point_ledger")
+          .select("ambassador_id, delta, reason, source_type")
+          .order("id")
+          .range(from, to),
+      "downloadLeaders.ledger",
+    ),
+  ]);
 
   const rows = new Map<string, DownloadLeader>();
   for (const p of profiles ?? []) {
@@ -335,19 +440,41 @@ export const getCampaignTotals = cache(async (
 ): Promise<CampaignTotals[]> => {
   const db = createAdminClient();
 
-  const [{ data: campaigns }, { data: submissions }, { data: ledger }] =
-    await Promise.all([
-      db
-        .from("campaigns")
-        .select("id, title, status, platform, campaign_tasks(id)")
-        .order("created_at", { ascending: false }),
-      db
-        .from("submissions")
-        .select("id, ambassador_id, status, campaign_tasks(campaign_id)"),
-      db
-        .from("point_ledger")
-        .select("ambassador_id, delta, source_id, reason, source_type"),
-    ]);
+  const [{ data: campaigns }, submissions, ledger] = await Promise.all([
+    db
+      .from("campaigns")
+      .select("id, title, status, platform, campaign_tasks(id)")
+      .order("created_at", { ascending: false }),
+    readAll<{
+      id: string;
+      ambassador_id: string;
+      status: string;
+      campaign_tasks: unknown;
+    }>(
+      (from, to) =>
+        db
+          .from("submissions")
+          .select("id, ambassador_id, status, campaign_tasks(campaign_id)")
+          .order("id")
+          .range(from, to),
+      "campaignTotals.submissions",
+    ),
+    readAll<{
+      ambassador_id: string;
+      delta: number;
+      source_id: string | null;
+      reason: string;
+      source_type: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("point_ledger")
+          .select("ambassador_id, delta, source_id, reason, source_type")
+          .order("id")
+          .range(from, to),
+      "campaignTotals.ledger",
+    ),
+  ]);
 
   // A campaign-task ledger row points at the SUBMISSION it paid for, so the
   // route to a campaign is submission -> task -> campaign. Read from the
@@ -423,15 +550,34 @@ export const getSurveyTotals = cache(async (
 ): Promise<SurveyTotals[]> => {
   const db = createAdminClient();
 
-  const [{ data: surveys }, { data: links }, { data: responses }] =
-    await Promise.all([
-      db
-        .from("surveys")
-        .select("id, title, status, points_per_response")
-        .order("created_at", { ascending: false }),
-      db.from("survey_links").select("ambassador_id, survey_id, click_count"),
-      db.from("survey_responses").select("ambassador_id, survey_id, status"),
-    ]);
+  const [{ data: surveys }, links, responses] = await Promise.all([
+    db
+      .from("surveys")
+      .select("id, title, status, points_per_response")
+      .order("created_at", { ascending: false }),
+    readAll<{
+      ambassador_id: string;
+      survey_id: string;
+      click_count: number;
+    }>(
+      (from, to) =>
+        db
+          .from("survey_links")
+          .select("ambassador_id, survey_id, click_count")
+          .order("id")
+          .range(from, to),
+      "surveyTotals.links",
+    ),
+    readAll<{ ambassador_id: string; survey_id: string; status: string }>(
+      (from, to) =>
+        db
+          .from("survey_responses")
+          .select("ambassador_id, survey_id, status")
+          .order("id")
+          .range(from, to),
+      "surveyTotals.responses",
+    ),
+  ]);
 
   const rows = new Map<string, SurveyTotals>();
   const perResponse = new Map<string, number>();
@@ -501,22 +647,40 @@ export const getSurveyAmbassadors = cache(
   async (surveyId: string): Promise<SurveyAmbassador[]> => {
     const db = createAdminClient();
 
-    const [{ data: survey }, { data: links }, { data: responses }] =
-      await Promise.all([
-        db
-          .from("surveys")
-          .select("points_per_response")
-          .eq("id", surveyId)
-          .maybeSingle(),
-        db
-          .from("survey_links")
-          .select("ambassador_id, slug, click_count, profiles(full_name, city, batch)")
-          .eq("survey_id", surveyId),
-        db
-          .from("survey_responses")
-          .select("ambassador_id, status")
-          .eq("survey_id", surveyId),
-      ]);
+    const [{ data: survey }, links, responses] = await Promise.all([
+      db
+        .from("surveys")
+        .select("points_per_response")
+        .eq("id", surveyId)
+        .maybeSingle(),
+      readAll<{
+        ambassador_id: string;
+        slug: string;
+        click_count: number;
+        profiles: unknown;
+      }>(
+        (from, to) =>
+          db
+            .from("survey_links")
+            .select(
+              "ambassador_id, slug, click_count, profiles(full_name, city, batch)",
+            )
+            .eq("survey_id", surveyId)
+            .order("id")
+            .range(from, to),
+        "surveyAmbassadors.links",
+      ),
+      readAll<{ ambassador_id: string; status: string }>(
+        (from, to) =>
+          db
+            .from("survey_responses")
+            .select("ambassador_id, status")
+            .eq("survey_id", surveyId)
+            .order("id")
+            .range(from, to),
+        "surveyAmbassadors.responses",
+      ),
+    ]);
 
     const perResponse = survey?.points_per_response ?? 0;
     const rows = new Map<string, SurveyAmbassador>();

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { earningRoute } from "@/lib/admin/participation";
+import { readAll } from "@/lib/admin/read-all";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -55,11 +56,27 @@ export async function getOverview(): Promise<AdminOverview> {
 
   const [profiles, submissions, campaigns, surveys, ledger, responses, refs] =
     await Promise.all([
-      supabase.from("profiles").select("role, status"),
-      supabase.from("submissions").select("status"),
+      readAll<{ role: string; status: string }>(
+        (from, to) =>
+          supabase
+            .from("profiles")
+            .select("role, status")
+            .order("id")
+            .range(from, to),
+        "overview.profiles",
+      ),
+      readAll<{ status: string }>(
+        (from, to) =>
+          supabase.from("submissions").select("status").order("id").range(from, to),
+        "overview.submissions",
+      ),
       supabase.from("campaigns").select("status"),
       supabase.from("surveys").select("status"),
-      supabase.from("point_ledger").select("delta"),
+      readAll<{ delta: number }>(
+        (from, to) =>
+          supabase.from("point_ledger").select("delta").order("id").range(from, to),
+        "overview.ledger",
+      ),
       supabase
         .from("survey_responses")
         .select("id", { count: "exact", head: true })
@@ -70,11 +87,11 @@ export async function getOverview(): Promise<AdminOverview> {
         .eq("status", "counted"),
     ]);
 
-  const amb = (profiles.data ?? []).filter((p) => p.role === "ambassador");
-  const subs = submissions.data ?? [];
+  const amb = profiles.filter((p) => p.role === "ambassador");
+  const subs = submissions;
   const camps = campaigns.data ?? [];
   const survs = surveys.data ?? [];
-  const deltas = (ledger.data ?? []).map((r) => r.delta);
+  const deltas = ledger.map((r) => r.delta);
 
   return {
     ambassadors: {
@@ -123,15 +140,34 @@ export type AmbassadorRow = {
 export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   const supabase = await createClient();
 
-  const [{ data: profiles }, { data: ledger }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, college, city, batch, status, referral_code, created_at")
-      .eq("role", "ambassador")
-      .order("created_at", { ascending: false }),
+  const [profiles, ledger] = await Promise.all([
+    readAll<Omit<AmbassadorRow, "points">>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select(
+            "id, full_name, email, college, city, batch, status, referral_code, created_at",
+          )
+          .eq("role", "ambassador")
+          .order("created_at", { ascending: false })
+          // A second key, because `created_at` is not unique — two ambassadors
+          // added in the same second could otherwise swap places between
+          // pages, which is how a paged read loses one and repeats another.
+          .order("id")
+          .range(from, to),
+      "ambassadors.profiles",
+    ),
     // `ambassador_points()` is revoked from `authenticated` by 0007, so totals
     // are summed here instead. Fine at cohort scale; revisit past ~50k rows.
-    supabase.from("point_ledger").select("ambassador_id, delta"),
+    readAll<{ ambassador_id: string; delta: number }>(
+      (from, to) =>
+        supabase
+          .from("point_ledger")
+          .select("ambassador_id, delta")
+          .order("id")
+          .range(from, to),
+      "ambassadors.ledger",
+    ),
   ]);
 
   const totals = new Map<string, number>();
@@ -621,29 +657,60 @@ export async function getAnalytics(
   const supabase = await createClient();
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
-  const [ledgerRes, subsRes, profilesRes, surveysRes, responsesRes] =
+  const [ledgerRows, subsRows, profileRows, surveysRes, responseRows] =
     await Promise.all([
-      supabase
-        .from("point_ledger")
-        .select("ambassador_id, delta, reason, created_at")
-        .gte("created_at", since),
-      supabase.from("submissions").select("ambassador_id, status"),
-      supabase
-        .from("profiles")
-        .select("id, full_name, college")
-        .eq("role", "ambassador"),
+      readAll<{
+        ambassador_id: string;
+        delta: number;
+        reason: string;
+        created_at: string;
+      }>(
+        (from, to) =>
+          supabase
+            .from("point_ledger")
+            .select("ambassador_id, delta, reason, created_at")
+            .gte("created_at", since)
+            .order("id")
+            .range(from, to),
+        "analytics.ledger",
+      ),
+      readAll<{ ambassador_id: string; status: string }>(
+        (from, to) =>
+          supabase
+            .from("submissions")
+            .select("ambassador_id, status")
+            .order("id")
+            .range(from, to),
+        "analytics.submissions",
+      ),
+      readAll<{ id: string; full_name: string; college: string | null }>(
+        (from, to) =>
+          supabase
+            .from("profiles")
+            .select("id, full_name, college")
+            .eq("role", "ambassador")
+            .order("id")
+            .range(from, to),
+        "analytics.profiles",
+      ),
       supabase.from("surveys").select("id, title"),
-      supabase
-        .from("survey_responses")
-        .select("ambassador_id, survey_id, status"),
+      readAll<{ ambassador_id: string; survey_id: string; status: string }>(
+        (from, to) =>
+          supabase
+            .from("survey_responses")
+            .select("ambassador_id, survey_id, status")
+            .order("id")
+            .range(from, to),
+        "analytics.responses",
+      ),
     ]);
 
   const mine = <T extends { ambassador_id: string }>(list: T[] | null) =>
     (list ?? []).filter((row) => !scope || scope.has(row.ambassador_id));
 
-  const ledger = mine(ledgerRes.data);
+  const ledger = mine(ledgerRows);
   const names = new Map(
-    (profilesRes.data ?? []).map((p) => [p.id, { name: p.full_name, college: p.college }]),
+    profileRows.map((p) => [p.id, { name: p.full_name, college: p.college }]),
   );
 
   // ── Points per day ────────────────────────────────────────────────────────
@@ -702,7 +769,7 @@ export async function getAnalytics(
     revoked: "Revoked",
   };
   const statusCount = new Map<string, number>();
-  for (const s of mine(subsRes.data)) {
+  for (const s of mine(subsRows)) {
     statusCount.set(s.status, (statusCount.get(s.status) ?? 0) + 1);
   }
 
@@ -719,7 +786,7 @@ export async function getAnalytics(
     (surveysRes.data ?? []).map((s) => [s.id, s.title]),
   );
   const perSurvey = new Map<string, number>();
-  for (const r of mine(responsesRes.data)) {
+  for (const r of mine(responseRows)) {
     if (r.status !== "valid") continue;
     perSurvey.set(r.survey_id, (perSurvey.get(r.survey_id) ?? 0) + 1);
   }
@@ -844,8 +911,8 @@ export async function getAmbassadorDetail(
 
   const [
     ledgerRes,
-    allLedgerRes,
-    cohortRes,
+    allLedger,
+    cohortRows,
     linksRes,
     responsesRes,
     submissionsRes,
@@ -857,13 +924,29 @@ export async function getAmbassadorDetail(
       .eq("ambassador_id", profileId)
       .order("created_at", { ascending: false }),
     // Everyone's totals, so this person's rank is a real position in the
-    // cohort rather than a number that only makes sense on its own.
-    supabase.from("point_ledger").select("ambassador_id, delta"),
-    supabase
-      .from("profiles")
-      .select("id")
-      .eq("role", "ambassador")
-      .eq("status", "active"),
+    // cohort rather than a number that only makes sense on its own. Paged:
+    // truncating this would rank them against the first thousand rows of the
+    // ledger and quietly promote them.
+    readAll<{ ambassador_id: string; delta: number }>(
+      (from, to) =>
+        supabase
+          .from("point_ledger")
+          .select("ambassador_id, delta")
+          .order("id")
+          .range(from, to),
+      "ambassadorDetail.allLedger",
+    ),
+    readAll<{ id: string }>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "ambassadorDetail.cohort",
+    ),
     supabase
       .from("survey_links")
       .select("id, slug, click_count, surveys(id, title)")
@@ -887,10 +970,10 @@ export async function getAmbassadorDetail(
   const deltas = ledger.map((r) => r.delta);
 
   // ── Rank within the active cohort ─────────────────────────────────────────
-  const activeIds = new Set((cohortRes.data ?? []).map((r) => r.id));
+  const activeIds = new Set(cohortRows.map((r) => r.id));
   const totals = new Map<string, number>();
   for (const id of activeIds) totals.set(id, 0);
-  for (const row of allLedgerRes.data ?? []) {
+  for (const row of allLedger) {
     if (!activeIds.has(row.ambassador_id)) continue;
     totals.set(row.ambassador_id, (totals.get(row.ambassador_id) ?? 0) + row.delta);
   }
@@ -1071,25 +1154,42 @@ export async function getCampaignDetail(
           .select("id, campaign_task_id, ambassador_id, status, uploaded_at, profiles!submissions_ambassador_id_fkey(full_name, college)")
           .in("campaign_task_id", taskIds)
       : Promise.resolve({ data: [] as never[] }),
-    supabase
-      .from("profiles")
-      .select("id, full_name, college")
-      .eq("role", "ambassador")
-      .eq("status", "active"),
+    readAll<{ id: string; full_name: string; college: string | null }>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select("id, full_name, college")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "campaignDetail.cohort",
+    ),
     // Points actually paid for this campaign, read from the ledger rather than
     // inferred from task values — an approval that was later revoked must not
     // still be counted as paid.
-    supabase
-      .from("point_ledger")
-      .select("ambassador_id, delta, source_id, source_type")
-      .eq("source_type", "submission"),
+    readAll<{
+      ambassador_id: string;
+      delta: number;
+      source_id: string | null;
+      source_type: string | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("point_ledger")
+          .select("ambassador_id, delta, source_id, source_type")
+          .eq("source_type", "submission")
+          .order("id")
+          .range(from, to),
+      "campaignDetail.ledger",
+    ),
   ]);
 
   const submissions = submissionsRes.data ?? [];
   const submissionIds = new Set(submissions.map((s) => s.id));
 
   const paidBySubmission = new Map<string, number>();
-  for (const row of ledgerRes.data ?? []) {
+  for (const row of ledgerRes) {
     if (!row.source_id || !submissionIds.has(row.source_id)) continue;
     paidBySubmission.set(
       row.source_id,
@@ -1142,7 +1242,7 @@ export async function getCampaignDetail(
 
   // Who has done nothing is the actionable half of participation — a list of
   // only the people who took part cannot tell you who to chase.
-  const untouched: CampaignParticipant[] = (cohortRes.data ?? [])
+  const untouched: CampaignParticipant[] = cohortRes
     .filter((p) => !byPerson.has(p.id))
     .map((p) => ({
       id: p.id,
@@ -1180,7 +1280,7 @@ export async function getCampaignDetail(
   const decided =
     approvedTotal + submissions.filter((s) => s.status === "rejected").length;
 
-  const cohort = (cohortRes.data ?? []).length;
+  const cohort = cohortRes.length;
 
   return {
     campaign,

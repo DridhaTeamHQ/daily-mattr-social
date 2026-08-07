@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readAll } from "@/lib/admin/read-all";
 
 /**
  * Who a page is about.
@@ -97,13 +98,22 @@ export const getCohort = cache(
   async (dimension: Dimension, value: string | null): Promise<Cohort> => {
     const db = createAdminClient();
 
-    const { data } = await db
-      .from("profiles")
-      .select("id, city, batch, college")
-      .eq("role", "ambassador")
-      .eq("status", "active");
-
-    const profiles = data ?? [];
+    const profiles = await readAll<{
+      id: string;
+      city: string | null;
+      batch: string | null;
+      college: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("profiles")
+          .select("id, city, batch, college")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "getCohort.profiles",
+    );
     const counts = new Map<string, number>();
     const ids = new Set<string>();
 

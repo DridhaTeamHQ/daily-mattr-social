@@ -5,6 +5,7 @@ import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
+import { readAll } from "@/lib/admin/read-all";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -200,10 +201,16 @@ export const getRedemptions = cache(async (): Promise<RedemptionRow[]> => {
 
   // One grouped read rather than a balance query per row.
   const ids = [...new Set(rows.map((r) => r.ambassador_id))];
-  const { data: ledger } = await db
-    .from("point_ledger")
-    .select("ambassador_id, delta")
-    .in("ambassador_id", ids);
+  const ledger = await readAll<{ ambassador_id: string; delta: number }>(
+    (from, to) =>
+      db
+        .from("point_ledger")
+        .select("ambassador_id, delta")
+        .in("ambassador_id", ids)
+        .order("id")
+        .range(from, to),
+    "redemptions.ledger",
+  );
 
   const balances = new Map<string, number>();
   for (const entry of ledger ?? []) {
@@ -280,15 +287,41 @@ export const getMoneySummary = cache(async (
 ): Promise<MoneySummary> => {
   const db = createAdminClient();
 
-  const [{ data: payouts }, { data: redemptions }, { data: conversions }] =
-    await Promise.all([
-      db.from("payouts").select("ambassador_id, kind, amount_inr, status"),
-      db.from("redemption_requests").select("ambassador_id, status"),
-      db
-        .from("referral_conversions")
-        .select("ambassador_id")
-        .eq("status", "counted"),
-    ]);
+  const [payouts, redemptions, conversions] = await Promise.all([
+    readAll<{
+      ambassador_id: string;
+      kind: string;
+      amount_inr: number;
+      status: Enums<"payout_status">;
+    }>(
+      (from, to) =>
+        db
+          .from("payouts")
+          .select("ambassador_id, kind, amount_inr, status")
+          .order("id")
+          .range(from, to),
+      "moneySummary.payouts",
+    ),
+    readAll<{ ambassador_id: string; status: string }>(
+      (from, to) =>
+        db
+          .from("redemption_requests")
+          .select("ambassador_id, status")
+          .order("id")
+          .range(from, to),
+      "moneySummary.redemptions",
+    ),
+    readAll<{ ambassador_id: string }>(
+      (from, to) =>
+        db
+          .from("referral_conversions")
+          .select("ambassador_id")
+          .eq("status", "counted")
+          .order("id")
+          .range(from, to),
+      "moneySummary.conversions",
+    ),
+  ]);
 
   const mine = <T extends { ambassador_id: string }>(list: T[] | null) =>
     (list ?? []).filter((row) => !scope || scope.has(row.ambassador_id));

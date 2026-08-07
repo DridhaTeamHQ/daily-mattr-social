@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
+import { readAll } from "@/lib/admin/read-all";
 import { cohortLabel, type CohortIds, type Dimension } from "@/lib/admin/scope";
 
 /**
@@ -54,10 +55,23 @@ export const getGoalTracking = cache(
   const db = createAdminClient();
   const { download_goal: goal } = await getSettings("download_goal");
 
-  const { data: conversions } = await db
-    .from("referral_conversions")
-    .select("ambassador_id, converted_at, store")
-    .eq("status", "counted");
+  // Paged, because this is the table the 10,000-download goal counts. A plain
+  // select stops at a thousand, and the tracker would have read 1,000 for the
+  // rest of the programme.
+  const conversions = await readAll<{
+    ambassador_id: string;
+    converted_at: string;
+    store: string | null;
+  }>(
+    (from, to) =>
+      db
+        .from("referral_conversions")
+        .select("ambassador_id, converted_at, store")
+        .eq("status", "counted")
+        .order("id")
+        .range(from, to),
+    "goalTracking.conversions",
+  );
 
   // Filtered here rather than in the query: the cohort is a set of ids the
   // page already holds, and an `.in()` with a few hundred uuids is a URL long
@@ -140,12 +154,23 @@ export type FunnelStage = {
 export const getFunnel = cache(async (): Promise<FunnelStage[]> => {
   const db = createAdminClient();
 
-  const [{ count: clicks }, { data: conversions }] = await Promise.all([
+  const [{ count: clicks }, conversions] = await Promise.all([
     db.from("referral_clicks").select("id", { count: "exact", head: true }),
-    db
-      .from("referral_conversions")
-      .select("onboarded_at, activated_at, day3_return_at, day7_return_at")
-      .eq("status", "counted"),
+    readAll<{
+      onboarded_at: string | null;
+      activated_at: string | null;
+      day3_return_at: string | null;
+      day7_return_at: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("referral_conversions")
+          .select("onboarded_at, activated_at, day3_return_at, day7_return_at")
+          .eq("status", "counted")
+          .order("id")
+          .range(from, to),
+      "funnel.conversions",
+    ),
   ]);
 
   const rows = conversions ?? [];
@@ -188,19 +213,43 @@ async function sliceBy(
 ): Promise<CohortSlice[]> {
   const db = createAdminClient();
 
-  const [{ data: profiles }, { data: conversions }, { data: ledger }] =
-    await Promise.all([
-      db
-        .from("profiles")
-        .select("id, city, batch, college")
-        .eq("role", "ambassador")
-        .eq("status", "active"),
-      db
-        .from("referral_conversions")
-        .select("ambassador_id")
-        .eq("status", "counted"),
-      db.from("point_ledger").select("ambassador_id, delta"),
-    ]);
+  const [profiles, conversions, ledger] = await Promise.all([
+    readAll<{
+      id: string;
+      city: string | null;
+      batch: string | null;
+      college: string | null;
+    }>(
+      (from, to) =>
+        db
+          .from("profiles")
+          .select("id, city, batch, college")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "sliceBy.profiles",
+    ),
+    readAll<{ ambassador_id: string }>(
+      (from, to) =>
+        db
+          .from("referral_conversions")
+          .select("ambassador_id")
+          .eq("status", "counted")
+          .order("id")
+          .range(from, to),
+      "sliceBy.conversions",
+    ),
+    readAll<{ ambassador_id: string; delta: number }>(
+      (from, to) =>
+        db
+          .from("point_ledger")
+          .select("ambassador_id, delta")
+          .order("id")
+          .range(from, to),
+      "sliceBy.ledger",
+    ),
+  ]);
 
   const groupOf = new Map<string, string>();
   const groups = new Map<string, CohortSlice>();
@@ -278,11 +327,19 @@ export type ReviewOps = {
 export const getReviewOps = cache(async (): Promise<ReviewOps> => {
   const db = createAdminClient();
 
-  const { data } = await db
-    .from("submissions")
-    .select("uploaded_at, reviewed_at, status");
-
-  const rows = data ?? [];
+  const rows = await readAll<{
+    uploaded_at: string;
+    reviewed_at: string | null;
+    status: string;
+  }>(
+    (from, to) =>
+      db
+        .from("submissions")
+        .select("uploaded_at, reviewed_at, status")
+        .order("id")
+        .range(from, to),
+    "reviewOps.submissions",
+  );
 
   const decided = rows.filter((r) => r.reviewed_at);
   const durations = decided
