@@ -324,10 +324,37 @@ one toggle).
 | **H2** | Rate-limit key now reads the **rightmost** (proxy-appended) forwarded-for entry and prefers `x-vercel-forwarded-for` | `proxy.ts` | Client can no longer rotate its own bucket |
 | **Headers** | CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy; `X-Powered-By` removed | `next.config.ts` | All six served; **0 CSP violations** on the admin app ✅ |
 
-**Still open** (documented, not yet done): the scale refactor — moving admin
-aggregation from `readAll` row-streaming into SQL aggregate RPCs, and a
-shared-store rate limiter. Neither is exploitable; both are what break at
-millions of rows / 10k concurrent.
+### Second round (after the full audit returned)
+
+The audits finished with **51 verified security findings** (46 confirmed, 4
+plausible, 1 refuted) and **80 scale findings**. These were fixed on top of the
+list above:
+
+| Fix | Where | Proof |
+|---|---|---|
+| **One screenshot no longer clears every task.** The perceptual-duplicate check excluded *all* of the uploader's own submissions — aimed at the retry case, but it meant one image auto-approved like, comment, share and story. Retries are already handled per-task upstream, so the exemption now covers only the **same task**. | `submissions/actions.ts` | The check that exists to catch a reused picture is no longer blind to the easiest way to reuse one |
+| **Open redirect on login.** `startsWith("/") && !startsWith("//")` misses `/\evil.example` — browsers read `\` as `/`, so it resolves to `//evil.example`, on the page users land on holding a fresh session. Replaced with an explicit `isLocalPath()` (no regex — the backslash escaping is exactly what silently compiles to the wrong thing). | `login/actions.ts` | 11-case table incl. backslash, control chars, whitespace — all pass ✅ |
+| **Cohort keys were self-writable.** The profiles guard pinned role/status/email but predated `city`, `batch`, `college`. Those are what `batch_standings` and every cohort breakdown group by — an ambassador could move into whichever batch they were likeliest to top. Now pinned, along with the suspension bookkeeping. | migration `0026` | Tested as a real non-admin: batch/college/role changes **blocked**, legitimate rename **allowed** ✅ |
+| **Notifications were rewritable by their recipient.** The policy checked `profile_id` and nothing else; the app only ever writes `read_at`. Now only `read_at` may change. | migration `0026` | Trigger enforced |
+| **`window_start` mutable `search_path`** (called inside two SECURITY DEFINER functions) and **`active_days` policy written for `public`** (predicate saved it, role grant shouldn't rely on that). | migration `0026` | Both tightened |
+
+**Still open** — deliberately, and none of it exploitable:
+
+- **The scale refactor.** Admin aggregation still streams rows via `readAll`.
+  The synthesis puts numbers on it: `/admin/analytics` reads `point_ledger`
+  **7–8 times per render** across ~29 paginations; at 2M rows that is ~7,000
+  sequential round trips with quadratic offset cost, and the page times out
+  well before 10k concurrency. The fix is one aggregate RPC per subject area
+  (`sum(delta) group by ambassador_id`), returning thousands of rows instead of
+  millions. `readAll` now *throws* rather than returning a half-ledger total,
+  so the failure mode is loud instead of silently wrong.
+- **Shared-store rate limiter.** Still in-memory, so still per-instance. The
+  client-controlled-IP half is fixed; the cross-instance bound needs Upstash/KV.
+- **Assorted mediums** from the audit: referral multiplier not clawed back on a
+  downgrade, `payouts_one_stipend_per_month` keyed on batch so it doesn't
+  enforce, `decideRedemption` check-then-write race, failed payouts destroying
+  points with no reversal path, push-endpoint SSRF validation, session cookie
+  `HttpOnly`/`Secure` flags. All are in §3 with file references.
 
 ## 5. Suggested fix order
 

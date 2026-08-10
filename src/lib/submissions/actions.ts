@@ -170,11 +170,40 @@ export async function uploadSubmission(
       max_distance: config.rejectDistance,
     });
 
-    const fromOthers = (similar ?? []).filter(
-      (s) => s.ambassador_id !== user.id,
-    );
-    const nearest = fromOthers.length
-      ? Math.min(...fromOthers.map((s) => s.distance))
+    /**
+     * Your own screenshot counts against you on a different task.
+     *
+     * This excluded every submission by the uploader, which was aimed at the
+     * retry case — attempt 2 of a task you were rejected on is the same
+     * picture on purpose. But it also meant one screenshot cleared every task
+     * that person had: like, comment, share and story, all from one image, all
+     * auto-approved. The check that exists to catch a reused picture was blind
+     * to the most convenient way to reuse one.
+     *
+     * Retries are already handled above — `previous` is looked up per task and
+     * a live submission blocks a second one — so the exemption only needs to
+     * cover the same person on the SAME task. Anything else, including their
+     * own image on another task, is a duplicate.
+     */
+    const matches = similar ?? [];
+    const mine = matches.filter((s) => s.ambassador_id === user.id);
+
+    const sameTask = new Set<string>();
+    if (mine.length) {
+      const { data: tasksOf } = await db
+        .from("submissions")
+        .select("id")
+        .eq("campaign_task_id", taskId)
+        .in(
+          "id",
+          mine.map((s) => s.id),
+        );
+      for (const row of tasksOf ?? []) sameTask.add(row.id);
+    }
+
+    const counting = matches.filter((s) => !sameTask.has(s.id));
+    const nearest = counting.length
+      ? Math.min(...counting.map((s) => s.distance))
       : null;
 
     const checks = runChecks(
