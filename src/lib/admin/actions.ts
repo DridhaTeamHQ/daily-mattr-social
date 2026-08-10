@@ -88,6 +88,8 @@ export async function approveSubmission(
       .eq("id", submissionId);
     if (updateError) throw updateError;
 
+    let credited = 0;
+
     if (points > 0) {
       // The (source_type, source_id, direction) unique index makes this safe to
       // retry: a double-clicked Approve cannot pay twice.
@@ -103,6 +105,15 @@ export async function approveSubmission(
       if (ledgerError && !ledgerError.message.includes("duplicate key")) {
         throw ledgerError;
       }
+
+      // A duplicate here is the interesting case rather than a no-op. It means
+      // this submission was approved once already, so the +points row exists
+      // and the index refuses a second. If it was later revoked there is also
+      // a −points row, and the two cancel: re-approving restores the status
+      // but cannot re-credit, because the reversal is permanent by design.
+      // Saying "+10 points" then would be a lie told to both the admin and the
+      // student, which is how a balance stops matching its own history.
+      credited = ledgerError ? 0 : points;
     }
 
     await audit(actorId, "submission.approve", "submission", submissionId, {
@@ -117,10 +128,16 @@ export async function approveSubmission(
     await notify({
       profileId: submission.ambassador_id,
       type: "submission_approved",
-      title: `Approved — you earned ${points} points`,
-      body: note || "Your screenshot passed review.",
+      title: credited
+        ? `Approved — you earned ${credited} points`
+        : "Approved",
+      body:
+        note ||
+        (credited
+          ? "Your screenshot passed review."
+          : "Your screenshot passed review. The points for it were already settled earlier."),
       href: "/dashboard/campaigns",
-      meta: { submissionId, points },
+      meta: { submissionId, points: credited },
     }).catch(() => {
       // The points are already credited; a failed notification must not undo
       // that or make the admin think the approval didn't happen.
@@ -128,7 +145,12 @@ export async function approveSubmission(
 
     revalidatePath("/admin/review");
     revalidatePath("/admin");
-    return { ok: true, message: `Approved · +${points} points` };
+    return {
+      ok: true,
+      message: credited
+        ? `Approved · +${credited} points`
+        : "Approved · no points (this one was already settled)",
+    };
   } catch (err) {
     return fail(err);
   }
@@ -745,6 +767,13 @@ export async function setReferralCount(
           })),
         );
       }
+
+      // The multiplier uplift is owed on downloads past the threshold, so
+      // taking downloads away has to recompute it too. Reversing only the flat
+      // points left the bonus behind, paid for installs that had just been
+      // voided — and the bigger the correction, the more of it survived.
+      await awardReferralBonus(profileId, actorId).catch(() => {});
+      await evaluateBadges(profileId).catch(() => {});
     }
 
     await audit(actorId, "referral.set_count", "profile", profileId, { count });

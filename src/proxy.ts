@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import { isSupabaseConfigured, publicEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
+import { hardenAuthCookie } from "@/lib/supabase/cookie-options";
 import type { Database } from "@/lib/database.types";
 
 /**
@@ -134,7 +135,7 @@ export async function proxy(request: NextRequest) {
           }
           response = NextResponse.next({ request });
           for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, hardenAuthCookie(options));
           }
           // Responses that set auth cookies must never be cached by a CDN, or
           // one student's session token gets served to another.

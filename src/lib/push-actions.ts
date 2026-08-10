@@ -13,6 +13,44 @@ import { createClient } from "@/lib/supabase/server";
 
 export type PushResult = { ok: boolean; message: string };
 
+/**
+ * The push endpoint is a URL the server will later make requests to.
+ *
+ * It arrives from the browser, and it was stored and used exactly as given.
+ * That makes it a server-side request forgery primitive: a signed-in user
+ * could register `http://169.254.169.254/…` or an address on the deployment's
+ * own network and have the notification sender fetch it on their behalf,
+ * carrying whatever the platform attaches to outbound requests.
+ *
+ * Real subscriptions only ever come from a handful of vendor hosts, so an
+ * allowlist costs nothing and closes the whole class. `https` is required
+ * separately because an allowlisted host over plain http is still a downgrade.
+ */
+const PUSH_HOSTS = [
+  "android.googleapis.com",
+  "fcm.googleapis.com",
+  "updates.push.services.mozilla.com",
+  "updates-autopush.stage.mozaws.net",
+  "notify.windows.com",
+  "push.apple.com",
+];
+
+function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol !== "https:") return false;
+
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOSTS.some(
+    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
+  );
+}
+
 export async function savePushSubscription(subscription: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
@@ -24,6 +62,10 @@ export async function savePushSubscription(subscription: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Not signed in" };
+
+  if (!isAllowedPushEndpoint(subscription.endpoint)) {
+    return { ok: false, message: "That push endpoint isn't one we recognise." };
+  }
 
   // The endpoint is unique per browser, so re-subscribing on a device that
   // already registered updates its keys instead of creating a duplicate that

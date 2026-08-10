@@ -49,8 +49,6 @@ export async function awardReferralBonus(
   const threshold = settings.referral_multiplier_threshold;
   const multiplier = settings.referral_multiplier;
 
-  if (multiplier <= 1 || downloads < threshold) return 0;
-
   const { data: setting } = await db
     .from("app_settings")
     .select("value")
@@ -60,12 +58,29 @@ export async function awardReferralBonus(
   const perReferral = Number(setting?.value);
   if (!Number.isFinite(perReferral) || perReferral <= 0) return 0;
 
+  /**
+   * Reconcile to what is owed now, in either direction.
+   *
+   * This used to return early when downloads fell below the threshold, and to
+   * ignore any negative difference. Both meant the bonus only ever went up: an
+   * admin correcting a download count downwards — voiding fraudulent installs,
+   * say — reversed the flat referral points and left the multiplier uplift
+   * sitting in the balance, paid for downloads that no longer existed. The
+   * further a count was corrected, the more of it survived the correction.
+   *
+   * So the function is a reconciliation rather than an award. It computes what
+   * the current count entitles them to, compares it with what has already been
+   * paid under this source type, and writes the difference whichever way it
+   * points.
+   */
   // Only downloads PAST the threshold earn the uplift. Applying it to all of
   // them would hand out a lump sum the moment somebody crossed the line, for
   // work they were already paid flat rate for.
-  const eligible = downloads - threshold;
-  const owed = Math.round(eligible * perReferral * (multiplier - 1));
-  if (owed <= 0) return 0;
+  const eligible = Math.max(0, downloads - threshold);
+  const owed =
+    multiplier <= 1
+      ? 0
+      : Math.round(eligible * perReferral * (multiplier - 1));
 
   const { data: paid } = await db
     .from("point_ledger")
@@ -75,17 +90,26 @@ export async function awardReferralBonus(
 
   const already = (paid ?? []).reduce((sum, row) => sum + row.delta, 0);
   const delta = owed - already;
-  if (delta <= 0) return 0;
+  if (delta === 0) return 0;
 
   const { error } = await db.from("point_ledger").insert({
     ambassador_id: ambassadorId,
     delta,
-    reason: "referral",
+    // A claw-back is a reversal and says so, so it reads correctly in the
+    // student's history next to the credit it corrects.
+    reason: delta > 0 ? "referral" : "revoke",
     source_type: "referral_multiplier",
-    // Keyed by the download count it was earned at, so each new threshold
-    // crossing is its own row and re-running at the same count is a no-op.
-    source_id: `${ambassadorId}:${downloads}`,
-    note: `Referral bonus — ${multiplier}× past ${threshold} downloads`,
+    // Keyed by the transition, not by the download count. Keying on downloads
+    // meant a count that went 40 → 20 → 40 could not be re-awarded: the row
+    // for 40 already existed and the unique index refused the second one,
+    // leaving the ambassador permanently short. A transition repeats only if
+    // nothing changed, in which case `delta` is already zero and we never get
+    // here.
+    source_id: `${ambassadorId}:${already}->${owed}`,
+    note:
+      delta > 0
+        ? `Referral bonus — ${multiplier}× past ${threshold} downloads`
+        : `Referral bonus corrected — now ${downloads} confirmed downloads`,
     created_by: actorId,
     phase: "phase_2",
   });
@@ -94,8 +118,14 @@ export async function awardReferralBonus(
   await notify({
     profileId: ambassadorId,
     type: "points_awarded",
-    title: `Referral bonus — ${delta} points`,
-    body: `You're past ${threshold} downloads, so every one after that is worth ${multiplier}×.`,
+    title:
+      delta > 0
+        ? `Referral bonus — ${delta} points`
+        : `Referral bonus adjusted — ${Math.abs(delta)} points removed`,
+    body:
+      delta > 0
+        ? `You're past ${threshold} downloads, so every one after that is worth ${multiplier}×.`
+        : `Your confirmed download count changed to ${downloads}, so the bonus was recalculated.`,
     href: "/dashboard/referrals",
   }).catch(() => {});
 

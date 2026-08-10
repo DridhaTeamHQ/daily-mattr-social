@@ -338,6 +338,21 @@ list above:
 | **Notifications were rewritable by their recipient.** The policy checked `profile_id` and nothing else; the app only ever writes `read_at`. Now only `read_at` may change. | migration `0026` | Trigger enforced |
 | **`window_start` mutable `search_path`** (called inside two SECURITY DEFINER functions) and **`active_days` policy written for `public`** (predicate saved it, role grant shouldn't rely on that). | migration `0026` | Both tightened |
 
+### Third round — the mediums
+
+| Fix | Why it mattered | Proof |
+|---|---|---|
+| **Double stipend across batches.** `payouts_one_stipend_per_month` was keyed `(ambassador_id, batch_id)` — unique per *batch*, not per month. Re-running a build after a correction (a normal thing to do) created a second batch that happily paid the same person again. `period_month` is now denormalised onto the payout and the index keyed on `(ambassador_id, period_month)`. | ₹3,000 twice | Two batches, same month, same person → **second insert blocked by unique index** ✅ |
+| **Balance could be spent twice by spending it at once.** `decideRedemption` reads the balance, then writes the burn as a separate statement; two concurrent approvals both pass. A trigger now serialises debits per ambassador with an advisory lock and refuses an overdraw. Scoped to *spending* only — a revoke must still be able to push a balance negative, or an admin couldn't correct a paid-out award. | Ledger goes negative, money already sent | Redemption overdraw **blocked**; revoke past zero **still allowed** ✅ |
+| **Failed payouts destroyed the points.** Points burn at approval, not at payment, so a bounced transfer left the ambassador with neither money nor points and no reversal path in the app. Now reversed with a compensating row and the request returns to `approved` for retry. | Silent loss, unfixable against an append-only ledger | Same source pair + opposite direction, so a double-fail can't double-refund |
+| **Stipend batch dropped the bonus.** It paid the flat `stipend_amount_inr`; the RPC returns `total_inr` (stipend + earned bonus), which is what the admin screens show and students are promised. The best ambassadors were underpaid by exactly what made them best. | Underpayment | Now pays `total_inr`, falling back to the flat amount |
+| **Referral multiplier never clawed back.** Lowering a download count reversed the flat points and left the uplift. The function returned early below the threshold and ignored negative differences, so the bonus only ever went up — and the remove path never called it at all. Now a reconciliation in both directions, wired into the remove branch, keyed on the transition so a 40→20→40 count can be re-awarded. | Paid for voided installs | — |
+| **Re-approving a revoked submission claimed to pay.** The credit hits the unique index and is silently skipped, but the message and notification still said "+10 points". | Balance stops matching its own history | Now reports "no points (already settled)" |
+| **`markPayoutPaid` had no status guard** — re-marking overwrote the original UTR and re-notified. | Loses the reference to the real transfer | Refused with the existing UTR |
+| **Membership oracle on survey submit.** "Your answers are in" vs "you've already filled this in" is a yes/no on whether an email has responded, probeable by anyone with the link — against respondents who are strangers, not users. | PII disclosure | One identical response for every outcome |
+| **SSRF via push endpoint** — stored and later fetched, unvalidated. Now an https + vendor-host allowlist. | Server fetches attacker-chosen URLs | — |
+| **Session cookies without `HttpOnly`/`Secure`.** Applied via a shared `hardenAuthCookie`. Safe because nothing in the browser reads the session — `createBrowserClient` exists but is imported by no component. | Session theft via XSS | **Signed in end-to-end**: dashboard renders, session persists across requests, `document.cookie` empty to JS ✅ |
+
 **Still open** — deliberately, and none of it exploitable:
 
 - **The scale refactor.** Admin aggregation still streams rows via `readAll`.
@@ -350,11 +365,13 @@ list above:
   so the failure mode is loud instead of silently wrong.
 - **Shared-store rate limiter.** Still in-memory, so still per-instance. The
   client-controlled-IP half is fixed; the cross-instance bound needs Upstash/KV.
-- **Assorted mediums** from the audit: referral multiplier not clawed back on a
-  downgrade, `payouts_one_stipend_per_month` keyed on batch so it doesn't
-  enforce, `decideRedemption` check-then-write race, failed payouts destroying
-  points with no reversal path, push-endpoint SSRF validation, session cookie
-  `HttpOnly`/`Secure` flags. All are in §3 with file references.
+- **Low/info items** that remain: referral codes are sequential and
+  enumerable, survey slugs come from `random()`, `/auth/recover` is an
+  unauthenticated GET that installs a session, the password-reset email
+  interpolates its link without HTML-escaping, `batch_standings()` is a
+  definer with no internal authorization, `exifr` is unmaintained, and
+  `next@16.2.12` pulls nested deps with open advisories. Each is listed in §3
+  with a file reference.
 
 ## 5. Suggested fix order
 

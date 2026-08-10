@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
 import { publicEnv } from "@/lib/env";
+import { hardenAuthCookie } from "@/lib/supabase/cookie-options";
 import type { Database } from "@/lib/database.types";
 
 /**
@@ -28,7 +29,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+              cookieStore.set(name, value, hardenAuthCookie(options));
             }
           } catch {
             // Server Components cannot write cookies. That is fine: `proxy.ts`

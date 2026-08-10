@@ -312,10 +312,22 @@ export async function submitSurvey(
     }
   }
 
+  /**
+   * One answer for everyone, whatever happened underneath.
+   *
+   * "Thanks — your answers are in" versus "looks like you've already filled
+   * this in" is a yes/no on whether a given email or phone number has
+   * responded to this survey, answerable by anyone holding the link, one
+   * address at a time. Against a list of guessed addresses that is a
+   * membership oracle over the respondent pool — and the respondents are
+   * strangers who gave their details to a student, not users of this app.
+   *
+   * Whether the response counted is the ambassador's business and the admin's,
+   * and both can see it on their own pages. The person filling in the form
+   * gets the same sentence either way.
+   */
   return {
     status: "done",
-    message: counted
-      ? "Thanks — your answers are in."
-      : "Looks like you've already filled this in. Thanks anyway!",
+    message: "Thanks — your answers were recorded.",
   };
 }

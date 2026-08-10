@@ -188,12 +188,25 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
       .single();
     if (batchError) throw batchError;
 
+    /**
+     * The bonus is part of the bill.
+     *
+     * This paid the flat `stipend_amount_inr` to everyone. But
+     * `stipend_eligibility` returns `total_inr` — stipend plus whatever they
+     * earned above the download target — and that is the figure the admin
+     * screens show and the students are told they have earned. The batch was
+     * the one place that quietly dropped it, so the best ambassadors were the
+     * ones underpaid, by exactly the amount that made them the best.
+     *
+     * `total_inr` falls back to the flat amount if the RPC ever returns it
+     * unset, so a missing bonus can never pay less than the stipend.
+     */
     const { error: payoutError } = await db.from("payouts").insert(
       toPay.map((r) => ({
         batch_id: batch.id,
         ambassador_id: r.ambassador_id,
         kind: "stipend",
-        amount_inr: settings.stipend_amount_inr,
+        amount_inr: Number(r.total_inr) || settings.stipend_amount_inr,
       })),
     );
     if (payoutError) throw payoutError;
@@ -287,10 +300,23 @@ export async function markPayoutPaid(
 
     const { data: payout } = await db
       .from("payouts")
-      .select("id, ambassador_id, amount_inr, redemption_id, kind")
+      .select("id, ambassador_id, amount_inr, redemption_id, kind, status, utr")
       .eq("id", payoutId)
       .maybeSingle();
     if (!payout) return { ok: false, message: "That payout no longer exists." };
+
+    // Marking a paid payout paid again overwrote the original UTR and sent the
+    // ambassador a second "you were paid" notification for money that moved
+    // once. The reference to the real transfer is the thing you least want to
+    // lose, so a second attempt is refused rather than merged.
+    if (payout.status === "paid") {
+      return {
+        ok: false,
+        message: payout.utr
+          ? `Already marked paid, reference ${payout.utr}.`
+          : "Already marked paid.",
+      };
+    }
 
     const now = new Date().toISOString();
 
@@ -324,13 +350,37 @@ export async function markPayoutPaid(
   }
 }
 
+/**
+ * A failed transfer gives the points back.
+ *
+ * The points were burned at approval, not at payment. So a bank transfer that
+ * bounced used to leave the ambassador with neither the money nor the points —
+ * the balance was spent, the payout said "failed", and there was no path
+ * anywhere in the app to undo it. The only fix was an admin noticing and
+ * hand-adjusting, against a ledger that is deliberately append-only.
+ *
+ * Now the burn is reversed with a compensating row and the request goes back
+ * to 'approved', which is where it was before the batch picked it up: the
+ * money is still owed, it just has to be sent again. A stipend payout has no
+ * points behind it, so there is nothing to return.
+ */
 export async function markPayoutFailed(
   payoutId: string,
   reason: string,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    const actorId = await assertAdmin();
     const db = createAdminClient();
+
+    const { data: payout } = await db
+      .from("payouts")
+      .select("id, ambassador_id, kind, status, redemption_id")
+      .eq("id", payoutId)
+      .maybeSingle();
+    if (!payout) return { ok: false, message: "That payout no longer exists." };
+    if (payout.status === "failed") {
+      return { ok: false, message: "Already marked failed." };
+    }
 
     const { error } = await db
       .from("payouts")
@@ -342,8 +392,61 @@ export async function markPayoutFailed(
       .eq("id", payoutId);
     if (error) throw error;
 
+    let returned = 0;
+
+    if (payout.redemption_id) {
+      const { data: request } = await db
+        .from("redemption_requests")
+        .select("id, points, status")
+        .eq("id", payout.redemption_id)
+        .maybeSingle();
+
+      if (request && request.status !== "requested") {
+        // Same source pair, opposite direction — the partial unique index
+        // permits exactly one reversal, so marking failed twice cannot refund
+        // twice.
+        const { error: refundError } = await db.from("point_ledger").insert({
+          ambassador_id: payout.ambassador_id,
+          delta: request.points,
+          reason: "manual_adjust",
+          source_type: "redemption_request",
+          source_id: request.id,
+          note: `Payout failed — points returned (${reason.trim() || "no reason given"})`,
+          created_by: actorId,
+        });
+
+        if (refundError && !refundError.message.includes("duplicate key")) {
+          throw refundError;
+        }
+
+        if (!refundError) {
+          returned = request.points;
+
+          await db
+            .from("redemption_requests")
+            .update({ status: "approved" })
+            .eq("id", request.id);
+
+          await notify({
+            profileId: payout.ambassador_id,
+            type: "points_awarded",
+            title: `${request.points} points returned`,
+            body: "The transfer didn't go through. Your points are back and the payment will be retried.",
+            href: "/dashboard/rewards",
+          }).catch(() => {});
+        }
+      }
+    }
+
     revalidatePath("/admin/stipend");
-    return { ok: true, message: "Marked failed." };
+    revalidatePath("/dashboard/rewards");
+
+    return {
+      ok: true,
+      message: returned
+        ? `Marked failed · ${returned} points returned.`
+        : "Marked failed.",
+    };
   } catch (err) {
     return fail(err);
   }
