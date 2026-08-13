@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { isDemoMode } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import type { Tables } from "@/lib/database.types";
@@ -24,24 +25,17 @@ import type { Tables } from "@/lib/database.types";
 export type StipendMonth = {
   period: string;
   label: string;
-  downloads: number;
-  /** Surveys they collected anything on. */
-  surveys: number;
-  /** The ones that cleared the response floor — what the target counts. */
-  qualifyingSurveys: number;
+  totalTasks: number;
+  approvedTasks: number;
+  completionPct: number;
   met: boolean;
-  bonusInr: number;
   totalInr: number;
   paidStatus: string;
 };
 
 export type ProgrammeTermsView = {
-  downloads: number;
-  surveys: number;
-  responsesPerSurvey: number;
+  completionPct: number;
   amountInr: number;
-  bonusPerDownloads: number;
-  bonusInr: number;
   activeDays: number;
   activityWindow: number;
 };
@@ -75,18 +69,58 @@ function label(period: string): string {
   });
 }
 
+const DEMO_STIPEND_PROGRESS: StipendProgress = {
+  thresholds: {
+    completionPct: 80,
+    amountInr: 3000,
+    activeDays: 8,
+    activityWindow: 10,
+  },
+  current: {
+    period: "2026-08-01",
+    label: "August 2026",
+    totalTasks: 10,
+    approvedTasks: 8,
+    completionPct: 80,
+    met: true,
+    totalInr: 3000,
+    paidStatus: "none",
+  },
+  history: [
+    {
+      period: "2026-07-01",
+      label: "July 2026",
+      totalTasks: 9,
+      approvedTasks: 7,
+      completionPct: 78,
+      met: false,
+      totalInr: 0,
+      paidStatus: "none",
+    },
+    {
+      period: "2026-06-01",
+      label: "June 2026",
+      totalTasks: 8,
+      approvedTasks: 8,
+      completionPct: 100,
+      met: true,
+      totalInr: 3000,
+      paidStatus: "paid",
+    },
+  ],
+  activeDays: 6,
+};
+
 export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
+  if (isDemoMode()) return DEMO_STIPEND_PROGRESS;
+
   const supabase = await createClient();
 
   const [{ data }, thresholds, { count: activeDays }] = await Promise.all([
     supabase.rpc("my_stipend_progress", { months_back: 6 }),
     getSettings(
-      "stipend_min_downloads",
-      "stipend_min_surveys",
-      "stipend_min_responses_per_survey",
+      "stipend_min_completion_pct",
       "stipend_amount_inr",
-      "stipend_bonus_per_downloads",
-      "stipend_bonus_inr",
       "activity_min_days",
       "activity_window_days",
     ),
@@ -101,23 +135,18 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
   const months: StipendMonth[] = (data ?? []).map((row) => ({
     period: row.period,
     label: label(row.period),
-    downloads: Number(row.downloads),
-    surveys: Number(row.surveys),
-    qualifyingSurveys: Number(row.qualifying_surveys),
+    totalTasks: Number(row.total_tasks),
+    approvedTasks: Number(row.approved_tasks),
+    completionPct: Number(row.completion_pct),
     met: row.met,
-    bonusInr: Number(row.bonus_inr),
     totalInr: Number(row.total_inr),
     paidStatus: row.paid_status,
   }));
 
   return {
     thresholds: {
-      downloads: thresholds.stipend_min_downloads,
-      surveys: thresholds.stipend_min_surveys,
-      responsesPerSurvey: thresholds.stipend_min_responses_per_survey,
+      completionPct: thresholds.stipend_min_completion_pct,
       amountInr: thresholds.stipend_amount_inr,
-      bonusPerDownloads: thresholds.stipend_bonus_per_downloads,
-      bonusInr: thresholds.stipend_bonus_inr,
       activeDays: thresholds.activity_min_days,
       activityWindow: thresholds.activity_window_days,
     },

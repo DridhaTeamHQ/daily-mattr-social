@@ -188,19 +188,7 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
       .single();
     if (batchError) throw batchError;
 
-    /**
-     * The bonus is part of the bill.
-     *
-     * This paid the flat `stipend_amount_inr` to everyone. But
-     * `stipend_eligibility` returns `total_inr` — stipend plus whatever they
-     * earned above the download target — and that is the figure the admin
-     * screens show and the students are told they have earned. The batch was
-     * the one place that quietly dropped it, so the best ambassadors were the
-     * ones underpaid, by exactly the amount that made them the best.
-     *
-     * `total_inr` falls back to the flat amount if the RPC ever returns it
-     * unset, so a missing bonus can never pay less than the stipend.
-     */
+    /** `total_inr` is the stipend amount the eligibility RPC computed. */
     const { error: payoutError } = await db.from("payouts").insert(
       toPay.map((r) => ({
         batch_id: batch.id,

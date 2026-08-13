@@ -2,37 +2,27 @@
 
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
-import { Flame, Info, Lock, Star, Trophy, Zap } from "lucide-react";
+import { CheckCircle2, Flame, Info, Lock, Trophy, Zap } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { MilestoneLevel } from "@/components/milestone-runner";
 import { cn, formatNumber } from "@/lib/utils";
 
-/**
- * Milestones. Deliberately close together at the bottom — the first one has to
- * be reachable in a single afternoon or it isn't a goal, it's a wall.
- */
-export const TIERS = [
-  { at: 0, name: "Rookie", fill: "bg-surface" },
-  { at: 100, name: "Warmed up", fill: "bg-brand-tint" },
-  { at: 300, name: "Regular", fill: "bg-brand-tint border-brand/50" },
-  { at: 750, name: "Campus star", fill: "bg-gray-50 text-ink-faint" },
-  { at: 1500, name: "Legend", fill: "bg-gray-50 text-ink-faint" },
-  { at: 3000, name: "Hall of fame", fill: "bg-gray-50 text-ink-faint" },
+const STAGES = [
+  { at: 0, name: "Started" },
+  { at: 50, name: "Halfway" },
+  { at: 80, name: "Stipend line" },
+  { at: 100, name: "Perfect month" },
 ];
 
-export function tierFor(points: number) {
-  let current = TIERS[0];
-  let next: (typeof TIERS)[number] | null = null;
+function stageFor(pct: number) {
+  let current = STAGES[0];
 
-  for (const tier of TIERS) {
-    if (points >= tier.at) current = tier;
-    else {
-      next = tier;
-      break;
-    }
+  for (const stage of STAGES) {
+    if (pct >= stage.at) current = stage;
   }
-  return { current, next };
+
+  return current;
 }
 
 /**
@@ -50,8 +40,6 @@ function InfoBadge({ label, text }: { label: string; text: string }) {
           <button
             type="button"
             aria-label={`What is ${label}?`}
-            // Hover and focus-visible carry the whole open state here, so
-            // there is no data-[state] variant to keep in sync with them.
             className="tap grid size-6 shrink-0 place-items-center rounded-full border border-gray-200 bg-white text-gray-400 transition-colors outline-none hover:border-brand/35 hover:bg-brand-tint hover:text-brand-strong focus-visible:border-brand/35 focus-visible:bg-brand-tint focus-visible:text-brand-strong"
           >
             <Info className="size-3.5" />
@@ -86,12 +74,20 @@ export function PointsHero({
   rank,
   total,
   streak,
+  completionPct,
+  approvedTasks,
+  totalTasks,
+  stipendThresholdPct,
   celebrate = false,
 }: {
   points: number;
   rank: number | null;
   total: number;
   streak: number;
+  completionPct: number;
+  approvedTasks: number;
+  totalTasks: number;
+  stipendThresholdPct: number;
   celebrate?: boolean;
 }) {
   const fireConfetti = useCelebration();
@@ -105,19 +101,12 @@ export function PointsHero({
     }
   }, [celebrate, fireConfetti]);
 
-  // A position only means something once there are points behind it.
   const ranked = rank !== null && points > 0;
-
-  const { current, next } = tierFor(points);
-  const span = next ? next.at - current.at : 0;
-  const into = next ? points - current.at : 0;
-  const pct = next ? Math.min(100, Math.round((into / span) * 100)) : 100;
+  const eligible = totalTasks > 0 && completionPct >= stipendThresholdPct;
 
   return (
     <div className="space-y-4">
-      {/* Top 4 Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Points */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
@@ -133,40 +122,44 @@ export function PointsHero({
                 value={points}
                 className="text-3xl font-black text-black tracking-tight"
               />
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">Active Balance</p>
+              <p className="mt-0.5 text-xs font-semibold text-gray-500">
+                Active balance
+              </p>
             </div>
             <InfoBadge
               label="Total Points"
-              text="The total points you've earned by completing campaigns, surveys, and other program activities. Earn more points to unlock higher tiers and improve your leaderboard rank."
+              text="The total points you've earned by completing campaigns, surveys, and other program activities."
             />
           </div>
         </div>
 
-        {/* Card 2: Current Tier */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Current Tier
+              Task Completion
             </span>
             <div className="size-8 rounded-lg bg-brand-strong flex items-center justify-center text-white">
-              <Star className="size-4 fill-current text-amber-300" />
+              <CheckCircle2 className="size-4" />
             </div>
           </div>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-2xl font-black text-black tracking-tight">
-                {current.name}
+              <h3 className="text-3xl font-black text-black tracking-tight">
+                {formatNumber(completionPct)}%
               </h3>
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">Unlocked Member</p>
+              <p className="mt-0.5 text-xs font-semibold text-gray-500">
+                {totalTasks > 0
+                  ? `${approvedTasks}/${totalTasks} tasks approved`
+                  : "No tasks assigned yet"}
+              </p>
             </div>
             <InfoBadge
-              label="Current Tier"
-              text="Your current ambassador level based on the points you've earned. Reach the required points to unlock the next tier and its rewards."
+              label="Task Completion"
+              text="This month's stipend progress is approved tasks divided by total tasks assigned this month. Cross 80% to unlock the stipend."
             />
           </div>
         </div>
 
-        {/* Card 3: Leaderboard Rank */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
@@ -178,27 +171,20 @@ export function PointsHero({
           </div>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
-              {/* Nobody on zero points has placed in anything, so the board
-                  position they technically hold is noise — a dash says "not
-                  started" where "#13" would read like a result. The `#` goes
-                  with it; the old fallback rendered "#-". */}
               <h3 className="text-3xl font-black text-black tracking-tight">
                 {ranked ? `#${rank}` : "-"}
               </h3>
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                {ranked
-                  ? `Out of ${total} Ambassadors`
-                  : "Earn points to get ranked"}
+              <p className="mt-0.5 text-xs font-semibold text-gray-500">
+                {ranked ? `Out of ${total} ambassadors` : "Earn points to get ranked"}
               </p>
             </div>
             <InfoBadge
               label="Leaderboard Rank"
-              text="Your position among all ambassadors based on total points. Complete more activities to climb the rankings."
+              text="Your position among all ambassadors based on total points."
             />
           </div>
         </div>
 
-        {/* Card 4: Daily Streak */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
@@ -213,45 +199,47 @@ export function PointsHero({
               <h3 className="text-3xl font-black text-black tracking-tight">
                 {streak} {streak === 1 ? "day" : "days"}
               </h3>
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">Active Streak</p>
+              <p className="mt-0.5 text-xs font-semibold text-gray-500">
+                Active streak
+              </p>
             </div>
             <InfoBadge
               label="Daily Streak"
-              text="Tracks how many days in a row you've logged in. Missing a day will reset your streak."
+              text="Tracks how many days in a row you've logged in. Missing a day resets the streak."
             />
           </div>
         </div>
       </div>
 
-      {/* The one card on this page that is a place rather than a readout.
-          Everything else is a number in a box; this is a level with somebody
-          running across it, so it gets a sky, and the numbers on top of it
-          get the hard drop shadow a game HUD uses to stay readable over
-          scenery. */}
-      {next && (
-        <MilestoneLevel
-          name={next.name}
-          at={next.at}
-          remaining={next.at - points}
-          pct={pct}
-        />
-      )}
+      <MilestoneLevel
+        pct={completionPct}
+        targetPct={stipendThresholdPct}
+        approvedTasks={approvedTasks}
+        totalTasks={totalTasks}
+        eligible={eligible}
+      />
     </div>
   );
 }
 
-/** Tier chips, shown under the hero as something to aim at. */
-export function TierTrack({ points }: { points: number }) {
-  const { current } = tierFor(points);
+export function TierTrack({
+  completionPct,
+  thresholdPct,
+}: {
+  completionPct: number;
+  thresholdPct: number;
+}) {
+  const current = stageFor(completionPct);
 
   return (
     <ul className="flex gap-2 overflow-x-auto pb-4 pt-1 no-scrollbar">
-      {TIERS.map((tier) => {
-        const reached = points >= tier.at;
-        const isCurrent = tier === current;
+      {STAGES.map((stage) => {
+        const reached = completionPct >= stage.at;
+        const isCurrent = stage === current;
+        const stipendStage = stage.at === thresholdPct;
 
         return (
-          <li key={tier.name} className="shrink-0">
+          <li key={stage.name} className="shrink-0">
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold whitespace-nowrap transition-colors",
@@ -259,14 +247,28 @@ export function TierTrack({ points }: { points: number }) {
                   ? "border-red-200 bg-yellow-50 text-ink"
                   : reached
                     ? "border-gray-200 bg-white text-ink"
-                    : "border-gray-100 bg-gray-50 text-gray-500"
+                    : "border-gray-100 bg-gray-50 text-gray-500",
               )}
             >
-              {reached ? <Star className="size-3.5" fill={isCurrent ? "currentColor" : "none"} /> : <Lock className="size-3.5 text-gray-400" />}
-              {tier.name}
-              <span className={cn("tabular ml-1", isCurrent ? "text-ink" : reached ? "text-gray-500" : "text-gray-400")}>
-                {formatNumber(tier.at)}
+              {reached ? (
+                <CheckCircle2 className="size-3.5" />
+              ) : (
+                <Lock className="size-3.5 text-gray-400" />
+              )}
+              {stage.name}
+              <span
+                className={cn(
+                  "tabular ml-1",
+                  isCurrent ? "text-ink" : reached ? "text-gray-500" : "text-gray-400",
+                )}
+              >
+                {formatNumber(stage.at)}%
               </span>
+              {stipendStage && (
+                <span className="rounded-full bg-brand-tint px-2 py-0.5 text-[11px] text-brand-strong">
+                  stipend
+                </span>
+              )}
             </span>
           </li>
         );

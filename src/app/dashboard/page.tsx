@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getDashboard } from "@/lib/queries";
 import { markActiveToday } from "@/lib/activity";
+import { getStipendProgress } from "@/lib/rewards";
 import { cn, formatDate, formatDelta } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
@@ -30,7 +31,7 @@ const LEDGER_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const data = await getDashboard();
+  const [data, stipend] = await Promise.all([getDashboard(), getStipendProgress()]);
   if (!data) redirect("/login");
 
   const { profile, standing, campaigns, surveys, referrals, recentLedger, streak } =
@@ -68,6 +69,9 @@ export default async function DashboardPage() {
   const justApproved = data.notifications.some(
     (n) => n.type === "submission_approved" && !n.read_at,
   );
+  const completion = stipend.current?.completionPct ?? 0;
+  const approvedTasks = stipend.current?.approvedTasks ?? 0;
+  const totalTasks = stipend.current?.totalTasks ?? 0;
 
   return (
     <div className="stagger space-y-7">
@@ -110,10 +114,17 @@ export default async function DashboardPage() {
             rank={standing.position > 0 ? standing.position : null}
             total={standing.total}
             streak={streak}
+            completionPct={completion}
+            approvedTasks={approvedTasks}
+            totalTasks={totalTasks}
+            stipendThresholdPct={stipend.thresholds.completionPct}
             celebrate={justApproved}
           />
 
-          <TierTrack points={standing.points} />
+          <TierTrack
+            completionPct={completion}
+            thresholdPct={stipend.thresholds.completionPct}
+          />
         </div>
       </section>
 
