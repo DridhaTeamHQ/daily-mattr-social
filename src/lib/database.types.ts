@@ -1243,6 +1243,19 @@ export type Database = {
         Args: { window_key?: string; phase_filter?: Enums<"program_phase"> | null };
         Returns: { points: number; position: number; total: number }[];
       };
+      completion_leaderboard: {
+        Args: { limit_count?: number };
+        Returns: {
+          position: number;
+          ambassador_id: string;
+          full_name: string;
+          college: string | null;
+          total_tasks: number;
+          approved_tasks: number;
+          completion_pct: number;
+          is_me: boolean;
+        }[];
+      };
       batch_standings: {
         Args: { window_key?: string };
         Returns: {

@@ -17,13 +17,11 @@ const MAX_BYTES = 10 * 1024 * 1024;
 export function UploadTask({
   taskId,
   taskLabel,
-  points,
   expectedHandle,
   disabled = false,
 }: {
   taskId: string;
   taskLabel: string;
-  points: number;
   expectedHandle: string;
   disabled?: boolean;
 }) {
@@ -140,8 +138,8 @@ export function UploadTask({
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed font-semibold text-ink-soft">
             Upload a screenshot showing this done on{" "}
-            <span className="text-ink">@{expectedHandle}</span>. Worth {points}{" "}
-            points.
+            <span className="text-ink">@{expectedHandle}</span>. Once approved,
+            this task increases your completion percentage.
           </Dialog.Description>
 
           <form onSubmit={submit} className="mt-4 space-y-4">

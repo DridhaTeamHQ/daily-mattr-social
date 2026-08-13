@@ -48,6 +48,12 @@ const ICONS: Record<
   account: { icon: Bell, tint: "bg-canvas-sunk text-ink-soft" },
 };
 
+function notificationCopy(value: string) {
+  return value
+    .replace(/\+?\d+\s+points?\b/gi, "task completion")
+    .replace(/\bpoints?\b/gi, "completion");
+}
+
 /** "3m", "2h", "5d" — compact enough for a crowded row. */
 function ago(iso: string): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -289,7 +295,7 @@ export function NotificationBell({
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline gap-2">
                           <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">
-                            {item.title}
+                            {notificationCopy(item.title)}
                           </span>
                           <span className="shrink-0 text-[11.5px] text-ink-faint">
                             {ago(item.created_at)}
@@ -297,7 +303,7 @@ export function NotificationBell({
                         </span>
                         {item.body && (
                           <span className="mt-0.5 block text-[12.5px] leading-relaxed text-ink-soft">
-                            {item.body}
+                            {notificationCopy(item.body)}
                           </span>
                         )}
                       </span>

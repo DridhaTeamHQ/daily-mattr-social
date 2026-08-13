@@ -75,7 +75,7 @@ const ITEMS = [
 const ACCOUNT_LINKS = [
   {
     href: "/dashboard/rewards",
-    label: "Your rewards",
+    label: "Stipend progress",
     icon: Coins,
     tint: "bg-rank-tint text-ink",
   },

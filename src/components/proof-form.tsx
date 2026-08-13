@@ -7,23 +7,13 @@ import { Button } from "@/components/ui/button";
 import { submitProof } from "@/lib/submissions/proof-actions";
 import { cn } from "@/lib/utils";
 
-/**
- * Submitting a link or a written answer.
- *
- * The screenshot flow has its own dialog with a preview and client-side
- * checks; this is the other two proof types, which need neither. Kept
- * deliberately plain — the whole interaction is paste-a-URL or type-a-answer,
- * and wrapping that in a modal would add a step to a one-field form.
- */
 export function ProofForm({
   taskId,
   proofType,
-  points,
   disabled = false,
 }: {
   taskId: string;
   proofType: "link" | "text" | "none";
-  points: number;
   disabled?: boolean;
 }) {
   const [value, setValue] = React.useState("");
@@ -68,8 +58,8 @@ export function ProofForm({
             type="url"
             inputMode="url"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="https://linkedin.com/posts/…"
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="https://linkedin.com/posts/..."
             disabled={disabled || pending}
             className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-[13.5px] font-medium text-ink focus:border-brand focus:outline-none disabled:opacity-60"
           />
@@ -83,8 +73,8 @@ export function ProofForm({
             name="proof_text"
             rows={3}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Type your answer…"
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="Type your answer..."
             disabled={disabled || pending}
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13.5px] font-medium text-ink focus:border-brand focus:outline-none disabled:opacity-60"
           />
@@ -93,18 +83,11 @@ export function ProofForm({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={!ready || disabled} loading={pending}>
-          {pending ? (
-            <Loader2 className="animate-spin" aria-hidden />
-          ) : (
-            <Check aria-hidden />
-          )}
-          {proofType === "none" ? `Mark done · +${points}` : `Send · +${points}`}
+          {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
+          {proofType === "none" ? "Mark done" : "Send"}
         </Button>
-
-        {/* Said up front, because "sent for review" arriving after the fact
-            reads as a rejection to somebody expecting instant points. */}
         <span className="text-[12px] font-semibold text-ink-soft">
-          Checked by a person before points land.
+          Checked by a person before it counts toward completion.
         </span>
       </div>
 

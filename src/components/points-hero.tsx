@@ -2,7 +2,7 @@
 
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
-import { CheckCircle2, Flame, Info, Lock, Trophy, Zap } from "lucide-react";
+import { CheckCircle2, Flame, Info, Lock, Trophy } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { MilestoneLevel } from "@/components/milestone-runner";
@@ -69,8 +69,7 @@ function InfoBadge({ label, text }: { label: string; text: string }) {
   );
 }
 
-export function PointsHero({
-  points,
+export function ProgressHero({
   rank,
   total,
   streak,
@@ -80,7 +79,6 @@ export function PointsHero({
   stipendThresholdPct,
   celebrate = false,
 }: {
-  points: number;
   rank: number | null;
   total: number;
   streak: number;
@@ -101,7 +99,7 @@ export function PointsHero({
     }
   }, [celebrate, fireConfetti]);
 
-  const ranked = rank !== null && points > 0;
+  const ranked = rank !== null && totalTasks > 0;
   const eligible = totalTasks > 0 && completionPct >= stipendThresholdPct;
 
   return (
@@ -110,25 +108,24 @@ export function PointsHero({
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Total Points
+              Task Completion
             </span>
             <div className="size-8 rounded-lg bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong">
-              <Zap className="size-4 fill-current" />
+              <CheckCircle2 className="size-4" />
             </div>
           </div>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
-              <CountUp
-                value={points}
-                className="text-3xl font-black text-black tracking-tight"
-              />
+              <h3 className="text-3xl font-black tracking-tight text-black">
+                <CountUp value={completionPct} />%
+              </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                Active balance
+                This month's approved-task rate
               </p>
             </div>
             <InfoBadge
-              label="Total Points"
-              text="The total points you've earned by completing campaigns, surveys, and other program activities."
+              label="Task Completion"
+              text="Your approved tasks divided by the total tasks assigned this month. Reach the stipend line to qualify."
             />
           </div>
         </div>
@@ -136,7 +133,7 @@ export function PointsHero({
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Task Completion
+              Approved Tasks
             </span>
             <div className="size-8 rounded-lg bg-brand-strong flex items-center justify-center text-white">
               <CheckCircle2 className="size-4" />
@@ -145,17 +142,17 @@ export function PointsHero({
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
               <h3 className="text-3xl font-black text-black tracking-tight">
-                {formatNumber(completionPct)}%
+                {formatNumber(approvedTasks)}/{formatNumber(totalTasks)}
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
                 {totalTasks > 0
-                  ? `${approvedTasks}/${totalTasks} tasks approved`
+                  ? "Tasks approved this month"
                   : "No tasks assigned yet"}
               </p>
             </div>
             <InfoBadge
-              label="Task Completion"
-              text="This month's stipend progress is approved tasks divided by total tasks assigned this month. Cross 80% to unlock the stipend."
+              label="Approved Tasks"
+              text="Only approved or auto-approved tasks count toward your monthly completion percentage."
             />
           </div>
         </div>
@@ -163,7 +160,7 @@ export function PointsHero({
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Leaderboard Rank
+              Completion Rank
             </span>
             <div className="size-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700">
               <Trophy className="size-4 text-brand-strong" />
@@ -175,12 +172,12 @@ export function PointsHero({
                 {ranked ? `#${rank}` : "-"}
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                {ranked ? `Out of ${total} ambassadors` : "Earn points to get ranked"}
+                {ranked ? `Out of ${total} ambassadors` : "Complete an active task to join the ranking"}
               </p>
             </div>
             <InfoBadge
-              label="Leaderboard Rank"
-              text="Your position among all ambassadors based on total points."
+              label="Completion Rank"
+              text="Your position among ambassadors, ordered by approved-task completion percentage."
             />
           </div>
         </div>

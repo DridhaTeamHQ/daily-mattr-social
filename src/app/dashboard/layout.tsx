@@ -40,7 +40,7 @@ export default async function DashboardLayout({
           {data.profile.role === "admin" && (
             <Note tone="brand" title="You're signed in as an admin" className="mb-5">
               This is the ambassador view. Admins have no referral code, no
-              survey links and no points, so most of these screens will look
+              survey links or task progress, so most of these screens will look
               empty — that is expected, not a fault. Sign in as an ambassador
               to see what students see.
             </Note>
