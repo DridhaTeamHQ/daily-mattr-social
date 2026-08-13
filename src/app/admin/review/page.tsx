@@ -49,8 +49,7 @@ export default async function ReviewPage({
             Review queue
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            Approving credits the ambassador&apos;s ledger. Rejecting tells them
-            why.
+            Approving counts the task toward ambassador completion. Rejecting tells them why.
           </p>
         </div>
 
@@ -168,7 +167,7 @@ export default async function ReviewPage({
                         <Row label="Campaign" value={item.campaign.title} />
                         <Row
                           label="Task"
-                          value={`${item.task.label} · +${item.task.points} points`}
+                          value={item.task.label}
                         />
                         <Row
                           label="Expected handle"
@@ -192,9 +191,9 @@ export default async function ReviewPage({
                           <>
                             <ActionButton
                               action={approveSubmission.bind(null, item.id, undefined)}
-                              confirmMessage={`Approve and credit ${item.task.points} points to ${item.ambassador.full_name}?`}
+                              confirmMessage={`Approve this task for ${item.ambassador.full_name}?`}
                             >
-                              Approve · +{item.task.points}
+                              Approve task
                             </ActionButton>
 
                             <ReasonDialog

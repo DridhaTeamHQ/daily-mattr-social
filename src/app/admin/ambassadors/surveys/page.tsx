@@ -145,9 +145,6 @@ export default async function AmbassadorSurveysPage({
                   )}
                 </div>
 
-                <span className="tabular w-16 shrink-0 text-right text-[14px] font-extrabold text-ink">
-                  {formatNumber(row.pointsEarned)}
-                </span>
               </li>
             ))}
           </ul>

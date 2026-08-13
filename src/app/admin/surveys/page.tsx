@@ -57,7 +57,7 @@ export default async function AdminSurveysPage() {
                     <Badge tone={STATUS_TONE[s.status]} dot>
                       {s.status}
                     </Badge>
-                    <Badge tone="poll">+{s.points_per_response} per response</Badge>
+                    <Badge tone="poll">Responses tracked</Badge>
                   </div>
 
                   {s.description && (

@@ -64,7 +64,7 @@ export function CampaignEditDialog({
             Edit campaign
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            Wording, network and deadline. Tasks and points are managed on the
+            Wording, network and deadline. Tasks are managed on the
             campaign page below.
           </Dialog.Description>
 

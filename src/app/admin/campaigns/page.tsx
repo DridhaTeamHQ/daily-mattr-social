@@ -134,7 +134,7 @@ export default async function AdminCampaignsPage({
           <EmptyState
             icon={Clapperboard}
             title="No campaigns yet"
-            description="Create one, set the points for each task, then publish it when you're ready."
+            description="Create one, set the tasks, then publish it when you're ready."
           />
         </Card>
       ) : (
@@ -174,7 +174,7 @@ export default async function AdminCampaignsPage({
                     {c.tasks.map((t) => (
                       <li key={t.id}>
                         <Badge tone="neutral">
-                          {t.label} +{t.points}
+                          {t.label}
                           {!t.required && " · optional"}
                         </Badge>
                       </li>

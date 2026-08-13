@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Clapperboard,
   ClipboardList,
-  Coins,
   Gift,
   Inbox,
   Users,
@@ -13,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { getOverview, getRecentActivity } from "@/lib/admin/queries";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Overview" };
 
@@ -23,7 +22,7 @@ const ACTION_LABELS: Record<string, string> = {
   "submission.revoke": "revoked an approval",
   "ambassador.status": "changed an ambassador's status",
   "ambassador.invite": "invited an ambassador",
-  "points.adjust": "adjusted points",
+  "points.adjust": "updated an ambassador record",
   "campaign.status": "changed a campaign's status",
   "campaign.create": "created a campaign",
   "survey.status": "changed a survey's status",
@@ -101,14 +100,10 @@ export default async function AdminOverviewPage() {
           tone="brand"
         />
         <Stat
-          label="Points issued"
-          value={overview.points.issued}
-          sub={
-            overview.points.revoked < 0
-              ? `${formatNumber(Math.abs(overview.points.revoked))} reversed`
-              : "Nothing reversed"
-          }
-          icon={Coins}
+          label="Pending review"
+          value={queue}
+          sub="Submissions awaiting a decision"
+          icon={Inbox}
           tone="rank"
         />
         <Stat

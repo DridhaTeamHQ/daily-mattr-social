@@ -59,7 +59,6 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [points, setPoints] = React.useState("10");
   const [requireEmail, setRequireEmail] = React.useState(true);
   const [requirePhone, setRequirePhone] = React.useState(false);
   const [questions, setQuestions] = React.useState<Draft[]>([newQuestion()]);
@@ -119,7 +118,7 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
       const result = await createSurvey({
         title,
         description,
-        pointsPerResponse: Number(points),
+        pointsPerResponse: 0,
         requireEmail,
         requirePhone,
         // `key` is a local list identity only; the server assigns order_index.
@@ -228,24 +227,6 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Points per response"
-              htmlFor="points"
-              hint="What the ambassador earns per valid response."
-              required
-            >
-              <Input
-                id="points"
-                type="number"
-                min={0}
-                max={1000}
-                step={1}
-                value={points}
-                onChange={(e) => setPoints(e.target.value)}
-                required
-              />
-            </Field>
-
             <fieldset>
               <legend className="mb-1.5 block text-[13px] font-medium text-ink">
                 Respondent details
@@ -272,7 +253,7 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
           {!requireEmail && !requirePhone && (
             <Note tone="warn">
               With neither required, nothing stops one person submitting the
-              same survey repeatedly for someone else&apos;s points.
+              same survey repeatedly and distorting the results.
             </Note>
           )}
         </CardBody>

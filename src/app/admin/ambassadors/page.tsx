@@ -9,7 +9,6 @@ import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import {
   AddAmbassadorDialog,
-  AdjustPointsDialog,
   ResetPasswordDialog,
 } from "@/components/ambassador-actions";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
-import { formatDate, formatNumber, initials } from "@/lib/utils";
+import { formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassadors" };
 
@@ -131,14 +130,13 @@ export default async function AmbassadorsPage({
       ) : (
         <Card className="overflow-hidden">
           {/* Horizontal scroll rather than hiding columns: an admin comparing
-              point totals needs the numbers next to the names. */}
+              ambassador details needs the key fields next to the names. */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[46rem] text-left">
               <thead className="border-b border-line bg-canvas-sunk">
                 <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
                   <th className="px-4 py-2.5 font-medium">Ambassador</th>
                   <th className="px-4 py-2.5 font-medium">Code</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Points</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
                   <th className="px-4 py-2.5 font-medium">Joined</th>
                   <th className="px-4 py-2.5 text-right font-medium">Actions</th>
@@ -152,7 +150,7 @@ export default async function AmbassadorsPage({
                   heading !== null && (
                     <tr key={`h-${heading}`} className="bg-canvas-sunk">
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="px-4 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
                       >
                         {heading}
@@ -194,10 +192,6 @@ export default async function AmbassadorsPage({
                       </code>
                     </td>
 
-                    <td className="tabular px-4 py-3 text-right text-[13.5px] font-semibold text-ink">
-                      {formatNumber(row.points)}
-                    </td>
-
                     <td className="px-4 py-3">
                       <Badge tone={STATUS_TONE[row.status]} dot>
                         {row.status}
@@ -210,11 +204,6 @@ export default async function AmbassadorsPage({
 
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <AdjustPointsDialog
-                          profileId={row.id}
-                          name={row.full_name || row.email}
-                        />
-
                         <ResetPasswordDialog
                           profileId={row.id}
                           name={row.full_name || row.email}

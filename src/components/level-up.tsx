@@ -4,23 +4,10 @@ import * as React from "react";
 import { PartyPopper, Star, X } from "lucide-react";
 
 import { useCelebration } from "@/components/celebrate";
+import { COMPLETION_TIERS, completionTierFor } from "@/components/points-hero";
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "dm:last-completion-stage";
-const STAGES = [
-  { at: 0, name: "Started" },
-  { at: 50, name: "Halfway" },
-  { at: 80, name: "Stipend line" },
-  { at: 100, name: "Perfect month" },
-];
-
-function stageFor(pct: number) {
-  let current = STAGES[0];
-  for (const stage of STAGES) {
-    if (pct >= stage.at) current = stage;
-  }
-  return current;
-}
 
 /** `null` means "no baseline yet" — first visit, or storage unavailable. */
 function readStoredTier(): number | null {
@@ -76,8 +63,8 @@ export function CompletionMilestoneWatcher({ completionPct }: { completionPct: n
     () => null,
   );
 
-  const current = stageFor(completionPct);
-  const index = STAGES.findIndex((stage) => stage.name === current.name);
+  const { current } = completionTierFor(completionPct);
+  const index = COMPLETION_TIERS.findIndex((tier) => tier.name === current.name);
 
   // No baseline means first visit — record where they are rather than
   // congratulating them for simply existing.

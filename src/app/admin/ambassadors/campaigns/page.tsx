@@ -55,7 +55,7 @@ export default async function AmbassadorCampaignsPage({
         <AmbassadorNav />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
           label="Taking part"
           value={`${active}/${rows.length}`}
@@ -76,13 +76,6 @@ export default async function AmbassadorCampaignsPage({
           sub="All campaigns"
           icon={Clapperboard}
           tone="poll"
-        />
-        <Stat
-          label="Points paid"
-          value={formatNumber(rows.reduce((s, r) => s + r.pointsEarned, 0))}
-          sub="From campaign tasks"
-          icon={Clapperboard}
-          tone="rank"
         />
       </div>
 
@@ -140,9 +133,6 @@ export default async function AmbassadorCampaignsPage({
                   )}
                 </div>
 
-                <span className="tabular w-16 shrink-0 text-right text-[14px] font-extrabold text-ink">
-                  {formatNumber(row.pointsEarned)}
-                </span>
               </li>
             ))}
           </ul>

@@ -2,27 +2,34 @@
 
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
-import { CheckCircle2, Flame, Info, Lock, Trophy } from "lucide-react";
+import { CheckCircle2, Flame, Info, Lock, Star, Trophy } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { MilestoneLevel } from "@/components/milestone-runner";
 import { cn, formatNumber } from "@/lib/utils";
 
-const STAGES = [
-  { at: 0, name: "Started" },
-  { at: 50, name: "Halfway" },
-  { at: 80, name: "Stipend line" },
-  { at: 100, name: "Perfect month" },
+export const COMPLETION_TIERS = [
+  { at: 0, name: "Rookie" },
+  { at: 20, name: "Warmed up" },
+  { at: 40, name: "Regular" },
+  { at: 60, name: "Campus star" },
+  { at: 75, name: "Legend" },
+  { at: 100, name: "Hall of fame" },
 ];
 
-function stageFor(pct: number) {
-  let current = STAGES[0];
+export function completionTierFor(pct: number) {
+  let current = COMPLETION_TIERS[0];
+  let next: (typeof COMPLETION_TIERS)[number] | null = null;
 
-  for (const stage of STAGES) {
-    if (pct >= stage.at) current = stage;
+  for (const tier of COMPLETION_TIERS) {
+    if (pct >= tier.at) current = tier;
+    else {
+      next = tier;
+      break;
+    }
   }
 
-  return current;
+  return { current, next };
 }
 
 /**
@@ -76,7 +83,6 @@ export function ProgressHero({
   completionPct,
   approvedTasks,
   totalTasks,
-  stipendThresholdPct,
   celebrate = false,
 }: {
   rank: number | null;
@@ -85,7 +91,6 @@ export function ProgressHero({
   completionPct: number;
   approvedTasks: number;
   totalTasks: number;
-  stipendThresholdPct: number;
   celebrate?: boolean;
 }) {
   const fireConfetti = useCelebration();
@@ -100,7 +105,7 @@ export function ProgressHero({
   }, [celebrate, fireConfetti]);
 
   const ranked = rank !== null && totalTasks > 0;
-  const eligible = totalTasks > 0 && completionPct >= stipendThresholdPct;
+  const { current, next } = completionTierFor(completionPct);
 
   return (
     <div className="space-y-4">
@@ -125,7 +130,7 @@ export function ProgressHero({
             </div>
             <InfoBadge
               label="Task Completion"
-              text="Your approved tasks divided by the total tasks assigned this month. Reach the stipend line to qualify."
+              text="Your approved tasks divided by the total tasks assigned this month."
             />
           </div>
         </div>
@@ -133,26 +138,24 @@ export function ProgressHero({
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Approved Tasks
+              Current Tier
             </span>
             <div className="size-8 rounded-lg bg-brand-strong flex items-center justify-center text-white">
-              <CheckCircle2 className="size-4" />
+              <Star className="size-4 fill-current text-amber-300" />
             </div>
           </div>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
               <h3 className="text-3xl font-black text-black tracking-tight">
-                {formatNumber(approvedTasks)}/{formatNumber(totalTasks)}
+                {current.name}
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                {totalTasks > 0
-                  ? "Tasks approved this month"
-                  : "No tasks assigned yet"}
+                {totalTasks > 0 ? "Based on task completion" : "No tasks assigned yet"}
               </p>
             </div>
             <InfoBadge
-              label="Approved Tasks"
-              text="Only approved or auto-approved tasks count toward your monthly completion percentage."
+              label="Current Tier"
+              text="Your tier grows as your approved-task completion percentage increases."
             />
           </div>
         </div>
@@ -208,35 +211,35 @@ export function ProgressHero({
         </div>
       </div>
 
-      <MilestoneLevel
-        pct={completionPct}
-        targetPct={stipendThresholdPct}
-        approvedTasks={approvedTasks}
-        totalTasks={totalTasks}
-        eligible={eligible}
-      />
+      {next && (
+        <MilestoneLevel
+          name={next.name}
+          at={next.at}
+          remaining={next.at - completionPct}
+          pct={completionPct}
+          approvedTasks={approvedTasks}
+          totalTasks={totalTasks}
+        />
+      )}
     </div>
   );
 }
 
 export function TierTrack({
   completionPct,
-  thresholdPct,
 }: {
   completionPct: number;
-  thresholdPct: number;
 }) {
-  const current = stageFor(completionPct);
+  const { current } = completionTierFor(completionPct);
 
   return (
     <ul className="flex gap-2 overflow-x-auto pb-4 pt-1 no-scrollbar">
-      {STAGES.map((stage) => {
-        const reached = completionPct >= stage.at;
-        const isCurrent = stage === current;
-        const stipendStage = stage.at === thresholdPct;
+      {COMPLETION_TIERS.map((tier) => {
+        const reached = completionPct >= tier.at;
+        const isCurrent = tier === current;
 
         return (
-          <li key={stage.name} className="shrink-0">
+          <li key={tier.name} className="shrink-0">
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold whitespace-nowrap transition-colors",
@@ -248,24 +251,19 @@ export function TierTrack({
               )}
             >
               {reached ? (
-                <CheckCircle2 className="size-3.5" />
+                <Star className="size-3.5" fill={isCurrent ? "currentColor" : "none"} />
               ) : (
                 <Lock className="size-3.5 text-gray-400" />
               )}
-              {stage.name}
+              {tier.name}
               <span
                 className={cn(
                   "tabular ml-1",
                   isCurrent ? "text-ink" : reached ? "text-gray-500" : "text-gray-400",
                 )}
               >
-                {formatNumber(stage.at)}%
+                {formatNumber(tier.at)}%
               </span>
-              {stipendStage && (
-                <span className="rounded-full bg-brand-tint px-2 py-0.5 text-[11px] text-brand-strong">
-                  stipend
-                </span>
-              )}
             </span>
           </li>
         );

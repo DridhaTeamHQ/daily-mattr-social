@@ -218,11 +218,10 @@ export function CreateCampaignDialog({
 
             <fieldset>
               <legend className="mb-1.5 block text-[13px] font-medium text-ink">
-                Tasks and points
+                Campaign tasks
               </legend>
               <p className="mb-2.5 text-[12.5px] text-ink-soft">
-                Rename anything, change its network, or drop it. Zero points
-                leaves a task out.
+                Rename anything, change its network, mark it required, or drop it.
               </p>
 
               <TaskDraftBuilder

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { BadgeIndianRupee, CheckCircle2, ClipboardCheck, Wallet } from "lucide-react";
+import { BadgeIndianRupee, CheckCircle2, ClipboardCheck } from "lucide-react";
 
 import { ProgrammeTerms } from "@/components/programme-terms";
 import { PageHeader } from "@/components/page-header";
@@ -28,7 +28,7 @@ export default async function RewardsPage() {
         className="border-gray-200 bg-gray-50"
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
           label="Completion"
           value={`${formatNumber(month?.completionPct ?? 0)}%`}
@@ -44,16 +44,9 @@ export default async function RewardsPage() {
           tone="poll"
         />
         <Stat
-          label="Stipend line"
-          value={`${formatNumber(stipend.thresholds.completionPct)}%`}
-          sub="Minimum monthly completion"
-          icon={Wallet}
-          tone="brand"
-        />
-        <Stat
           label="Stipend"
           value={met ? `Rs ${formatNumber(stipend.thresholds.amountInr)}` : "-"}
-          sub={met ? "Eligible this month" : "Complete more approved tasks"}
+          sub={met ? "Monthly status updated" : "In progress"}
           icon={BadgeIndianRupee}
           tone="invite"
         />

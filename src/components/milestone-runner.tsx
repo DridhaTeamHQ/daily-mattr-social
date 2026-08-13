@@ -22,17 +22,13 @@ const COIN_STOPS = [30, 50, 70, 86];
 
 export function MilestoneProgress({
   pct,
-  targetPct,
   className,
 }: {
   /** 0–100. How far along the track they are. */
   pct: number;
-  /** Optional threshold marker shown on the bar. */
-  targetPct?: number;
   className?: string;
 }) {
   const clamped = Math.max(0, Math.min(100, pct));
-  const target = targetPct == null ? null : Math.max(0, Math.min(100, targetPct));
 
   // The runner is centred on their own position, so at the extremes half of
   // them would hang off the track. Keeping the marker between 4% and 93%
@@ -60,18 +56,6 @@ export function MilestoneProgress({
           <span className="pixel-fill block h-full w-full" />
         </div>
 
-        {target !== null && target > 0 && target < 100 && (
-          <div
-            className="pointer-events-none absolute inset-y-0 z-10"
-            style={{ left: `${target}%` }}
-            aria-hidden
-          >
-            <span className="absolute bottom-6 -translate-x-1/2 rounded-full border-2 border-ink bg-white px-2 py-0.5 text-[10px] font-black text-ink sm:bottom-7">
-              {formatNumber(target)}%
-            </span>
-            <span className="absolute inset-y-0 border-l-2 border-dashed border-white/95 shadow-[0_0_0_1px_rgba(10,10,10,0.14)]" />
-          </div>
-        )}
       </div>
 
       {/* ─── Runner ────────────────────────────────────────────────────────── */}
@@ -149,22 +133,21 @@ function Flag() {
  * and unreadable without it.
  */
 export function MilestoneLevel({
+  name,
+  at,
+  remaining,
   pct,
-  targetPct,
   approvedTasks,
   totalTasks,
-  eligible,
 }: {
+  name: string;
+  at: number;
+  remaining: number;
   pct: number;
-  targetPct: number;
   approvedTasks: number;
   totalTasks: number;
-  eligible: boolean;
 }) {
   const hasTasks = totalTasks > 0;
-  const approvalsNeeded = hasTasks
-    ? Math.max(0, Math.ceil((targetPct / 100) * totalTasks) - approvedTasks)
-    : 0;
 
   return (
     <div className="mario-level relative overflow-hidden border-[3px] border-ink p-5 sm:p-6">
@@ -188,7 +171,7 @@ export function MilestoneLevel({
           <span>
             {hasTasks ? (
               <>
-                Stipend line: <strong className="font-black">{formatNumber(targetPct)}%</strong>{" "}
+                Task completion: <strong className="font-black">{formatNumber(pct)}%</strong>{" "}
                 <span className="opacity-80">
                   ({formatNumber(approvedTasks)}/{formatNumber(totalTasks)} approved)
                 </span>
@@ -202,14 +185,12 @@ export function MilestoneLevel({
         </span>
         <span className="font-black">
           {hasTasks
-            ? eligible
-              ? "Eligible for stipend"
-              : `${formatNumber(approvalsNeeded)} approval${approvalsNeeded === 1 ? "" : "s"} left (${formatNumber(pct)}%)`
+            ? `${formatNumber(Math.max(0, remaining))}% to ${name} (${formatNumber(at)}%)`
             : "No tasks assigned yet"}
         </span>
       </div>
 
-      <MilestoneProgress pct={pct} targetPct={targetPct} className="relative" />
+      <MilestoneProgress pct={pct} className="relative" />
     </div>
   );
 }

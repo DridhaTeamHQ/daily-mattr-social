@@ -181,7 +181,6 @@ function TaskCard({ task }: { task: Tables<"task_library"> }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[15px] font-extrabold text-ink">{task.label}</h3>
             {task.platform && <Badge tone="neutral">{task.platform}</Badge>}
-            <Badge tone="brand">+{task.default_points}</Badge>
           </div>
 
           {task.instructions && (

@@ -7,13 +7,12 @@ import { ProgressHero, TierTrack } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
 import { getDashboard } from "@/lib/queries";
-import { getStipendProgress } from "@/lib/rewards";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
 
 export default async function DashboardPage() {
-  const [data, stipend] = await Promise.all([getDashboard(), getStipendProgress()]);
+  const data = await getDashboard();
   if (!data) redirect("/login");
 
   const { profile, standing, campaigns, surveys, referrals, streak } = data;
@@ -57,10 +56,9 @@ export default async function DashboardPage() {
             completionPct={completionPct}
             approvedTasks={approvedTasks}
             totalTasks={totalTasks}
-            stipendThresholdPct={stipend.thresholds.completionPct}
             celebrate={justApproved}
           />
-          <TierTrack completionPct={completionPct} thresholdPct={stipend.thresholds.completionPct} />
+          <TierTrack completionPct={completionPct} />
         </div>
       </section>
 

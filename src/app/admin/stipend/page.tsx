@@ -7,7 +7,6 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { PayoutQueue } from "@/components/payout-queue";
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
@@ -58,8 +57,7 @@ export default async function StipendPage({
             Stipend &amp; payouts
           </h1>
           <p className="mt-2 text-[13px] font-semibold text-ink-soft">
-            {formatNumber(thresholds.completionPct)}%+ approved tasks earns ₹
-            {formatNumber(thresholds.amountInr)} for the month.
+            Track approved tasks and monthly stipend status.
           </p>
         </div>
 
@@ -101,7 +99,7 @@ export default async function StipendPage({
         <Stat
           label={isCurrent ? "At risk" : "Fell short"}
           value={isCurrent ? totals.atRisk : totals.notMet + totals.atRisk}
-          sub={isCurrent ? "Started but not there yet" : "Missed the threshold"}
+          sub={isCurrent ? "Completion in progress" : "Did not qualify"}
           icon={CircleAlert}
           tone="invite"
         />
@@ -237,8 +235,8 @@ export default async function StipendPage({
                       {row.totalTasks > 0 ? (
                         <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
                           {row.met
-                            ? "Completion line crossed."
-                            : `${formatNumber(approvalsNeeded)} more approval${approvalsNeeded === 1 ? "" : "s"} to cross ${formatNumber(thresholds.completionPct)}%.`}
+                            ? "Completion recorded."
+                            : `${formatNumber(approvalsNeeded)} more approval${approvalsNeeded === 1 ? "" : "s"} needed.`}
                         </p>
                       ) : (
                         <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
@@ -266,7 +264,6 @@ export default async function StipendPage({
         )}
       </Card>
 
-      <PayoutQueue />
     </div>
   );
 }
