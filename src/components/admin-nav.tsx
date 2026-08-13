@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   ClipboardList,
   Clapperboard,
   LayoutDashboard,
@@ -37,6 +38,7 @@ const ITEMS = [
   { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 export function AdminNav({
