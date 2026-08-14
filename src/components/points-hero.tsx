@@ -13,7 +13,7 @@ export const COMPLETION_TIERS = [
   { at: 20, name: "Warmed up" },
   { at: 40, name: "Regular" },
   { at: 60, name: "Campus star" },
-  { at: 75, name: "Legend" },
+  { at: 80, name: "Legend" },
   { at: 100, name: "Hall of fame" },
 ];
 
