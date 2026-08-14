@@ -74,7 +74,7 @@ export default async function LoginPage({
                 block holding blue is the only mark on the panel that isn't
                 white, so it lands as the emphasis without a second colour. */}
             <span className="mt-3 block w-fit bg-white px-3 py-1 text-brand-press">
-              finally counted.
+              is finally counted.
             </span>
           </h1>
 
