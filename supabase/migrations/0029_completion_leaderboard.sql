@@ -3,8 +3,10 @@
 -- ============================================================================
 
 create or replace function public.completion_leaderboard(limit_count integer default 200)
+-- `position` is quoted throughout: bare, Postgres parses it as the
+-- `position(x in y)` function and the declaration is a syntax error.
 returns table (
-  position         integer,
+  "position"       integer,
   ambassador_id    uuid,
   full_name        text,
   college          text,
@@ -65,12 +67,12 @@ as $$
   ),
   ranked as (
     select
-      rank() over (order by completion_pct desc, approved_tasks desc) as position,
+      rank() over (order by completion_pct desc, approved_tasks desc) as rank_position,
       *
     from progress
   )
   select
-    position::integer,
+    rank_position::integer,
     ambassador_id,
     full_name,
     college,

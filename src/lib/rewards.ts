@@ -61,6 +61,19 @@ function windowStart(days = 10): string {
   );
 }
 
+/**
+ * A count from the database, or zero.
+ *
+ * `Number(undefined)` is NaN, and a NaN reaching `formatNumber` prints the word
+ * on the page — which is what a column the RPC no longer returns looked like
+ * when the function in the database was a version behind the code. A missing
+ * number is zero here, and the error above says why.
+ */
+function count(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function label(period: string): string {
   const [y, m] = period.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, 1).toLocaleDateString("en-IN", {
@@ -116,7 +129,7 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
 
   const supabase = await createClient();
 
-  const [{ data }, thresholds, { count: activeDays }] = await Promise.all([
+  const [{ data, error }, thresholds, { count: activeDays }] = await Promise.all([
     supabase.rpc("my_stipend_progress", { months_back: 6 }),
     getSettings(
       "stipend_min_completion_pct",
@@ -132,14 +145,16 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
       .gte("day", windowStart()),
   ]);
 
+  if (error) console.error("my_stipend_progress failed", error);
+
   const months: StipendMonth[] = (data ?? []).map((row) => ({
     period: row.period,
     label: label(row.period),
-    totalTasks: Number(row.total_tasks),
-    approvedTasks: Number(row.approved_tasks),
-    completionPct: Number(row.completion_pct),
+    totalTasks: count(row.total_tasks),
+    approvedTasks: count(row.approved_tasks),
+    completionPct: count(row.completion_pct),
     met: row.met,
-    totalInr: Number(row.total_inr),
+    totalInr: count(row.total_inr),
     paidStatus: row.paid_status,
   }));
 

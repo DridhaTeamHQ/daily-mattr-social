@@ -220,6 +220,13 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   const profile = profileRes.data;
   if (!profile) return null;
 
+  // Say so when the board could not be read. Without this the fallback below
+  // renders a confident 0% that is indistinguishable from a real 0%, which is
+  // how an unapplied migration once looked like a working page.
+  if (completionBoardRes.error) {
+    console.error("completion_leaderboard failed", completionBoardRes.error);
+  }
+
   const completionBoard = completionBoardRes.data ?? [];
   const mine = completionBoard.find((row) => row.is_me);
   const standing = mine

@@ -6,7 +6,8 @@ import { CompletionMilestoneWatcher } from "@/components/level-up";
 import { ProgressHero, TierTrack } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
-import { getDashboard } from "@/lib/queries";
+import { getDashboard, isDemoMode } from "@/lib/queries";
+import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
@@ -29,7 +30,14 @@ export default async function DashboardPage() {
     (notification) => notification.type === "submission_approved" && !notification.read_at,
   );
 
-  after(() => markActiveToday(profile.id));
+  // Build the client here, not in the callback. `after` runs once the render
+  // lifecycle is over, and a Server Component that reaches for `cookies()`
+  // there throws — the Supabase client reads them, so it is created during the
+  // render and closed over.
+  if (!isDemoMode()) {
+    const supabase = await createClient();
+    after(() => markActiveToday(profile.id, supabase));
+  }
 
   return (
     <div className="stagger space-y-7">
