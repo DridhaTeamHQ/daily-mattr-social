@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { clientIp } from "@/lib/client-ip";
 import { isSupabaseConfigured, publicEnv } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
 import { hardenAuthCookie } from "@/lib/supabase/cookie-options";
@@ -53,34 +54,6 @@ function couldHaveSession(request: NextRequest): boolean {
   return request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
 }
 
-/**
- * The address to hold a caller to.
- *
- * This read the LEFTMOST value of `x-forwarded-for`, which is the part the
- * client writes. Rotating it per request — `X-Forwarded-For: <random>` — gave
- * every request its own bucket and the limiter never fired at all. The header
- * is only trustworthy from the right: each proxy appends the peer it actually
- * saw, so the last entry is the one Vercel observed and the earliest one a
- * client cannot forge.
- *
- * Vercel also sets `x-vercel-forwarded-for` itself, which a client cannot
- * influence, so that wins where it exists.
- */
-function clientIp(request: NextRequest): string {
-  const trusted = request.headers.get("x-vercel-forwarded-for")?.trim();
-  if (trusted) return trusted;
-
-  const chain = request.headers
-    .get("x-forwarded-for")
-    ?.split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (chain?.length) return chain[chain.length - 1];
-
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -88,7 +61,7 @@ export async function proxy(request: NextRequest) {
   const limit = LIMITS.find((l) => pathname.startsWith(l.prefix));
   if (limit) {
     const verdict = rateLimit(
-      `${limit.prefix}:${clientIp(request)}`,
+      `${limit.prefix}:${clientIp(request.headers) ?? "unknown"}`,
       limit.perMinute,
       WINDOW_MS,
     );

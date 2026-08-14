@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { headers } from "next/headers";
 
+import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
@@ -27,9 +28,13 @@ export type SubmitState = { status: "idle" | "error" | "done"; message: string }
 
 /** Respondent IPs are never stored raw — only a salted hash, for duplicate detection. */
 async function hashIp(): Promise<string | null> {
-  const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || headerList.get("x-real-ip");
+  // `clientIp` rather than the leftmost `x-forwarded-for`: that entry is the
+  // one the client writes, and the duplicate window below is the only thing
+  // standing between a public link and unlimited self-issued points on a survey
+  // that asks for neither an email nor a phone number. A rotating header would
+  // have given every submission a fresh identity and the window would never
+  // have fired.
+  const ip = clientIp(await headers());
   if (!ip) return null;
 
   return createHash("sha256")
@@ -234,15 +239,25 @@ export async function submitSurvey(
       .select("id")
       .single();
 
-    if (repeat) {
-      // The respondent is told the same thing either way. Whether their answer
-      // earned the ambassador a point is not their business, and saying so
-      // would teach anyone farming the link exactly where the line is.
-      return {
-        status: "done",
-        message: "Thanks — your answers were recorded.",
-      };
+    // Returned whether or not the row landed. It used to fall through to the
+    // `valid` insert when the flagged one failed, which turned a refused
+    // submission into a paid one — the single case this branch exists to
+    // prevent. Losing the flagged row is a gap in the audit trail; crediting it
+    // is a gap in the money.
+    //
+    // The respondent is told the same thing either way. Whether their answer
+    // earned the ambassador a point is not their business, and saying so would
+    // teach anyone farming the link exactly where the line is.
+    if (!repeat) {
+      console.error("survey duplicate row failed to record", {
+        surveyId: survey.id,
+      });
     }
+
+    return {
+      status: "done",
+      message: "Thanks — your answers were recorded.",
+    };
   }
 
   const { data: inserted, error: insertError } = await db
@@ -284,9 +299,27 @@ export async function submitSurvey(
   await awardStreakBonus(link.ambassador_id, null).catch(() => {});
   await evaluateBadges(link.ambassador_id).catch(() => {});
 
-  await db.from("survey_answers").insert(
+  // Checked, because a response with no answers is worse than no response: it
+  // counts towards the cap, it counts towards the ambassador's total, and it
+  // pays a point for a row the admin's summary cannot read anything out of.
+  const { error: answersError } = await db.from("survey_answers").insert(
     answers.map((a) => ({ ...a, response_id: responseId! })),
   );
+
+  if (answersError) {
+    await db
+      .from("survey_responses")
+      .update({
+        status: "flagged",
+        flag_reason: "Answers failed to save",
+      })
+      .eq("id", responseId);
+
+    return {
+      status: "error",
+      message: "Something went wrong saving your answers. Try again.",
+    };
+  }
 
   // ─── Credit the ambassador ────────────────────────────────────────────────
   if (counted && survey.points_per_response > 0) {
