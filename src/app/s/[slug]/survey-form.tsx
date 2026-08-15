@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { CircleCheck, Star } from "lucide-react";
+import { CircleAlert, CircleCheck, Star } from "lucide-react";
 import * as React from "react";
 
 import { submitSurvey, type SubmitState } from "./actions";
@@ -57,21 +57,29 @@ export function SurveyForm({
   const action = submitSurvey.bind(null, slug);
   const [state, formAction] = useActionState(action, initial);
 
-  if (state.status === "done") {
+  if (state.status === "done" || state.status === "already") {
+    const already = state.status === "already";
+    const Icon = already ? CircleAlert : CircleCheck;
+
     return (
       <Card>
         <CardBody className="py-12 text-center">
           <span
             aria-hidden
-            className="brut animate-pop mx-auto grid size-20 place-items-center rounded-full bg-rank"
+            className={cn(
+              "brut animate-pop mx-auto grid size-20 place-items-center rounded-full",
+              already ? "bg-warn" : "bg-rank",
+            )}
           >
-            <CircleCheck className="size-10 text-ink" />
+            <Icon className="size-10 text-ink" />
           </span>
           <h2 className="display mt-5 text-[26px] leading-tight text-ink">
             {state.message}
           </h2>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-            You can close this page now.
+            {already
+              ? "Only your first response counts, so this one wasn't recorded. You can close this page."
+              : "You can close this page now."}
           </p>
         </CardBody>
       </Card>
