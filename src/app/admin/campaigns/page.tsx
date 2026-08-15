@@ -6,6 +6,7 @@ import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { SearchBox } from "@/components/search-box";
+import { InfiniteList } from "@/components/infinite-scroll";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
@@ -138,7 +139,11 @@ export default async function AdminCampaignsPage({
           />
         </Card>
       ) : (
-        <ul className="grid gap-4 lg:grid-cols-2">
+        <InfiniteList
+          key={`${active ?? "all"}:${query}`}
+          className="grid gap-4 lg:grid-cols-2"
+          pageSize={12}
+        >
           {campaigns.map((c) => (
             <li key={c.id}>
               <Card className="flex h-full flex-col">
@@ -249,7 +254,7 @@ export default async function AdminCampaignsPage({
               </Card>
             </li>
           ))}
-        </ul>
+        </InfiniteList>
       )}
     </div>
   );

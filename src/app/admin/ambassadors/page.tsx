@@ -6,6 +6,7 @@ import { NavSelect } from "@/components/nav-select";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { SearchBox } from "@/components/search-box";
+import { InfiniteTableBody } from "@/components/infinite-scroll";
 import { matches } from "@/lib/search";
 import {
   AddAmbassadorDialog,
@@ -143,7 +144,11 @@ export default async function AmbassadorsPage({
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-line">
+              <InfiniteTableBody
+                key={`${groupBy}:${query}`}
+                colSpan={5}
+                pageSize={25}
+              >
                 {grouped.flatMap(([heading, members]) => [
                   // A header row rather than a table per group: the columns
                   // have to keep lining up down the whole page.
@@ -241,7 +246,7 @@ export default async function AmbassadorsPage({
                   </tr>
                   )),
                 ])}
-              </tbody>
+              </InfiniteTableBody>
             </table>
           </div>
         </Card>
