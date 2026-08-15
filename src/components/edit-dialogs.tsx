@@ -3,6 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as React from "react";
 import { toast } from "sonner";
+import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
@@ -12,7 +13,7 @@ import { SOCIAL_PLATFORMS } from "@/lib/platforms";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
-  "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-lg p-5",
+  "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto no-scrollbar rounded-t-lg p-5",
   "sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md",
   "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6",
 ].join(" ");
@@ -60,9 +61,13 @@ export function CampaignEditDialog({
       <Dialog.Portal>
         <Overlay />
         <Dialog.Content className={PANEL}>
-          <Dialog.Title className="text-[16px] font-bold text-ink">
+          <Dialog.Title className="text-[16px] font-bold text-ink pr-8">
             Edit campaign
           </Dialog.Title>
+          <Dialog.Close className="absolute right-5 top-5 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none sm:right-6 sm:top-6">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Dialog.Close>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
             Wording, network and deadline. Tasks are managed on the
             campaign page below.
@@ -186,9 +191,13 @@ export function SurveyEditDialog({
       <Dialog.Portal>
         <Overlay />
         <Dialog.Content className={PANEL}>
-          <Dialog.Title className="text-[16px] font-bold text-ink">
+          <Dialog.Title className="text-[16px] font-bold text-ink pr-8">
             Edit survey
           </Dialog.Title>
+          <Dialog.Close className="absolute right-5 top-5 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none sm:right-6 sm:top-6">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Dialog.Close>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
             Title, description and the response cap. Questions are fixed once
             anyone has answered — editing a prompt would leave stored answers
