@@ -4,6 +4,7 @@ import {
   Flag,
   Link as LinkIcon,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
@@ -136,6 +137,14 @@ export function SurveyLinkCard({
             copiedLabel="Link copied"
             toastMessage="Survey link copied"
           />
+
+          {/* Directly beside Copy link rather than pushed to the far edge —
+              it reads as a caption on the two buttons, which is what it is.
+              Wraps under them on a phone rather than squeezing them. */}
+          <p className="flex items-center gap-2 text-[13px] font-medium text-ink-soft">
+            <Sparkles className="size-4 shrink-0 text-brand-strong" />
+            Share it around, collect responses, and get the task done!
+          </p>
         </div>
       </div>
     </SurveyCard>

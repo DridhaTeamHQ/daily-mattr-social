@@ -163,7 +163,7 @@ export function ProgressHero({
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
-              Completion Rank
+              Your Rank
             </span>
             <div className="size-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700">
               <Trophy className="size-4 text-brand-strong" />

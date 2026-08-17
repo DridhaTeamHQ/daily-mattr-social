@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Gift, Download, Calendar, Lock } from "lucide-react";
+import { Gift, Lock } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { getDashboard } from "@/lib/queries";
-import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Referrals" };
 
@@ -88,26 +87,23 @@ export default async function ReferralsPage() {
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4">
+        {/* Locked like the link above it: same grey padlock in place of the
+            icon, same muted treatment. The count itself still shows — locked
+            means "not open to you yet", not "hidden", and a tile that went
+            blank would read as something that failed to load. */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs flex items-center gap-5 relative">
-          {referrals.last_conversion && (
-            <div className="absolute top-4 right-4 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-400">
-              <Calendar className="size-4" />
-            </div>
-          )}
-          <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
-            <Download className="size-6" />
+          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
+            <Lock className="size-5" aria-label="Locked" />
           </div>
           <div>
             <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
               Confirmed Downloads
             </p>
-            <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
+            <h3 className="text-3xl font-black text-gray-400 tracking-tight mt-0.5">
               {referrals.total_confirmed}
             </h3>
             <p className="text-xs font-semibold text-gray-500 mt-0.5">
-              {referrals.last_conversion
-                ? `Last on ${formatDate(referrals.last_conversion)}`
-                : "No downloads yet"}
+              Download tracking is not open yet.
             </p>
           </div>
         </div>
