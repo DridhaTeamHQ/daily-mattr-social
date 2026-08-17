@@ -266,6 +266,38 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   };
 });
 
+export type MyAchievement = {
+  id: string;
+  title: string;
+  note: string | null;
+  awarded_at: string;
+};
+
+/**
+ * The recognition an admin has written onto this student's record.
+ *
+ * RLS restricts the table to `ambassador_id = auth.uid()`, so this reads
+ * their own and could not read anybody else's even if asked to.
+ */
+export const getMyAchievements = cache(async (): Promise<MyAchievement[]> => {
+  if (isDemoMode()) {
+    const { demoAchievements } = await import("@/lib/demo-data");
+    return demoAchievements;
+  }
+
+  const supabase = await createClient();
+  const user = await currentUser();
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from("achievements")
+    .select("id, title, note, awarded_at")
+    .eq("ambassador_id", user.id)
+    .order("awarded_at", { ascending: false });
+
+  return data ?? [];
+});
+
 /**
  * When each live survey was published, keyed by survey id.
  *

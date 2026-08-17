@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clapperboard, ClipboardList, Flame, Gift } from "lucide-react";
+import { ArrowLeft, Clapperboard, ClipboardList, Flame, Gift, Trophy } from "lucide-react";
 
+import { AchievementForm } from "@/components/achievement-form";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
@@ -12,6 +13,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
+import { deleteAchievement } from "@/lib/admin/edit-actions";
 import { getAmbassadorDetail, requireAdmin } from "@/lib/admin/queries";
 import { formatDate, initials } from "@/lib/utils";
 
@@ -58,6 +60,69 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
       <Card><CardBody><h2 className="display text-[16px] text-ink">Task submissions</h2>{data.submissions.length === 0 ? <EmptyState icon={Clapperboard} title="Nothing submitted" description="They have not uploaded proof for any campaign task yet." /> : <ul className="mt-3 divide-y divide-gray-100">{data.submissions.map((submission) => <li key={submission.id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-[13.5px] font-extrabold text-ink">{submission.campaign}</p><p className="text-[12px] font-semibold text-ink-soft">{submission.taskLabel} - {formatDate(submission.uploadedAt)}</p></div><StatusBadge status={submission.status} /></li>)}</ul>}</CardBody></Card>
 
       <Card><CardBody><h2 className="display text-[16px] text-ink">Survey links</h2>{data.surveys.length === 0 ? <EmptyState title="No survey links issued" /> : <ul className="mt-3 divide-y divide-gray-100">{data.surveys.map((survey) => <li key={survey.surveyId} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-[13.5px] font-extrabold text-ink">{survey.title}</p><p className="text-[12px] text-ink-soft">{survey.clicks} clicks - {survey.responses} responses</p></div></li>)}</ul>}</CardBody></Card>
+
+      {/* ─── Achievements ────────────────────────────────────────────────────
+          Everything else on this page is counted by the system. This is the
+          part somebody has to write down: the stall they ran, the person they
+          helped, the thing no query will ever find. */}
+      <Card>
+        <CardBody>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="display text-[16px] text-ink">Achievements</h2>
+              <p className="mt-1 text-[12.5px] text-ink-soft">
+                Written by you, and shown to {profile.full_name || "them"} on
+                their stipend page.
+              </p>
+            </div>
+            <Trophy className="size-5 shrink-0 text-ink-soft" />
+          </div>
+
+          <AchievementForm ambassadorId={profile.id} />
+
+          {data.achievements.length === 0 ? (
+            <p className="mt-4 text-[13px] text-ink-soft">
+              Nothing recorded yet.
+            </p>
+          ) : (
+            <ul className="mt-4 divide-y divide-gray-100">
+              {data.achievements.map((achievement) => (
+                <li
+                  key={achievement.id}
+                  className="flex items-start justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-extrabold text-ink">
+                      {achievement.title}
+                    </p>
+                    {achievement.note && (
+                      <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-soft">
+                        {achievement.note}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-[12px] text-ink-faint">
+                      {formatDate(achievement.awarded_at)}
+                    </p>
+                  </div>
+
+                  <ActionButton
+                    size="sm"
+                    variant="secondary"
+                    action={deleteAchievement.bind(
+                      null,
+                      achievement.id,
+                      profile.id,
+                    )}
+                    confirmMessage={`Remove "${achievement.title}"? They will stop seeing it.`}
+                  >
+                    Remove
+                  </ActionButton>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

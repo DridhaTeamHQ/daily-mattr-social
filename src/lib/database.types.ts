@@ -768,6 +768,41 @@ export type Database = {
         ];
       };
 
+      achievements: {
+        Row: {
+          id: string;
+          ambassador_id: string;
+          title: string;
+          note: string | null;
+          awarded_at: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          ambassador_id: string;
+          title: string;
+          note?: string | null;
+          awarded_at?: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          title?: string;
+          note?: string | null;
+          awarded_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "achievements_ambassador_id_fkey";
+            columns: ["ambassador_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
       notifications: {
         Row: {
           id: string;

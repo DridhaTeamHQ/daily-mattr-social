@@ -211,3 +211,77 @@ export async function setResponseStatus(
     return fail(err);
   }
 }
+
+// ─── Achievements ───────────────────────────────────────────────────────────
+
+/**
+ * Recognition written by hand for one ambassador.
+ *
+ * Free text, because the point of it is the things a counter cannot see —
+ * running a stall, helping somebody else finish, turning up when it rained.
+ * The date is separate from when it was typed, since these are usually
+ * recorded after the fact.
+ */
+export async function addAchievement(
+  ambassadorId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+
+    const title = String(formData.get("title") ?? "").trim();
+    const note = String(formData.get("note") ?? "").trim();
+    const awardedAt = String(formData.get("awarded_at") ?? "").trim();
+
+    if (title.length < 2) {
+      return { ok: false, message: "Say what they did." };
+    }
+    if (title.length > 120) {
+      return { ok: false, message: "Keep the title under 120 characters." };
+    }
+    if (note.length > 500) {
+      return { ok: false, message: "Keep the note under 500 characters." };
+    }
+
+    const db = createAdminClient();
+    const { error } = await db.from("achievements").insert({
+      ambassador_id: ambassadorId,
+      title,
+      note: note || null,
+      // A date input gives a plain day; anything else falls back to now.
+      awarded_at: awardedAt ? new Date(awardedAt).toISOString() : undefined,
+      created_by: actorId,
+    });
+    if (error) throw error;
+
+    revalidatePath(`/admin/ambassadors/${ambassadorId}`);
+    // The ambassador sees it on their own rewards page.
+    revalidatePath("/dashboard/rewards");
+
+    return { ok: true, message: `Added "${title}".` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deleteAchievement(
+  achievementId: string,
+  ambassadorId: string,
+): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+
+    const { error } = await createAdminClient()
+      .from("achievements")
+      .delete()
+      .eq("id", achievementId);
+    if (error) throw error;
+
+    revalidatePath(`/admin/ambassadors/${ambassadorId}`);
+    revalidatePath("/dashboard/rewards");
+
+    return { ok: true, message: "Achievement removed." };
+  } catch (err) {
+    return fail(err);
+  }
+}

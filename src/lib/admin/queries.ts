@@ -985,12 +985,21 @@ export type AmbassadorDetail = {
   }[];
   surveys: AmbassadorSurveyStat[];
   submissions: AmbassadorSubmission[];
+  /** Hand-written recognition, newest first. */
+  achievements: Achievement[];
   referrals: {
     counted: number;
     voided: number;
     last: string | null;
     points: number;
   };
+};
+
+export type Achievement = {
+  id: string;
+  title: string;
+  note: string | null;
+  awarded_at: string;
 };
 
 /**
@@ -1043,6 +1052,7 @@ export async function getAmbassadorDetail(
     responsesRes,
     submissionsRes,
     conversionsRes,
+    achievementsRes,
   ] = await Promise.all([
     supabase
       .from("point_ledger")
@@ -1090,6 +1100,11 @@ export async function getAmbassadorDetail(
       .from("referral_conversions")
       .select("status, converted_at")
       .eq("ambassador_id", profileId),
+    supabase
+      .from("achievements")
+      .select("id, title, note, awarded_at")
+      .eq("ambassador_id", profileId)
+      .order("awarded_at", { ascending: false }),
   ]);
 
   const ledger = ledgerRes.data ?? [];
@@ -1198,6 +1213,7 @@ export async function getAmbassadorDetail(
     ledger,
     surveys,
     submissions,
+    achievements: achievementsRes.data ?? [],
     referrals: {
       counted: counted.length,
       voided: conversions.length - counted.length,

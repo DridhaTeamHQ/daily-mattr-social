@@ -10,7 +10,15 @@ export const metadata = { title: "Completion Leaderboard" };
 
 const MEDAL_COLORS = ["bg-brand-strong text-white", "bg-black text-white", "bg-red-500 text-white"];
 const AVATAR_COLORS = ["bg-brand-tint", "bg-gray-100", "bg-red-50"];
-const VISIBLE = 20;
+/**
+ * How many places the board shows.
+ *
+ * Ten, not the whole cohort: past that it stops being a ranking and becomes a
+ * directory. Anyone outside it still sees their own row, pinned to the bottom
+ * with their real position — a board that cannot show you where you are is not
+ * worth opening twice.
+ */
+const VISIBLE = 10;
 
 export default async function LeaderboardPage() {
   const matched = await getCompletionLeaderboard();
@@ -94,8 +102,14 @@ export default async function LeaderboardPage() {
                   </div>
 
                   <div className="shrink-0 text-right">
+                    {/* A dash rather than "0%". The ranking still counts it as
+                        zero — this only changes how it reads, because a column
+                        of 0% down the bottom of a board is a list of people
+                        being told off. The count below still says 0/10. */}
                     <span className={cn("tabular rounded-lg px-3 py-1.5 text-[14px] font-bold", row.is_me ? "bg-brand-tint text-brand-press" : "bg-gray-100 text-gray-900")}>
-                      {formatNumber(row.completion_pct)}%
+                      {row.completion_pct > 0
+                        ? `${formatNumber(row.completion_pct)}%`
+                        : "—"}
                     </span>
                     <p className="mt-1 text-[11px] font-semibold text-ink-soft">
                       {formatNumber(row.approved_tasks)}/{formatNumber(row.total_tasks)} approved

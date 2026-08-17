@@ -43,19 +43,41 @@ export function ProgrammeTerms({
           Stay active and complete your assigned tasks. Your monthly status is updated at the end of the month.
         </p>
 
-        <ul className="mt-4 space-y-2">
-          {rows.map((row) => (
-            <li key={row.label} className="flex items-baseline gap-3 rounded-lg bg-canvas-sunk px-3.5 py-2.5">
-              <span className="tabular w-[88px] shrink-0 text-right text-[15px] font-black text-brand-strong">{row.target}</span>
-              <span className="flex-1 text-[13px] font-semibold leading-snug text-ink">{row.label}</span>
-              {row.haveText && (
-                <span className={cn("tabular shrink-0 text-[12.5px] font-extrabold", row.done === true ? "text-ok" : "text-ink-soft")}>
-                  {row.haveText}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+        {/* A table rather than stacked rows: these are two of the same kind of
+            thing — a target, what it is, and where you are against it — and
+            columns are what let you read down one of those rather than across
+            each row separately. */}
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[26rem] text-left">
+            <thead>
+              <tr className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                <th className="py-2 pr-3 font-bold">Target</th>
+                <th className="py-2 pr-3 font-bold">What it measures</th>
+                <th className="py-2 text-right font-bold">You</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((row) => (
+                <tr key={row.label}>
+                  <td className="tabular py-3 pr-3 text-[15px] font-black whitespace-nowrap text-brand-strong">
+                    {row.target}
+                  </td>
+                  <td className="py-3 pr-3 text-[13px] leading-snug font-semibold text-ink">
+                    {row.label}
+                  </td>
+                  <td
+                    className={cn(
+                      "tabular py-3 text-right text-[12.5px] font-extrabold whitespace-nowrap",
+                      row.done === true ? "text-ok" : "text-ink-soft",
+                    )}
+                  >
+                    {row.haveText ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-brand-strong px-3.5 py-3 text-white">
           <span className="text-[13px] font-bold">Monthly stipend</span>

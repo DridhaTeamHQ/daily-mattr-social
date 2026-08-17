@@ -1,6 +1,11 @@
 import "server-only";
 
-import type { CompletionLeaderboardRow, DashboardData, LeaderboardRow } from "@/lib/queries";
+import type {
+  CompletionLeaderboardRow,
+  DashboardData,
+  LeaderboardRow,
+  MyAchievement,
+} from "@/lib/queries";
 
 /**
  * Fixtures for demo mode.
@@ -290,4 +295,20 @@ export const demoCompletionLeaderboard: CompletionLeaderboardRow[] = [
   { position: 5, ambassador_id: "a5", full_name: "Meera Nair", college: "Christ University, Bengaluru", total_tasks: 8, approved_tasks: 5, completion_pct: 63, is_me: false },
   { position: 6, ambassador_id: "a6", full_name: "Aditya Deshmukh", college: "Savitribai Phule Pune University", total_tasks: 8, approved_tasks: 4, completion_pct: 50, is_me: false },
   { position: 7, ambassador_id: "a7", full_name: "Sneha Reddy", college: "Osmania University", total_tasks: 8, approved_tasks: 2, completion_pct: 25, is_me: false },
+];
+
+/** Hand-written recognition, for the demo student. */
+export const demoAchievements: MyAchievement[] = [
+  {
+    id: "ach1",
+    title: "Ran the orientation stall at Christ University",
+    note: "Signed up 40 students in an afternoon, in the rain.",
+    awarded_at: at(-12),
+  },
+  {
+    id: "ach2",
+    title: "First to 10 survey responses this month",
+    note: null,
+    awarded_at: at(-4),
+  },
 ];
