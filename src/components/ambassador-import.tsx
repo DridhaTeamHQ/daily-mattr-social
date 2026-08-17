@@ -5,7 +5,11 @@ import { CircleAlert, Copy, Download, Loader2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { readAmbassadorCsv, type ImportRow } from "@/lib/admin/csv";
-import { importAmbassadors, type ImportResult } from "@/lib/admin/import-actions";
+import {
+  convertSpreadsheet,
+  importAmbassadors,
+  type ImportResult,
+} from "@/lib/admin/import-actions";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,6 +25,9 @@ export function AmbassadorImport() {
   const [csvText, setCsvText] = React.useState("");
   const [missing, setMissing] = React.useState<string[]>([]);
   const [result, setResult] = React.useState<ImportResult | null>(null);
+  const [sendEmails, setSendEmails] = React.useState(true);
+  const [reading, setReading] = React.useState(false);
+  const [fileNote, setFileNote] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const valid = rows?.filter((r) => !r.error) ?? [];
@@ -30,13 +37,48 @@ export function AmbassadorImport() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text();
-    const parsed = readAmbassadorCsv(text);
+    setResult(null);
+    setFileNote(null);
+    setRows(null);
+    setMissing([]);
 
+    // A spreadsheet is converted on the server first — the parser is far too
+    // big to ship to every admin, most of whom upload a .csv. Everything after
+    // that point is identical for both formats.
+    const isSpreadsheet = /\.(xlsx|xlsm|xls)$/i.test(file.name);
+
+    let text: string;
+
+    if (isSpreadsheet) {
+      setReading(true);
+      try {
+        const buffer = await file.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        // Chunked, because spreading a multi-megabyte array into
+        // String.fromCharCode blows the call stack.
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        }
+
+        const converted = await convertSpreadsheet(btoa(binary));
+        if (!converted.ok) {
+          setFileNote(converted.message);
+          return;
+        }
+        text = converted.csv;
+        setFileNote(converted.message);
+      } finally {
+        setReading(false);
+      }
+    } else {
+      text = await file.text();
+    }
+
+    const parsed = readAmbassadorCsv(text);
     setCsvText(text);
     setRows(parsed.rows);
     setMissing(parsed.missingColumns);
-    setResult(null);
   }
 
   function copyCredentials() {
@@ -54,9 +96,16 @@ export function AmbassadorImport() {
       `"${(/^[=+\-@]/.test(value) ? `'${value}` : value).replace(/"/g, '""')}"`;
 
     const csv = [
-      ["Name", "Email", "Temporary password"].map(escape).join(","),
+      ["Name", "Email", "Temporary password", "Emailed"].map(escape).join(","),
       ...result.created.map((c) =>
-        [c.fullName, c.email, c.password].map(escape).join(","),
+        [
+          c.fullName,
+          c.email,
+          c.password,
+          c.emailed === "sent" ? "yes" : c.emailed === "failed" ? "FAILED" : "no",
+        ]
+          .map(escape)
+          .join(","),
       ),
     ].join("\r\n");
 
@@ -79,9 +128,13 @@ export function AmbassadorImport() {
           "hover:border-brand hover:bg-brand-tint",
         )}
       >
-        <Upload className="size-6 text-ink-soft" />
+        {reading ? (
+          <Loader2 className="size-6 animate-spin text-ink-soft" />
+        ) : (
+          <Upload className="size-6 text-ink-soft" />
+        )}
         <span className="text-[14px] font-extrabold text-ink">
-          Choose a CSV file
+          {reading ? "Reading the spreadsheet…" : "Choose a CSV or Excel file"}
         </span>
         <span className="max-w-md text-[12.5px] font-semibold text-ink-soft">
           Needs a name and an email column. Phone, college, city, batch and
@@ -90,11 +143,16 @@ export function AmbassadorImport() {
         </span>
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={onFile}
+          disabled={reading}
           className="sr-only"
         />
       </label>
+
+      {fileNote && (
+        <p className="text-[12.5px] font-semibold text-ink-soft">{fileNote}</p>
+      )}
 
       {missing.length > 0 && (
         <p className="flex items-center gap-2 text-[13px] font-bold text-bad">
@@ -115,13 +173,28 @@ export function AmbassadorImport() {
                 · {invalid.length} will be skipped
               </span>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-3">
+              {/* On by default: the reason to import a list is to get those
+                  people into the programme, and an ambassador who was never
+                  told their password is not in it. Off exists for a re-import
+                  or a migration, where mailing everyone again is the wrong
+                  thing. */}
+              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-bold text-ink">
+                <input
+                  type="checkbox"
+                  checked={sendEmails}
+                  onChange={(e) => setSendEmails(e.target.checked)}
+                  className="size-4 accent-[var(--color-brand)]"
+                />
+                Email them their login
+              </label>
+
               <Button
                 size="sm"
                 disabled={valid.length === 0 || pending}
                 onClick={() =>
                   startTransition(async () => {
-                    setResult(await importAmbassadors(csvText));
+                    setResult(await importAmbassadors(csvText, sendEmails));
                   })
                 }
               >
@@ -134,6 +207,13 @@ export function AmbassadorImport() {
               </Button>
             </div>
           </div>
+
+          {pending && sendEmails && valid.length > 20 && (
+            <p className="border-t border-gray-200 px-4 py-2 text-[12px] font-semibold text-ink-soft">
+              Sending {valid.length} emails one at a time — this takes a
+              moment. Don&apos;t close the tab.
+            </p>
+          )}
 
           <ul className="max-h-80 divide-y divide-gray-100 overflow-y-auto">
             {rows.slice(0, 100).map((row) => (
@@ -190,8 +270,15 @@ export function AmbassadorImport() {
                 {/* Shown once and never again: they are not stored anywhere in
                     readable form, so this list is the only chance to keep
                     them. */}
+                {/* What to do next depends entirely on whether the email
+                    landed, so that is the sentence here rather than a generic
+                    warning. */}
                 <span className="text-[12px] font-semibold text-ink-soft">
-                  Save these now — they can&apos;t be shown again.
+                  {result.emailSummary.failed > 0
+                    ? `${result.emailSummary.failed} couldn't be emailed — pass those on yourself.`
+                    : result.emailSummary.sent === result.created.length
+                      ? "All of them were emailed. Keep these in case someone says it never arrived."
+                      : "Save these now — they can't be shown again."}
                 </span>
                 <div className="ml-auto flex gap-2">
                   <Button size="sm" variant="secondary" onClick={copyCredentials}>
@@ -216,6 +303,29 @@ export function AmbassadorImport() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-ink-soft">
                       {c.email}
+                    </span>
+                    <span
+                      title={
+                        c.emailed === "sent"
+                          ? "Welcome email sent"
+                          : c.emailed === "failed"
+                            ? "The welcome email did not send — pass this on yourself"
+                            : "No email was sent"
+                      }
+                      className={cn(
+                        "shrink-0 text-[11.5px] font-bold",
+                        c.emailed === "sent"
+                          ? "text-ok"
+                          : c.emailed === "failed"
+                            ? "text-bad"
+                            : "text-ink-faint",
+                      )}
+                    >
+                      {c.emailed === "sent"
+                        ? "emailed"
+                        : c.emailed === "failed"
+                          ? "not emailed"
+                          : "no email"}
                     </span>
                     <code className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-[12.5px] font-bold text-ink">
                       {c.password}
