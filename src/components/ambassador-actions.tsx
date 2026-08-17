@@ -215,7 +215,7 @@ export function AddAmbassadorDialog() {
                   <Input id="email" name="email" type="email" required />
                 </Field>
 
-                <Field label="College" htmlFor="college">
+                <Field label="College/Office" htmlFor="college">
                   <Input id="college" name="college" placeholder="Optional" />
                 </Field>
 

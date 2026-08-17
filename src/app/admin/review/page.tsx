@@ -95,7 +95,7 @@ export default async function ReviewPage({
       )}
 
       <SearchBox
-        placeholder="Search by ambassador, college or campaign…"
+        placeholder="Search by ambassador, college/office or campaign…"
         className="max-w-md"
       />
 

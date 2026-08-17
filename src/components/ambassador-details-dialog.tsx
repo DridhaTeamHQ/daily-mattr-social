@@ -99,7 +99,7 @@ export function AmbassadorDetailsDialog({
               />
             </Field>
 
-            <Field label="College" htmlFor="college">
+            <Field label="College/Office" htmlFor="college">
               <Input
                 id="college"
                 name="college"

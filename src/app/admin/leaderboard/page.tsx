@@ -101,7 +101,7 @@ export default async function AdminLeaderboardPage({
         </Card>
       )}
 
-      <SearchBox placeholder="Find by name, college, city or batch..." />
+      <SearchBox placeholder="Find by name, college/office, city or batch..." />
       <Card>
         {list.length === 0 ? (
           <EmptyState icon={Trophy} title={query ? "Nobody matches that" : "No active tasks yet"} description={query ? "Try a different name, city or batch." : "The completion ranking appears when this month's tasks are published."} />
@@ -113,7 +113,7 @@ export default async function AdminLeaderboardPage({
                 <li key={row.ambassador_id} className="flex items-center gap-4 px-5 py-3">
                   <span className={cn("w-7 shrink-0 text-center text-[14px] font-extrabold", row.position <= 3 ? "text-brand" : "text-ink-faint")}>{row.position}</span>
                   <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-gray-100 text-[12px] font-extrabold text-ink">{initials(row.full_name)}</span>
-                  <div className="min-w-0 flex-1"><Link href={`/admin/ambassadors/${row.ambassador_id}`} className="truncate text-[14px] font-bold text-ink hover:underline">{row.full_name}</Link><p className="truncate text-[12px] text-ink-soft">{[row.college, profile?.city, profile?.batch].filter(Boolean).join(" - ") || "No college, city or batch set"}</p></div>
+                  <div className="min-w-0 flex-1"><Link href={`/admin/ambassadors/${row.ambassador_id}`} className="truncate text-[14px] font-bold text-ink hover:underline">{row.full_name}</Link><p className="truncate text-[12px] text-ink-soft">{[row.college, profile?.city, profile?.batch].filter(Boolean).join(" - ") || "No college/office, city or batch set"}</p></div>
                   <div className="shrink-0 text-right"><p className="tabular text-[15px] font-extrabold text-ink">{formatNumber(row.completion_pct)}%</p><p className="text-[11.5px] text-ink-soft">{row.approved_tasks}/{row.total_tasks} approved</p></div>
                 </li>
               );

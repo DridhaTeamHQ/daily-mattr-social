@@ -21,7 +21,7 @@ import { cn, formatNumber } from "@/lib/utils";
 
 const LABELS: Record<Dimension, { title: string; any: string }> = {
   city: { title: "City", any: "All cities" },
-  college: { title: "College", any: "All colleges" },
+  college: { title: "College/Office", any: "All colleges/offices" },
   batch: { title: "Batch", any: "All batches" },
 };
 

@@ -137,7 +137,7 @@ export function AmbassadorImport() {
           {reading ? "Reading the spreadsheet…" : "Choose a CSV or Excel file"}
         </span>
         <span className="max-w-md text-[12.5px] font-semibold text-ink-soft">
-          Needs a name and an email column. Phone, college, city, batch and
+          Needs a name and an email column. Phone, college/office, city, batch and
           type are used if they&apos;re there. Header names are matched loosely,
           so &quot;Full Name&quot; and &quot;name&quot; both work.
         </span>

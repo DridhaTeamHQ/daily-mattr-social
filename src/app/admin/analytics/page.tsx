@@ -258,7 +258,7 @@ export default async function AnalyticsPage({
           <EmptyState
             icon={Users}
             title="Nobody matches that filter"
-            description="No active ambassador is in every one of the selected city, college and batch. Clear one of them to widen the view."
+            description="No active ambassador is in every one of the selected city, college/office and batch. Clear one of them to widen the view."
           />
         </Card>
       ) : (
@@ -350,7 +350,7 @@ export default async function AnalyticsPage({
                 <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
                   <th className="w-12 px-4 py-2.5 text-center font-medium">#</th>
                   <th className="px-4 py-2.5 font-medium">Ambassador</th>
-                  <th className="px-4 py-2.5 font-medium">College</th>
+                  <th className="px-4 py-2.5 font-medium">College/Office</th>
                   <th className="px-4 py-2.5 font-medium">City</th>
                   <th className="px-4 py-2.5 font-medium">Batch</th>
                   <th className="px-4 py-2.5 text-right font-medium">Approved</th>

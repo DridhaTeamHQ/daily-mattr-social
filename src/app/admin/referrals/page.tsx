@@ -74,7 +74,7 @@ export default async function AdminInstallsPage({
       </div>
 
       <SearchBox
-        placeholder="Search by name, email, college or code…"
+        placeholder="Search by name, email, college/office or code…"
         className="max-w-md"
       />
 

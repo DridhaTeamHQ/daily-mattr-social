@@ -113,7 +113,7 @@ export default async function AmbassadorsPage({
       </div>
 
       <SearchBox
-        placeholder="Search by name, email, college, city, batch or code…"
+        placeholder="Search by name, email, college/office, city, batch or code…"
         className="max-w-md"
       />
 
@@ -273,7 +273,7 @@ const NOT_SET = "Not set";
 
 const GROUPINGS = [
   { key: "none", label: "No grouping" },
-  { key: "college", label: "By college" },
+  { key: "college", label: "By college/office" },
   { key: "city", label: "By city" },
   { key: "batch", label: "By batch" },
 ] as const;
