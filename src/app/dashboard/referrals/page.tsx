@@ -1,22 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Gift, Download, Calendar } from "lucide-react";
+import { Gift, Download, Calendar, Lock } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { ReferralQr } from "@/components/referral-qr";
 import { Button } from "@/components/ui/button";
-import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 
-export const metadata = { title: "Installs" };
+export const metadata = { title: "Referrals" };
 
 export default async function ReferralsPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
 
   const { referrals } = data;
-  const siteUrl = await getSiteUrl();
 
   return (
     <div className="stagger space-y-6">
@@ -29,7 +26,7 @@ export default async function ReferralsPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide text-gray-900">
-                Installs
+                Referrals
               </h1>
               <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-600">
                 Share your code and help grow the DailyMattr community.
@@ -69,11 +66,25 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      <ReferralQr
-        code={referrals.code}
-        siteUrl={siteUrl}
-        firstName={(data.profile.full_name || "A friend").trim().split(/\s+/)[0]}
-      />
+      {/* The link, the QR and the share card are locked for now. Restoring
+          them is putting <ReferralQr code siteUrl firstName /> back here — the
+          component and the /r/<code> route are untouched. Locked rather than
+          deleted, and said out loud rather than left blank: a card that simply
+          vanished would read as something that failed to load. */}
+      <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
+        <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
+          <Lock className="size-5" aria-label="Locked" />
+        </div>
+        <div>
+          <p className="text-[11px] font-extrabold tracking-wider text-gray-500 uppercase">
+            Your link
+          </p>
+          <p className="mt-0.5 text-[13px] font-semibold text-gray-500 sm:text-sm">
+            Share links and QR codes are not open yet. Your code above still
+            works — pass that on and it will be credited the same way.
+          </p>
+        </div>
+      </div>
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  Inbox,
   Upload,
   ExternalLink,
   Percent,
@@ -152,6 +153,15 @@ export default async function CampaignDetailPage({
                 {campaign.status === "archived" ? "Unarchive" : "Archive"}
               </ActionButton>
             )}
+
+            {/* Same queue as the card in the list, so an admin who came in
+                through Analytics does not have to go back out to reach it. */}
+            <Button size="sm" variant="secondary" asChild>
+              <Link href={`/admin/review?campaign=${campaign.id}`}>
+                <Inbox aria-hidden />
+                Review
+              </Link>
+            </Button>
 
             <Button size="sm" variant="secondary" asChild>
               <a href={campaign.instagram_url} target="_blank" rel="noopener noreferrer">

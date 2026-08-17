@@ -17,7 +17,7 @@ import {
   rejectSubmission,
   revokeSubmission,
 } from "@/lib/admin/actions";
-import { getReviewQueue } from "@/lib/admin/queries";
+import { getCampaignTitle, getReviewQueue } from "@/lib/admin/queries";
 import { BLOCKING_CHECKS } from "@/lib/submissions/checks";
 import { cn, formatDate, initials } from "@/lib/utils";
 
@@ -26,11 +26,24 @@ export const metadata = { title: "Review" };
 export default async function ReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string; campaign?: string }>;
 }) {
-  const { filter, q } = await searchParams;
+  const { filter, q, campaign } = await searchParams;
   const showAll = filter === "all";
-  const all = await getReviewQueue(showAll ? "all" : "open");
+  const [all, campaignTitle] = await Promise.all([
+    getReviewQueue(showAll ? "all" : "open", campaign),
+    campaign ? getCampaignTitle(campaign) : Promise.resolve(null),
+  ]);
+
+  // The filter has to survive the Open/All tabs, or switching to All silently
+  // widens the queue from one campaign to the whole programme.
+  const tabHref = (allFilter: boolean) => {
+    const params = new URLSearchParams();
+    if (allFilter) params.set("filter", "all");
+    if (campaign) params.set("campaign", campaign);
+    const query = params.toString();
+    return query ? `/admin/review?${query}` : "/admin/review";
+  };
 
   const query = q ?? "";
   const items = all.filter((item) =>
@@ -54,10 +67,32 @@ export default async function ReviewPage({
         </div>
 
         <div className="brut-sm flex gap-1 rounded-sm bg-surface p-1">
-          <FilterTab href="/admin/review" active={!showAll} label="Open" />
-          <FilterTab href="/admin/review?filter=all" active={showAll} label="All" />
+          <FilterTab href={tabHref(false)} active={!showAll} label="Open" />
+          <FilterTab href={tabHref(true)} active={showAll} label="All" />
         </div>
       </div>
+
+      {/* Named, and with the way out next to it. A queue scoped to one
+          campaign looks exactly like an empty programme-wide queue, and an
+          admin who arrived from a campaign card has no other way to tell
+          which one they are looking at. */}
+      {campaign && (
+        <Note tone="neutral" className="flex flex-wrap items-center gap-x-2">
+          <span>
+            Showing{" "}
+            <strong className="font-bold text-ink">
+              {campaignTitle ?? "one campaign"}
+            </strong>{" "}
+            only.
+          </span>
+          <Link
+            href={showAll ? "/admin/review?filter=all" : "/admin/review"}
+            className="font-bold text-brand-strong hover:underline"
+          >
+            Show every campaign
+          </Link>
+        </Note>
+      )}
 
       <SearchBox
         placeholder="Search by ambassador, college or campaign…"
@@ -66,13 +101,28 @@ export default async function ReviewPage({
 
       {items.length === 0 ? (
         <Card>
+          {/* An empty campaign-scoped queue and an empty programme-wide one
+              are different facts, and saying "no submissions yet" about a
+              campaign that has plenty would be wrong. */}
           <EmptyState
             icon={Inbox}
-            title={showAll ? "No submissions yet" : "Queue is clear"}
+            title={
+              campaign
+                ? showAll
+                  ? "Nothing submitted to this campaign"
+                  : "Nothing waiting on this campaign"
+                : showAll
+                  ? "No submissions yet"
+                  : "Queue is clear"
+            }
             description={
-              showAll
-                ? "Screenshots uploaded by ambassadors land here for checking."
-                : "Nothing is waiting. Switch to All to see everything that has been reviewed."
+              campaign
+                ? showAll
+                  ? "No ambassador has uploaded anything for it yet."
+                  : "Every submission on it has been decided. Switch to All to see them."
+                : showAll
+                  ? "Screenshots uploaded by ambassadors land here for checking."
+                  : "Nothing is waiting. Switch to All to see everything that has been reviewed."
             }
           />
         </Card>

@@ -230,6 +230,17 @@ export default async function AdminCampaignsPage({
                     </ActionButton>
                   )}
 
+                    <Button size="sm" variant="ghost" asChild>
+                    <a
+                      href={c.instagram_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Reel
+                      <ExternalLink aria-hidden />
+                    </a>
+                  </Button>
+
                   {c.status === "ended" && (
                     <ActionButton
                       size="sm"
@@ -240,15 +251,33 @@ export default async function AdminCampaignsPage({
                     </ActionButton>
                   )}
 
-                  <Button size="sm" variant="ghost" asChild className="ml-auto">
-                    <a
-                      href={c.instagram_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Reel
-                      <ExternalLink aria-hidden />
-                    </a>
+                  {/* How far the campaign actually got: active ambassadors
+                      who cleared every required task, over the number being
+                      asked. It sits beside Review because the two answer the
+                      same question from opposite ends — what is finished, and
+                      what is still on you. */}
+                  <span
+                    className="tabular ml-auto text-[12.5px] font-bold text-ink-soft"
+                    title="Active ambassadors with every required task approved"
+                  >
+                    {c.doneCount}/{c.cohortCount} done
+                  </span>
+
+                  {/* The queue for this campaign alone. The page-level Review
+                      button is the whole programme, which is the wrong list
+                      when you are looking at one campaign and want to clear
+                      its screenshots. The count is carried for the same
+                      reason it is up there: it says whether pressing it is
+                      worth anything. */}
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link href={`/admin/review?campaign=${c.id}`}>
+                      Review
+                      {c.openCount > 0 && (
+                        <span className="tabular ml-0.5 rounded-full bg-warn px-1.5 text-[11.5px] font-bold text-white">
+                          {c.openCount}
+                        </span>
+                      )}
+                    </Link>
                   </Button>
                 </CardFooter>
               </Card>

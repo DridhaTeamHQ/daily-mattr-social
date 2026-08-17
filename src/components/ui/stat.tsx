@@ -1,3 +1,5 @@
+import { Lock } from "lucide-react";
+
 import { cn, formatNumber } from "@/lib/utils";
 
 type StatTone = "brand" | "reel" | "poll" | "invite" | "rank";
@@ -26,6 +28,7 @@ export function Stat({
   cornerIcon: CornerIcon,
   tone = "brand",
   interactive = false,
+  locked = false,
   className,
 }: {
   label: string;
@@ -34,6 +37,15 @@ export function Stat({
   icon?: React.ComponentType<{ className?: string }>;
   cornerIcon?: React.ComponentType<{ className?: string }>;
   tone?: StatTone;
+  /**
+   * The tile is for something not open yet.
+   *
+   * A padlock takes the icon's place and the colour drains out of the tile,
+   * the same way a badge nobody has earned and a tier nobody has reached are
+   * drawn. The figure is still shown: locked means "not available to you",
+   * not "hidden", and a tile that went blank would read as broken.
+   */
+  locked?: boolean;
   /**
    * Whether the tile lifts and shows a pointer on hover.
    *
@@ -60,16 +72,37 @@ export function Stat({
           <CornerIcon className="size-4" />
         </div>
       )}
-      {Icon && (
-        <div className={cn("flex size-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-md", STAT_ICON_BG[tone])}>
-          <Icon className="size-7" />
+      {(Icon || locked) && (
+        <div
+          className={cn(
+            "flex size-14 shrink-0 items-center justify-center rounded-2xl",
+            locked
+              ? "bg-gray-100 text-gray-400"
+              : cn("text-white shadow-md", STAT_ICON_BG[tone]),
+          )}
+        >
+          {locked ? (
+            <Lock className="size-6" aria-label="Locked" />
+          ) : (
+            Icon && <Icon className="size-7" />
+          )}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-bold tracking-wide text-ink uppercase">
+        <p
+          className={cn(
+            "text-[12px] font-bold tracking-wide uppercase",
+            locked ? "text-ink-soft" : "text-ink",
+          )}
+        >
           {label}
         </p>
-        <p className="mt-0.5 text-[28px] font-extrabold leading-tight text-ink">
+        <p
+          className={cn(
+            "mt-0.5 text-[28px] font-extrabold leading-tight",
+            locked ? "text-gray-400" : "text-ink",
+          )}
+        >
           {typeof value === "number" ? formatNumber(value) : value}
         </p>
         {sub && (

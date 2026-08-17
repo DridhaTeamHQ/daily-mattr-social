@@ -8,9 +8,9 @@ import {
 /**
  * Fallback for stipend progress.
  *
- * Shaped like `rewards/page.tsx`: the outline header, three stat tiles
- * (completion, approved tasks, stipend), then the programme terms card — a
- * couple of criterion rows and the stipend banner.
+ * Shaped like `rewards/page.tsx`: the outline header, two stat tiles
+ * (completion and stipend), then the programme terms card — a couple of
+ * criterion rows and the stipend banner.
  */
 export default function RewardsLoading() {
   return (
@@ -23,8 +23,8 @@ export default function RewardsLoading() {
         className="bg-gray-50"
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[0, 1, 2].map((i) => (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {[0, 1].map((i) => (
           <StatSkeleton key={i} />
         ))}
       </div>

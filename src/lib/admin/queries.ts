@@ -239,10 +239,36 @@ export type ReviewItem = {
   campaign: { id: string; title: string; expected_handle: string };
 };
 
+/** The title of one campaign, for a heading. Null if it no longer exists. */
+export async function getCampaignTitle(id: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("campaigns")
+    .select("title")
+    .eq("id", id)
+    .maybeSingle();
+  return data?.title ?? null;
+}
+
 export async function getReviewQueue(
   status: "open" | "all" = "open",
+  /** Restrict the queue to one campaign's tasks. */
+  campaignId?: string,
 ): Promise<ReviewItem[]> {
   const supabase = await createClient();
+
+  // Submissions point at a task, not at a campaign, so the campaign has to be
+  // resolved to its tasks first. A campaign with no tasks has no submissions
+  // either — returning early keeps that out of an `in ()` with an empty list.
+  let taskIds: string[] | null = null;
+  if (campaignId) {
+    const { data } = await supabase
+      .from("campaign_tasks")
+      .select("id")
+      .eq("campaign_id", campaignId);
+    taskIds = (data ?? []).map((task) => task.id);
+    if (taskIds.length === 0) return [];
+  }
 
   let query = supabase
     .from("submissions")
@@ -253,6 +279,9 @@ export async function getReviewQueue(
 
   if (status === "open") {
     query = query.in("status", ["pending", "needs_review"]);
+  }
+  if (taskIds) {
+    query = query.in("campaign_task_id", taskIds);
   }
 
   const { data } = await query;
@@ -326,22 +355,66 @@ export type AdminCampaignTask = Tables<"campaign_tasks"> & {
 export type AdminCampaign = Tables<"campaigns"> & {
   tasks: AdminCampaignTask[];
   submissionCount: number;
+  /** Submissions on this campaign still waiting on a decision. */
+  openCount: number;
+  /**
+   * Active ambassadors who have finished the campaign — every required task
+   * approved. A campaign that marks nothing as required is judged on all of
+   * its tasks instead, because "no requirements" would otherwise mean
+   * everybody is finished the moment it is published.
+   */
+  doneCount: number;
+  /** Active ambassadors the campaign is asking, i.e. the denominator. */
+  cohortCount: number;
 };
 
 export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   const supabase = await createClient();
 
-  const [{ data: campaigns }, { data: subs }] = await Promise.all([
+  const [{ data: campaigns }, { data: subs }, cohort] = await Promise.all([
     supabase
       .from("campaigns")
       .select("*, campaign_tasks(*, task_library(label, platform))")
       .order("created_at", { ascending: false }),
-    supabase.from("submissions").select("campaign_task_id"),
+    supabase.from("submissions").select("campaign_task_id, status, ambassador_id"),
+    // Ids, not a count: an approval from somebody since suspended must not
+    // push the "done" figure above the number of people being counted.
+    readAll<{ id: string }>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "adminCampaigns.cohort",
+    ),
   ]);
 
+  const activeIds = new Set(cohort.map((profile) => profile.id));
+
   const perTask = new Map<string, number>();
+  const openPerTask = new Map<string, number>();
+  /** task id → the active ambassadors with an approval on it. */
+  const approvedByTask = new Map<string, Set<string>>();
+
   for (const s of subs ?? []) {
     perTask.set(s.campaign_task_id, (perTask.get(s.campaign_task_id) ?? 0) + 1);
+    if (s.status === "pending" || s.status === "needs_review") {
+      openPerTask.set(
+        s.campaign_task_id,
+        (openPerTask.get(s.campaign_task_id) ?? 0) + 1,
+      );
+    }
+    if (
+      (s.status === "approved" || s.status === "auto_approved") &&
+      activeIds.has(s.ambassador_id)
+    ) {
+      const people = approvedByTask.get(s.campaign_task_id) ?? new Set<string>();
+      people.add(s.ambassador_id);
+      approvedByTask.set(s.campaign_task_id, people);
+    }
   }
 
   return (campaigns ?? []).map((c) => {
@@ -352,10 +425,26 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
         label: taskLabel(t as never),
         platform: taskPlatform(t as never),
       }));
+
+    const required = tasks.filter((t) => t.required);
+    const bar = required.length > 0 ? required : tasks;
+    // Intersect rather than count: finishing means clearing every task in the
+    // bar, so somebody with four approvals on one task is not finished.
+    const done = bar.length
+      ? bar.reduce<Set<string> | null>((carried, task) => {
+          const people = approvedByTask.get(task.id) ?? new Set<string>();
+          if (carried === null) return new Set(people);
+          return new Set([...carried].filter((id) => people.has(id)));
+        }, null)!.size
+      : 0;
+
     return {
       ...c,
       tasks,
       submissionCount: tasks.reduce((n, t) => n + (perTask.get(t.id) ?? 0), 0),
+      openCount: tasks.reduce((n, t) => n + (openPerTask.get(t.id) ?? 0), 0),
+      doneCount: done,
+      cohortCount: activeIds.size,
     };
   });
 }

@@ -2,12 +2,12 @@ import { Skeleton } from "@/components/ui/feedback";
 import { LoadingLabel } from "@/components/skeletons";
 
 /**
- * Fallback for the installs page.
+ * Fallback for the referrals page.
  *
  * Shaped like `referrals/page.tsx`: the tinted banner, the big centred referral
- * code card, the QR block, the downloads tile, and the how-it-works note. This
- * page does not use `<PageHeader>` — its banner is its own shape, so the
- * skeleton is written out rather than borrowed.
+ * code card, the locked link row, the downloads tile, and the how-it-works
+ * note. This page does not use `<PageHeader>` — its banner is its own shape,
+ * so the skeleton is written out rather than borrowed.
  */
 export default function ReferralsLoading() {
   return (
@@ -42,8 +42,14 @@ export default function ReferralsLoading() {
         </div>
       </div>
 
-      {/* QR */}
-      <Skeleton className="h-64 rounded-2xl" />
+      {/* Locked link row */}
+      <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
+        <Skeleton className="size-12 shrink-0 rounded-xl" />
+        <div className="w-full space-y-2">
+          <Skeleton className="h-3 w-24 rounded-sm" />
+          <Skeleton className="h-3.5 w-full max-w-md rounded-sm" />
+        </div>
+      </div>
 
       {/* Confirmed downloads */}
       <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">

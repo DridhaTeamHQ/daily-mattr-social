@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { BadgeIndianRupee, CheckCircle2, ClipboardCheck } from "lucide-react";
+import { BadgeIndianRupee, CheckCircle2 } from "lucide-react";
 
 import { ProgrammeTerms } from "@/components/programme-terms";
 import { PageHeader } from "@/components/page-header";
@@ -28,25 +28,19 @@ export default async function RewardsPage() {
         className="border-gray-200 bg-gray-50"
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Two tiles, no captions. The approved/total count was on all three of
+          them — as the headline of one and the caption of another — and the
+          panel below repeats it a third time as the formula it feeds. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Stat
           label="Completion"
           value={`${formatNumber(month?.completionPct ?? 0)}%`}
-          sub={month?.totalTasks ? `${formatNumber(month.approvedTasks)}/${formatNumber(month.totalTasks)} tasks approved` : "No tasks assigned this month"}
           icon={CheckCircle2}
           tone="rank"
         />
         <Stat
-          label="Approved tasks"
-          value={month ? `${formatNumber(month.approvedTasks)}/${formatNumber(month.totalTasks)}` : "0/0"}
-          sub="Approved or auto-approved"
-          icon={ClipboardCheck}
-          tone="poll"
-        />
-        <Stat
           label="Stipend"
           value={met ? `Rs ${formatNumber(stipend.thresholds.amountInr)}` : "-"}
-          sub={met ? "Monthly status updated" : "In progress"}
           icon={BadgeIndianRupee}
           tone="invite"
         />

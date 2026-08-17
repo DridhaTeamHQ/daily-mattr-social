@@ -90,9 +90,14 @@ export default async function DashboardPage() {
           <Stat
             label="Installs"
             value={referrals.total_confirmed}
-            sub={referrals.last_conversion ? `Last ${formatDate(referrals.last_conversion)}` : "None yet"}
+            sub={
+              referrals.last_conversion
+                ? `Last ${formatDate(referrals.last_conversion)}`
+                : "Not open yet"
+            }
             icon={Gift}
             tone="invite"
+            locked
           />
         </div>
       </section>

@@ -59,7 +59,7 @@ const ITEMS = [
     // single most common thing a student does on a phone, so it stays in thumb
     // reach; on desktop the avatar menu covers it without a fifth top-bar pill.
     href: "/dashboard/referrals",
-    label: "Installs",
+    label: "Referrals",
     icon: Gift,
     fill: "bg-invite",
     mobileOnly: true,
@@ -81,7 +81,7 @@ const ACCOUNT_LINKS = [
   },
   {
     href: "/dashboard/referrals",
-    label: "Installs",
+    label: "Referrals",
     icon: Gift,
     tint: "bg-invite-tint text-invite",
   },
