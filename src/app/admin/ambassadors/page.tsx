@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Upload, Users } from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
+import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
 import { NavSelect } from "@/components/nav-select";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
@@ -209,6 +210,19 @@ export default async function AmbassadorsPage({
 
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        {/* Same dialog as the one on their own page. Fixing a
+                            misspelled name or a missing batch is the most
+                            common thing an admin does from this list, and
+                            opening a whole page to do it is a detour. */}
+                        <AmbassadorDetailsDialog
+                          profile={row}
+                          trigger={
+                            <Button variant="ghost" size="sm">
+                              Edit
+                            </Button>
+                          }
+                        />
+
                         <ResetPasswordDialog
                           profileId={row.id}
                           name={row.full_name || row.email}

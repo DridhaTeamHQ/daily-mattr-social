@@ -178,7 +178,7 @@ export function MilestoneLevel({
               </>
             ) : (
               <>
-                Waiting for <strong className="font-black">this month's tasks</strong>
+                Waiting for <strong className="font-black">this month&apos;s tasks</strong>
               </>
             )}
           </span>

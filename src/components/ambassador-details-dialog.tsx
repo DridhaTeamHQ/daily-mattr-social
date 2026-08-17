@@ -27,6 +27,7 @@ const PANEL = [
  */
 export function AmbassadorDetailsDialog({
   profile,
+  trigger,
 }: {
   profile: {
     id: string;
@@ -36,6 +37,12 @@ export function AmbassadorDetailsDialog({
     batch: string | null;
     referral_code: string;
   };
+  /**
+   * Overridable so the same dialog can open from a row in the list as well as
+   * from the button on the person's own page. The alternative was a second
+   * dialog with the same fields, which is how two forms drift apart.
+   */
+  trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [batch, setBatch] = React.useState(profile.batch ?? "");
@@ -61,9 +68,11 @@ export function AmbassadorDetailsDialog({
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button size="sm" variant="secondary">
-          Edit details
-        </Button>
+        {trigger ?? (
+          <Button size="sm" variant="secondary">
+            Edit details
+          </Button>
+        )}
       </Dialog.Trigger>
 
       <Dialog.Portal>
