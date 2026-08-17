@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { setCampaignStatus } from "@/lib/admin/actions";
+import { deleteCampaign } from "@/lib/admin/edit-actions";
 import { getAdminCampaigns } from "@/lib/admin/queries";
 import { aiEnabled } from "@/lib/ai";
 import { cn, formatDate, timeRemaining } from "@/lib/utils";
@@ -145,7 +146,10 @@ export default async function AdminCampaignsPage({
           pageSize={12}
         >
           {campaigns.map((c) => (
-            <li key={c.id}>
+            // min-w-0: a grid item defaults to min-width:auto, so one long
+            // task label was widening the whole column and pushing the page
+            // into a horizontal scroll rather than being cut off inside it.
+            <li key={c.id} className="min-w-0">
               <Card className="flex h-full flex-col">
                 <CardBody className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -175,15 +179,21 @@ export default async function AdminCampaignsPage({
                     </p>
                   )}
 
+                  {/* Library tasks carry whole sentences as labels, and Badge
+                      is whitespace-nowrap by design — so these are clipped to
+                      the card width with the full text on hover. */}
                   <ul className="mt-3.5 flex flex-wrap gap-1.5">
-                    {c.tasks.map((t) => (
-                      <li key={t.id}>
-                        <Badge tone="neutral">
-                          {t.label}
-                          {!t.required && " · optional"}
-                        </Badge>
-                      </li>
-                    ))}
+                    {c.tasks.map((t) => {
+                      const label = `${t.label}${t.required ? "" : " · optional"}`;
+
+                      return (
+                        <li key={t.id} className="min-w-0 max-w-full">
+                          <Badge tone="neutral" className="max-w-full" title={label}>
+                            <span className="truncate">{label}</span>
+                          </Badge>
+                        </li>
+                      );
+                    })}
                   </ul>
 
                   <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-[12.5px] text-ink-soft">
@@ -248,6 +258,22 @@ export default async function AdminCampaignsPage({
                       action={setCampaignStatus.bind(null, c.id, "live")}
                     >
                       Re-open
+                    </ActionButton>
+                  )}
+
+                  {/* Only offered while nothing has been submitted. Once there
+                      is work against a campaign the action refuses anyway, so
+                      showing the button then would be a button that exists to
+                      say no — Archive is the answer at that point. */}
+                  {c.submissionCount === 0 && (
+                    <ActionButton
+                      size="sm"
+                      variant="secondary"
+                      className="text-bad hover:bg-bad-tint"
+                      action={deleteCampaign.bind(null, c.id)}
+                      confirmMessage={`Delete "${c.title}"? It and its ${c.tasks.length} task${c.tasks.length === 1 ? "" : "s"} go for good. This cannot be undone.`}
+                    >
+                      Delete
                     </ActionButton>
                   )}
 

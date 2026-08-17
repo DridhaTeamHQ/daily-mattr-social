@@ -65,8 +65,9 @@ export async function updateCampaign(
  * Archiving is a fourth status, not a delete.
  *
  * 'ended' means the deadline passed. 'archived' means stop showing it to me.
- * Deleting would take its submissions and the points that came from them with
- * it, which is why there is no delete.
+ * This is what a campaign with work against it gets: deleting one would take
+ * its submissions and leave behind the points they earned. `deleteCampaign`
+ * below exists for the drafts and mistakes, and refuses anything else.
  */
 export async function archiveCampaign(
   campaignId: string,
@@ -281,6 +282,73 @@ export async function deleteAchievement(
     revalidatePath("/dashboard/rewards");
 
     return { ok: true, message: "Achievement removed." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// ─── Deleting a campaign ────────────────────────────────────────────────────
+
+/**
+ * Removes a campaign and its tasks outright.
+ *
+ * Refused once anybody has submitted to it. The foreign keys cascade
+ * campaigns → tasks → submissions, so deleting a campaign with work against it
+ * would take students' uploads with it while the point_ledger rows that paid
+ * for those uploads stayed behind — that ledger is append-only, so the points
+ * cannot be walked back either. The result would be points paid for work the
+ * database can no longer show. Archiving is the answer for those; this is for
+ * the drafts and mistakes.
+ */
+export async function deleteCampaign(campaignId: string): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const db = createAdminClient();
+
+    const { data: campaign } = await db
+      .from("campaigns")
+      .select("title")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (!campaign) return { ok: false, message: "That campaign is already gone." };
+
+    const { data: tasks } = await db
+      .from("campaign_tasks")
+      .select("id")
+      .eq("campaign_id", campaignId);
+    const taskIds = (tasks ?? []).map((task) => task.id);
+
+    if (taskIds.length > 0) {
+      const { count } = await db
+        .from("submissions")
+        .select("id", { count: "exact", head: true })
+        .in("campaign_task_id", taskIds);
+
+      if ((count ?? 0) > 0) {
+        return {
+          ok: false,
+          message: `"${campaign.title}" has ${count} submission${count === 1 ? "" : "s"}. Archive it instead — deleting would take those uploads with it.`,
+        };
+      }
+    }
+
+    const { error } = await db.from("campaigns").delete().eq("id", campaignId);
+    if (error) throw error;
+
+    // Recorded by hand: this file has no audit helper, and a deletion is the
+    // one thing here that leaves nothing behind to look at afterwards.
+    await db.from("audit_log").insert({
+      actor_id: actorId,
+      action: "campaign.delete",
+      entity_type: "campaign",
+      entity_id: campaignId,
+      meta: { title: campaign.title, tasks: taskIds.length },
+    });
+
+    revalidatePath("/admin/campaigns");
+    revalidatePath("/dashboard/campaigns");
+
+    return { ok: true, message: `"${campaign.title}" deleted.` };
   } catch (err) {
     return fail(err);
   }

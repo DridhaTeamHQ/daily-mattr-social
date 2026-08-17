@@ -74,6 +74,25 @@ export function CreateCampaignDialog({
     });
   }
 
+  /**
+   * Back to a blank campaign.
+   *
+   * The plain inputs — the URL, the deadline — clear themselves, because Radix
+   * unmounts the dialog's contents on close and they were never held anywhere.
+   * The fields the AI draft has to be able to fill are React state, which
+   * outlives the dialog, so creating one campaign left its title, description
+   * and handle sitting in the next one.
+   */
+  function reset() {
+    setBrief("");
+    setCommentIdeas([]);
+    setTitle("");
+    setDescription("");
+    setHandle("dailymattr");
+    setPlatform("Instagram");
+    setTasks(seedTasks(library));
+  }
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -83,6 +102,10 @@ export function CreateCampaignDialog({
       if (result.ok) {
         toast.success(result.message);
         setOpen(false);
+        // Only on success. A failed create keeps everything typed — losing a
+        // campaign's worth of work to a validation error would be worse than
+        // the bug this fixes.
+        reset();
       } else {
         toast.error(result.message);
       }
