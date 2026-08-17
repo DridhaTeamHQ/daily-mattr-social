@@ -35,7 +35,7 @@ const ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: House, fill: "bg-brand" },
   {
     href: "/dashboard/campaigns",
-    label: "Campaigns",
+    label: "Tasks",
     icon: Clapperboard,
     fill: "bg-reel",
   },

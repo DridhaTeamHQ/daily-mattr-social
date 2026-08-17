@@ -200,6 +200,199 @@ export function DayBars({
   );
 }
 
+/**
+ * A running total over time.
+ *
+ * Daily bars are the obvious form and the wrong one for this data. Approvals
+ * arrive in bursts — a reviewer clears twelve on Tuesday and none until Friday
+ * — so a month of them is three spikes and fourteen empty slots pushed against
+ * one edge. It reads as a chart that failed to load rather than a quiet
+ * fortnight.
+ *
+ * A cumulative line has no gaps to misread. Its height is the total so far and
+ * its slope is the pace, which is what an admin is actually asking: are we
+ * still moving, and how fast. Flat stretches say "nothing happened" without
+ * looking like missing data.
+ *
+ * One series, so no legend — the card title names it — and only the endpoint
+ * is labelled. A number on every point is chaos, and the per-day figures are
+ * in the table underneath, which is also the answer for anyone the hover
+ * tooltips don't serve.
+ */
+export function TrendArea({
+  data,
+  color = "violet",
+  /** Names the total, e.g. "approved this month". */
+  caption,
+  unit = "",
+}: {
+  data: { day: string; value: number }[];
+  color?: SeriesColor;
+  caption: string;
+  unit?: string;
+}) {
+  const total = data.reduce((sum, point) => sum + point.value, 0);
+
+  if (data.length === 0 || total === 0) {
+    return (
+      <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
+        Nothing in this window yet.
+      </p>
+    );
+  }
+
+  // The plot is inset from the top and bottom of the box so a 2px line at the
+  // ceiling or the floor is not sliced in half by the edge.
+  const TOP = 4;
+  const FLOOR = 96;
+  const height = FLOOR - TOP;
+
+  const runningTotals: number[] = [];
+  for (const point of data) {
+    runningTotals.push((runningTotals[runningTotals.length - 1] ?? 0) + point.value);
+  }
+
+  const points = data.map((point, index) => ({
+    ...point,
+    running: runningTotals[index],
+    x: data.length === 1 ? 0 : (index / (data.length - 1)) * 100,
+    y: FLOOR - (runningTotals[index] / total) * height,
+  }));
+
+  const line = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+  const area = `${line} L 100 ${FLOOR} L ${points[0].x} ${FLOOR} Z`;
+  const last = points[points.length - 1];
+
+  const busiest = data.reduce((best, point) =>
+    point.value > best.value ? point : best,
+  );
+  const activeDays = data.filter((point) => point.value > 0).length;
+  const fill = SERIES[color];
+  const gradient = `trend-${color}`;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        {/* The headline is the number, not the shape — the chart is there to
+            say how it got there. Proportional figures: tabular ones look
+            gappy at this size, and nothing is aligning under it. */}
+        <p className="text-[30px] leading-none font-black text-ink">
+          {formatNumber(total)}
+        </p>
+        <p className="text-[12.5px] font-semibold text-ink-soft">{caption}</p>
+        <p className="ml-auto text-[12px] font-semibold text-ink-soft">
+          {formatNumber(busiest.value)} on the busiest day ·{" "}
+          {activeDays === 1 ? "1 active day" : `${activeDays} active days`}
+        </p>
+      </div>
+
+      <div className="relative mt-4 h-40">
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="h-full w-full"
+          role="img"
+          aria-label={`${formatNumber(total)}${unit} ${caption}, rising over ${data.length} days`}
+        >
+          <defs>
+            <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={fill} stopOpacity="0.28" />
+              <stop offset="100%" stopColor={fill} stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+
+          {/* Solid hairlines, a shade off the surface: a grid is context, and
+              dashes would read as a threshold that isn't there. */}
+          <line
+            x1="0"
+            y1={TOP}
+            x2="100"
+            y2={TOP}
+            stroke="currentColor"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            className="text-gray-200"
+          />
+          <line
+            x1="0"
+            y1={FLOOR}
+            x2="100"
+            y2={FLOOR}
+            stroke="currentColor"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            className="text-gray-300"
+          />
+
+          <path d={area} fill={`url(#${gradient})`} />
+          <path
+            d={line}
+            fill="none"
+            stroke={fill}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          {/* Full-height hit columns rather than the line itself: a 2px stroke
+              is not something anyone should have to aim at. */}
+          {points.map((point, index) => (
+            <rect
+              key={point.day}
+              x={(index * 100) / points.length}
+              y="0"
+              width={100 / points.length}
+              height="100"
+              fill="transparent"
+            >
+              <title>
+                {`${dayLabel(point.day)}: ${formatNumber(point.value)}${unit} · ${formatNumber(point.running)} so far`}
+              </title>
+            </rect>
+          ))}
+        </svg>
+
+        {/* The one direct label, on the one point worth labelling. */}
+        <span
+          className="absolute -translate-x-full -translate-y-1/2 rounded-full border-2 border-surface"
+          style={{
+            left: "100%",
+            top: `${last.y}%`,
+            width: 10,
+            height: 10,
+            backgroundColor: fill,
+          }}
+          aria-hidden
+        />
+      </div>
+
+      <div className="mt-2 flex justify-between text-[11.5px] font-bold text-ink-soft">
+        <span>{dayLabel(data[0].day)}</span>
+        <span>Today</span>
+      </div>
+
+      <DataTable
+        caption={caption}
+        rows={data.map((point) => ({
+          label: dayLabel(point.day),
+          value: point.value,
+        }))}
+        unit={unit}
+      />
+    </>
+  );
+}
+
+function dayLabel(day: string): string {
+  return new Date(day).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 /** The plain-numbers view of a chart, for anyone the bars don't serve. */
 export function DataTable({
   caption,

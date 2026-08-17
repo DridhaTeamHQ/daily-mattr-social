@@ -8,16 +8,22 @@ import {
   Users,
 } from "lucide-react";
 
-import { BarList, ChartCard, DayBars } from "@/components/charts";
+import { BarList, ChartCard } from "@/components/charts";
 import { CohortFilter } from "@/components/cohort-filter";
+import { InfiniteTableBody } from "@/components/infinite-scroll";
 import { PeriodFilter } from "@/components/period-filter";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { Stat } from "@/components/ui/stat";
+import { ProgressBar, Stat } from "@/components/ui/stat";
 import { readAll } from "@/lib/admin/read-all";
 import { requireAdmin } from "@/lib/admin/queries";
-import { istDay, readPeriod, resolvePeriod } from "@/lib/admin/period";
-import { getCohort, readCohortFilters, type Dimension } from "@/lib/admin/scope";
+import { readPeriod, resolvePeriod } from "@/lib/admin/period";
+import {
+  DIMENSIONS,
+  getCohort,
+  readCohortFilters,
+  type Dimension,
+} from "@/lib/admin/scope";
 import { createClient } from "@/lib/supabase/server";
 import { formatNumber, initials } from "@/lib/utils";
 
@@ -41,48 +47,6 @@ type Submission = {
   uploaded_at: string;
 };
 
-/** "14:00–15:00" as "2 PM", in IST like every other date on this page. */
-function hourLabel(hour: number): string {
-  const suffix = hour < 12 ? "AM" : "PM";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${twelve} ${suffix}`;
-}
-
-/** "2026-08" as "Aug 2026". */
-function monthLabel(month: string): string {
-  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-IN", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-/** Months from the first with activity to the last, gaps included as zeroes. */
-function fillMonths(entries: [string, number][]): [string, number][] {
-  if (entries.length === 0) return [];
-
-  const counts = new Map(entries);
-  const months = [...counts.keys()].sort();
-  const filled: [string, number][] = [];
-
-  for (
-    let cursor = months[0];
-    cursor <= months[months.length - 1];
-    cursor = nextMonth(cursor)
-  ) {
-    filled.push([cursor, counts.get(cursor) ?? 0]);
-  }
-
-  return filled;
-}
-
-function nextMonth(month: string): string {
-  const [year, index] = month.split("-").map(Number);
-  return index === 12
-    ? `${year + 1}-01`
-    : `${year}-${String(index + 1).padStart(2, "0")}`;
-}
-
 export default async function AnalyticsPage({
   searchParams,
 }: {
@@ -101,11 +65,17 @@ export default async function AnalyticsPage({
   const supabase = await createClient();
 
   const [allProfiles, campaigns] = await Promise.all([
-    readAll<{ id: string; full_name: string; college: string | null }>(
+    readAll<{
+      id: string;
+      full_name: string;
+      college: string | null;
+      city: string | null;
+      batch: string | null;
+    }>(
       (from, to) =>
         supabase
           .from("profiles")
-          .select("id, full_name, college")
+          .select("id, full_name, college, city, batch")
           .eq("role", "ambassador")
           .eq("status", "active")
           .order("id")
@@ -210,7 +180,11 @@ export default async function AnalyticsPage({
     ? Math.round((approvedSubmissions * 100) / decided)
     : 0;
 
-  const topAmbassadors = profiles
+  // The whole filtered cohort, not a top eight. Once the table can be narrowed
+  // to a college or a batch, "the best eight of the people you selected" is a
+  // different question from the one the filters just asked — and the rows at
+  // the bottom, the ones who have done nothing, are the ones worth finding.
+  const ranked = profiles
     .map((profile) => {
       const approved = approvedByAmbassador.get(profile.id)?.size ?? 0;
       return {
@@ -219,8 +193,12 @@ export default async function AnalyticsPage({
         completion: taskTotal ? Math.round((approved * 100) / taskTotal) : 0,
       };
     })
-    .sort((left, right) => right.completion - left.completion || right.approved - left.approved)
-    .slice(0, 8);
+    .sort(
+      (left, right) =>
+        right.completion - left.completion ||
+        right.approved - left.approved ||
+        left.full_name.localeCompare(right.full_name),
+    );
 
   const campaignPerformance = activeCampaigns
     .map((campaign) => {
@@ -238,43 +216,13 @@ export default async function AnalyticsPage({
     .sort((left, right) => right.value - left.value)
     .slice(0, 8);
 
-  // One bar per day of the period, empty days included — dropping them
-  // compresses a quiet week into a busy-looking chart.
-  const approvalsByDay = new Map(period.days.map((day) => [day, 0]));
-  // A single day has no shape as a bar chart, so it is broken down by the hour
-  // instead. Only hours with something in them are listed: twenty-four rows,
-  // twenty of them zero, is a worse answer than four rows that mean something.
-  const approvalsByHour = new Map<number, number>();
-  // Total is charted by month, for the same reason in the other direction — a
-  // year of daily bars is a fence, not a chart.
-  const approvalsByMonth = new Map<string, number>();
-
-  for (const submission of relevantSubmissions) {
-    if (!APPROVED.has(submission.status)) continue;
-    const uploadedAt = new Date(submission.uploaded_at);
-    const day = istDay(uploadedAt);
-    if (approvalsByDay.has(day)) {
-      approvalsByDay.set(day, (approvalsByDay.get(day) ?? 0) + 1);
-    }
-    const hour = new Date(uploadedAt.getTime() + 5.5 * 3_600_000).getUTCHours();
-    approvalsByHour.set(hour, (approvalsByHour.get(hour) ?? 0) + 1);
-    const month = day.slice(0, 7);
-    approvalsByMonth.set(month, (approvalsByMonth.get(month) ?? 0) + 1);
-  }
-
-  const approvalTrend = [...approvalsByDay.entries()].map(([day, value]) => ({
-    day,
-    value,
-  }));
-  const approvalHours = [...approvalsByHour.entries()]
-    .sort((left, right) => left[0] - right[0])
-    .map(([hour, value]) => ({ label: hourLabel(hour), value }));
-  // Chronological, and with the quiet months in between kept: sorting by size
-  // would turn a trend into a ranking, and dropping the gaps would hide a
-  // month in which nothing happened.
-  const approvalMonths = fillMonths([...approvalsByMonth.entries()]).map(
-    ([month, value]) => ({ label: monthLabel(month), value }),
-  );
+  // "Hyderabad · Batch 2 · this month", or just the period when nothing is
+  // narrowed. Built from the same cohort object the filter row renders from,
+  // so the two can never describe different slices.
+  const scopeSummary = [
+    ...DIMENSIONS.map(({ key }) => cohort.filters[key]).filter(Boolean),
+    period.noun,
+  ].join(" · ");
 
   return (
     <div className="stagger space-y-5">
@@ -352,98 +300,135 @@ export default async function AnalyticsPage({
           />
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ChartCard
-            title="Campaign completion"
-            hint="Approved tasks divided by all tasks available to active ambassadors."
-          >
-            <BarList
-              data={campaignPerformance}
-              unit="%"
-              color="teal"
-              emptyMessage={`No active campaigns ${period.noun}.`}
-            />
-          </ChartCard>
-          <ChartCard
-            title="Approved tasks"
-            hint={
-              period.grain === "hour"
-                ? "Approved submissions uploaded today, by the hour."
-                : period.grain === "month"
-                  ? "Approved submissions per month, since the programme started."
-                  : `Approved submissions uploaded ${period.noun}.`
-            }
-          >
-            {period.grain === "hour" ? (
-              <BarList
-                data={approvalHours}
-                color="violet"
-                emptyMessage="No approved tasks today yet."
-              />
-            ) : period.grain === "month" ? (
-              <BarList
-                data={approvalMonths}
-                color="violet"
-                emptyMessage="No approved tasks yet."
-              />
-            ) : approvalTrend.some((day) => day.value > 0) ? (
-              <DayBars data={approvalTrend} color="violet" unit=" approved" />
-            ) : (
-              <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
-                No approved tasks {period.noun}.
-              </p>
-            )}
-          </ChartCard>
-        </div>
+        <ChartCard
+          title="Campaign completion"
+          hint="Approved tasks divided by all tasks available to active ambassadors."
+        >
+          <BarList
+            data={campaignPerformance}
+            unit="%"
+            color="teal"
+            emptyMessage={`No active campaigns ${period.noun}.`}
+          />
+        </ChartCard>
       )}
 
-      <Card>
-        <CardBody>
+      <Card className="overflow-hidden">
+        <CardBody className="pb-0">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="display text-[16px] text-ink">Top completion</h2>
+              <h2 className="display text-[16px] text-ink">Completion by ambassador</h2>
               <p className="mt-1 text-[12.5px] text-ink-soft">
-                Active ambassadors ranked by approved task completion.
+                {/* Says what the filter row above is currently doing to this
+                    table. A table that silently changes under a filter bar it
+                    does not mention looks like it is showing everyone. */}
+                {formatNumber(ranked.length)}{" "}
+                {ranked.length === 1 ? "ambassador" : "ambassadors"} ·{" "}
+                {scopeSummary}
               </p>
             </div>
-            <Users className="size-5 text-ink-soft" />
+            <Users className="size-5 shrink-0 text-ink-soft" />
           </div>
-          {topAmbassadors.length === 0 ? (
-            <EmptyState title="No active ambassadors" />
-          ) : (
-            <ul className="mt-4 divide-y divide-gray-100">
-              {topAmbassadors.map((ambassador, index) => (
-                <li key={ambassador.id} className="flex items-center gap-3 py-3">
-                  <span className="w-6 text-center text-[13px] font-extrabold text-ink-faint">
-                    {index + 1}
-                  </span>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gray-100 text-[12px] font-extrabold text-ink">
-                    {initials(ambassador.full_name)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/admin/ambassadors/${ambassador.id}`}
-                      className="truncate text-[13.5px] font-extrabold text-ink hover:underline"
-                    >
-                      {ambassador.full_name}
-                    </Link>
-                    <p className="truncate text-[12px] text-ink-soft">
-                      {ambassador.college || "No college set"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="tabular text-[15px] font-extrabold text-ink">
-                      {ambassador.completion}%
-                    </p>
-                    <p className="text-[11.5px] text-ink-soft">
-                      {ambassador.approved}/{taskTotal} approved
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          {/* The same controls as the top of the page, not a second set of
+              state: both read and write the one set of URL params, so moving
+              either moves the whole page together. They are repeated here
+              because the table is a long scroll from the header, and a filter
+              you have to scroll back up to reach is one you stop using. */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 pb-5">
+            <PeriodFilter period={period.key} />
+            <CohortFilter cohort={cohort} />
+          </div>
         </CardBody>
+
+        {ranked.length === 0 ? (
+          <CardBody>
+            <EmptyState title="No active ambassadors" />
+          </CardBody>
+        ) : (
+          // Horizontal scroll rather than dropping columns: city, college and
+          // batch are the three things the filters cut on, so they have to be
+          // readable next to the number they explain.
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[44rem] text-left">
+              <thead className="border-y border-line bg-canvas-sunk">
+                <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
+                  <th className="w-12 px-4 py-2.5 text-center font-medium">#</th>
+                  <th className="px-4 py-2.5 font-medium">Ambassador</th>
+                  <th className="px-4 py-2.5 font-medium">College</th>
+                  <th className="px-4 py-2.5 font-medium">City</th>
+                  <th className="px-4 py-2.5 font-medium">Batch</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Approved</th>
+                  <th className="w-44 px-4 py-2.5 text-right font-medium">
+                    Completion
+                  </th>
+                </tr>
+              </thead>
+
+              <InfiniteTableBody
+                key={`${period.key}:${cohort.filters.city}:${cohort.filters.college}:${cohort.filters.batch}`}
+                colSpan={7}
+                pageSize={15}
+              >
+                {ranked.map((ambassador, index) => (
+                  <tr key={ambassador.id} className="hover:bg-canvas-sunk/50">
+                    <td className="px-4 py-3 text-center text-[13px] font-extrabold text-ink-faint tabular">
+                      {index + 1}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          aria-hidden
+                          className="grid size-8 shrink-0 place-items-center rounded-full bg-gray-100 text-[11px] font-extrabold text-ink"
+                        >
+                          {initials(ambassador.full_name)}
+                        </span>
+                        <Link
+                          href={`/admin/ambassadors/${ambassador.id}`}
+                          className="truncate text-[13.5px] font-extrabold text-ink hover:underline"
+                        >
+                          {ambassador.full_name}
+                        </Link>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
+                      {ambassador.college || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
+                      {ambassador.city || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
+                      {ambassador.batch || "—"}
+                    </td>
+
+                    <td className="tabular px-4 py-3 text-right text-[13px] font-bold text-ink">
+                      {ambassador.approved}/{taskTotal}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {/* The bar carries the comparison, the number carries the
+                          value — reading a column of percentages for the gap
+                          between 30% and 20% is work a length does for free. */}
+                      <div className="flex items-center justify-end gap-2.5">
+                        <ProgressBar
+                          value={ambassador.completion}
+                          max={100}
+                          tone="brand"
+                          className="h-2 w-24 shrink-0"
+                        />
+                        <span className="tabular w-10 text-right text-[13px] font-extrabold text-ink">
+                          {ambassador.completion}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </InfiniteTableBody>
+            </table>
+          </div>
+        )}
       </Card>
         </>
       )}

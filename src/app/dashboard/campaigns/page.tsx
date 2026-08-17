@@ -23,7 +23,7 @@ import { getCampaigns } from "@/lib/queries";
 import { timeRemaining } from "@/lib/utils";
 import type { Enums } from "@/lib/database.types";
 
-export const metadata = { title: "Campaigns" };
+export const metadata = { title: "Tasks" };
 
 const TASK_META: Record<
   Enums<"task_type">,
@@ -83,7 +83,7 @@ export default async function CampaignsPage({
       <PageHeader
         icon={Clapperboard}
         tone="reel"
-        title="Campaigns"
+        title="Tasks"
         description="Finish the challenge, submit your proof, and build your completion percentage."
       />
 
