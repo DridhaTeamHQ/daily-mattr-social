@@ -19,6 +19,15 @@ const STAT_ICON_BG = {
   rank: "bg-black",
 };
 
+/**
+ * A number with a label.
+ *
+ * `interactive` is off by default, and it has to be, because it draws a
+ * chevron and a pointer cursor — an affordance that says "this goes
+ * somewhere". Most tiles are a figure and nothing more, so the arrow was
+ * promising a click that never did anything. Turn it on only when the tile is
+ * genuinely inside a link.
+ */
 export function Stat({
   label,
   value,
@@ -26,7 +35,7 @@ export function Stat({
   icon: Icon,
   cornerIcon: CornerIcon,
   tone = "brand",
-  interactive = true,
+  interactive = false,
   className,
 }: {
   label: string;

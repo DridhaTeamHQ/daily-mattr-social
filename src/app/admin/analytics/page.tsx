@@ -9,11 +9,15 @@ import {
 } from "lucide-react";
 
 import { BarList, ChartCard, DayBars } from "@/components/charts";
+import { CohortFilter } from "@/components/cohort-filter";
+import { PeriodFilter } from "@/components/period-filter";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { readAll } from "@/lib/admin/read-all";
 import { requireAdmin } from "@/lib/admin/queries";
+import { istDay, readPeriod, resolvePeriod } from "@/lib/admin/period";
+import { getCohort, readCohortFilters, type Dimension } from "@/lib/admin/scope";
 import { createClient } from "@/lib/supabase/server";
 import { formatNumber, initials } from "@/lib/utils";
 
@@ -37,18 +41,66 @@ type Submission = {
   uploaded_at: string;
 };
 
-export default async function AnalyticsPage() {
+/** "14:00–15:00" as "2 PM", in IST like every other date on this page. */
+function hourLabel(hour: number): string {
+  const suffix = hour < 12 ? "AM" : "PM";
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve} ${suffix}`;
+}
+
+/** "2026-08" as "Aug 2026". */
+function monthLabel(month: string): string {
+  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-IN", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Months from the first with activity to the last, gaps included as zeroes. */
+function fillMonths(entries: [string, number][]): [string, number][] {
+  if (entries.length === 0) return [];
+
+  const counts = new Map(entries);
+  const months = [...counts.keys()].sort();
+  const filled: [string, number][] = [];
+
+  for (
+    let cursor = months[0];
+    cursor <= months[months.length - 1];
+    cursor = nextMonth(cursor)
+  ) {
+    filled.push([cursor, counts.get(cursor) ?? 0]);
+  }
+
+  return filled;
+}
+
+function nextMonth(month: string): string {
+  const [year, index] = month.split("-").map(Number);
+  return index === 12
+    ? `${year + 1}-01`
+    : `${year}-${String(index + 1).padStart(2, "0")}`;
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: Promise<
+    Partial<Record<Dimension | "period", string | string[]>>
+  >;
+}) {
   await requireAdmin();
 
-  const supabase = await createClient();
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const trendStart = new Date(now);
-  trendStart.setDate(now.getDate() - 13);
-  trendStart.setHours(0, 0, 0, 0);
+  const params = await searchParams;
+  const filters = readCohortFilters(params);
+  const cohort = await getCohort(filters.city, filters.college, filters.batch);
+  const periodKey = readPeriod(params.period);
+  const period = resolvePeriod(periodKey);
 
-  const [profiles, campaigns] = await Promise.all([
+  const supabase = await createClient();
+
+  const [allProfiles, campaigns] = await Promise.all([
     readAll<{ id: string; full_name: string; college: string | null }>(
       (from, to) =>
         supabase
@@ -66,10 +118,20 @@ export default async function AnalyticsPage() {
       .neq("status", "draft"),
   ]);
 
+  // Every figure below divides by the number of ambassadors, so the cohort has
+  // to be applied here rather than to the finished numbers: a completion rate
+  // filtered after the fact would still be over the whole programme's tasks.
+  const profiles = cohort.ids
+    ? allProfiles.filter((profile) => cohort.ids?.has(profile.id))
+    : allProfiles;
+
+  // A campaign counts if it was running at any point in the period — one that
+  // ended on Tuesday is part of this week, and dropping it would credit its
+  // approvals to no campaign at all.
   const activeCampaigns = ((campaigns.data ?? []) as Campaign[]).filter(
     (campaign) =>
-      new Date(campaign.starts_at) < nextMonth &&
-      (!campaign.ends_at || new Date(campaign.ends_at) >= monthStart),
+      new Date(campaign.starts_at) < period.end &&
+      (!campaign.ends_at || new Date(campaign.ends_at) >= period.start),
   );
   const campaignIds = activeCampaigns.map((campaign) => campaign.id);
   const { data: tasks } = campaignIds.length
@@ -90,9 +152,18 @@ export default async function AnalyticsPage() {
         .range(from, to),
     "analytics.submissions",
   );
-  const relevantSubmissions = submissions.filter((submission) =>
-    taskIds.has(submission.campaign_task_id),
-  );
+  // Uploads inside the period, on a task belonging to a campaign that ran in
+  // it, by somebody in the cohort. The cohort test lets everyone through when
+  // no filter is set, including people who have since been suspended.
+  const relevantSubmissions = submissions.filter((submission) => {
+    const uploadedAt = new Date(submission.uploaded_at);
+    return (
+      taskIds.has(submission.campaign_task_id) &&
+      uploadedAt >= period.start &&
+      uploadedAt < period.end &&
+      (!cohort.ids || cohort.ids.has(submission.ambassador_id))
+    );
+  });
 
   const taskTotal = taskRows.length;
   const approvedByAmbassador = new Map<string, Set<string>>();
@@ -167,23 +238,43 @@ export default async function AnalyticsPage() {
     .sort((left, right) => right.value - left.value)
     .slice(0, 8);
 
-  const approvalsByDay = new Map<string, number>();
-  for (let offset = 13; offset >= 0; offset -= 1) {
-    const date = new Date(trendStart);
-    date.setDate(trendStart.getDate() + (13 - offset));
-    approvalsByDay.set(date.toISOString().slice(0, 10), 0);
-  }
+  // One bar per day of the period, empty days included — dropping them
+  // compresses a quiet week into a busy-looking chart.
+  const approvalsByDay = new Map(period.days.map((day) => [day, 0]));
+  // A single day has no shape as a bar chart, so it is broken down by the hour
+  // instead. Only hours with something in them are listed: twenty-four rows,
+  // twenty of them zero, is a worse answer than four rows that mean something.
+  const approvalsByHour = new Map<number, number>();
+  // Total is charted by month, for the same reason in the other direction — a
+  // year of daily bars is a fence, not a chart.
+  const approvalsByMonth = new Map<string, number>();
+
   for (const submission of relevantSubmissions) {
     if (!APPROVED.has(submission.status)) continue;
-    const day = new Date(submission.uploaded_at).toISOString().slice(0, 10);
+    const uploadedAt = new Date(submission.uploaded_at);
+    const day = istDay(uploadedAt);
     if (approvalsByDay.has(day)) {
       approvalsByDay.set(day, (approvalsByDay.get(day) ?? 0) + 1);
     }
+    const hour = new Date(uploadedAt.getTime() + 5.5 * 3_600_000).getUTCHours();
+    approvalsByHour.set(hour, (approvalsByHour.get(hour) ?? 0) + 1);
+    const month = day.slice(0, 7);
+    approvalsByMonth.set(month, (approvalsByMonth.get(month) ?? 0) + 1);
   }
+
   const approvalTrend = [...approvalsByDay.entries()].map(([day, value]) => ({
     day,
     value,
   }));
+  const approvalHours = [...approvalsByHour.entries()]
+    .sort((left, right) => left[0] - right[0])
+    .map(([hour, value]) => ({ label: hourLabel(hour), value }));
+  // Chronological, and with the quiet months in between kept: sorting by size
+  // would turn a trend into a ranking, and dropping the gaps would hide a
+  // month in which nothing happened.
+  const approvalMonths = fillMonths([...approvalsByMonth.entries()]).map(
+    ([month, value]) => ({ label: monthLabel(month), value }),
+  );
 
   return (
     <div className="stagger space-y-5">
@@ -191,7 +282,10 @@ export default async function AnalyticsPage() {
         <div>
           <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            Current-month task completion across active ambassadors.
+            Task completion {period.noun} across{" "}
+            {cohort.active
+              ? `${formatNumber(cohort.matched)} of ${formatNumber(cohort.total)} active ambassadors.`
+              : "active ambassadors."}
           </p>
         </div>
         <Link
@@ -203,6 +297,21 @@ export default async function AnalyticsPage() {
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <PeriodFilter period={period.key} />
+        <CohortFilter cohort={cohort} />
+      </div>
+
+      {cohort.empty ? (
+        <Card>
+          <EmptyState
+            icon={Users}
+            title="Nobody matches that filter"
+            description="No active ambassador is in every one of the selected city, college and batch. Clear one of them to widen the view."
+          />
+        </Card>
+      ) : (
+        <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Completion rate"
@@ -214,7 +323,7 @@ export default async function AnalyticsPage() {
         <Stat
           label="Active tasks"
           value={taskTotal}
-          sub={`${activeCampaigns.length} campaign${activeCampaigns.length === 1 ? "" : "s"} this month`}
+          sub={`${activeCampaigns.length} campaign${activeCampaigns.length === 1 ? "" : "s"} ${period.noun}`}
           icon={ListChecks}
           tone="reel"
         />
@@ -228,7 +337,7 @@ export default async function AnalyticsPage() {
         <Stat
           label="Awaiting review"
           value={pendingReview}
-          sub="Current campaign submissions"
+          sub={`Undecided submissions ${period.noun}`}
           icon={Clock3}
           tone="invite"
         />
@@ -238,7 +347,7 @@ export default async function AnalyticsPage() {
         <Card>
           <EmptyState
             icon={ListChecks}
-            title="No active tasks this month"
+            title={`No active tasks ${period.noun}`}
             description="Publish a campaign task to start tracking completion percentages."
           />
         </Card>
@@ -252,18 +361,36 @@ export default async function AnalyticsPage() {
               data={campaignPerformance}
               unit="%"
               color="teal"
-              emptyMessage="No active campaigns this month."
+              emptyMessage={`No active campaigns ${period.noun}.`}
             />
           </ChartCard>
           <ChartCard
             title="Approved tasks"
-            hint="Approved submissions uploaded over the last 14 days."
+            hint={
+              period.grain === "hour"
+                ? "Approved submissions uploaded today, by the hour."
+                : period.grain === "month"
+                  ? "Approved submissions per month, since the programme started."
+                  : `Approved submissions uploaded ${period.noun}.`
+            }
           >
-            {approvalTrend.some((day) => day.value > 0) ? (
+            {period.grain === "hour" ? (
+              <BarList
+                data={approvalHours}
+                color="violet"
+                emptyMessage="No approved tasks today yet."
+              />
+            ) : period.grain === "month" ? (
+              <BarList
+                data={approvalMonths}
+                color="violet"
+                emptyMessage="No approved tasks yet."
+              />
+            ) : approvalTrend.some((day) => day.value > 0) ? (
               <DayBars data={approvalTrend} color="violet" unit=" approved" />
             ) : (
               <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
-                No approved tasks in the last 14 days.
+                No approved tasks {period.noun}.
               </p>
             )}
           </ChartCard>
@@ -318,6 +445,8 @@ export default async function AnalyticsPage() {
           )}
         </CardBody>
       </Card>
+        </>
+      )}
     </div>
   );
 }

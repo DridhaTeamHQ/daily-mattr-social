@@ -25,7 +25,7 @@ export default function RewardsLoading() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <StatSkeleton key={i} chevron />
+          <StatSkeleton key={i} />
         ))}
       </div>
 

@@ -79,7 +79,6 @@ export default async function DashboardPage() {
             sub={openTasks === 0 ? "All caught up" : "Waiting for you"}
             icon={ClipboardCheck}
             tone="reel"
-            interactive={false}
           />
           <Stat
             label="Responses"
@@ -87,7 +86,6 @@ export default async function DashboardPage() {
             sub={`${surveys.length} ${surveys.length === 1 ? "survey" : "surveys"}`}
             icon={ClipboardList}
             tone="poll"
-            interactive={false}
           />
           <Stat
             label="Installs"
@@ -95,7 +93,6 @@ export default async function DashboardPage() {
             sub={referrals.last_conversion ? `Last ${formatDate(referrals.last_conversion)}` : "None yet"}
             icon={Gift}
             tone="invite"
-            interactive={false}
           />
         </div>
       </section>

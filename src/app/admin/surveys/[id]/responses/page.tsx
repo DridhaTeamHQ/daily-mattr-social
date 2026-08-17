@@ -336,7 +336,7 @@ function StatLink({
       aria-current={active ? "true" : undefined}
       className={active ? "" : "opacity-70 transition-opacity hover:opacity-100"}
     >
-      <Stat label={label} value={value} tone={tone} sub={active ? "Showing" : "Filter"} />
+      <Stat label={label} value={value} tone={tone} sub={active ? "Showing" : "Filter"} interactive />
     </Link>
   );
 }
