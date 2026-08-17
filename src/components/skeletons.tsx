@@ -110,9 +110,9 @@ export function ProgressTileSkeleton() {
 /**
  * Stands in for `<Stat>`, which is a different card from the tile above — the
  * icon is a large square on the left, and the label sits over the number rather
- * than beside it. `chevron` matches the component's `interactive` prop.
+ * than beside it.
  */
-export function StatSkeleton({ chevron = false }: { chevron?: boolean }) {
+export function StatSkeleton() {
   return (
     <div className="flex items-center gap-5 rounded-2xl border border-gray-100 bg-gray-50/50 p-5 shadow-sm sm:p-6">
       <Skeleton className="size-14 shrink-0 rounded-2xl bg-gray-200" />
@@ -121,9 +121,6 @@ export function StatSkeleton({ chevron = false }: { chevron?: boolean }) {
         <Skeleton className="h-7 w-24 rounded-sm bg-gray-200" />
         <Skeleton className="h-3 w-28 rounded-sm bg-gray-200" />
       </div>
-      {chevron && (
-        <Skeleton className="size-5 shrink-0 rounded-sm bg-gray-200" />
-      )}
     </div>
   );
 }

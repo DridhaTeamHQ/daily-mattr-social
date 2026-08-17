@@ -18,15 +18,6 @@ const STAT_ICON_BG = {
   rank: "bg-black",
 };
 
-/**
- * A number with a label.
- *
- * `interactive` is off by default, and it has to be, because it draws a
- * chevron and a pointer cursor — an affordance that says "this goes
- * somewhere". Most tiles are a figure and nothing more, so the arrow was
- * promising a click that never did anything. Turn it on only when the tile is
- * genuinely inside a link.
- */
 export function Stat({
   label,
   value,
@@ -46,11 +37,11 @@ export function Stat({
   /**
    * Whether the tile lifts and shows a pointer on hover.
    *
-   * This used to also draw a `>` on the right of every tile it was true for —
-   * which is the default, so nearly all of them. Only two screens actually wrap
-   * a Stat in a link, so the chevron was promising a destination that mostly
-   * did not exist, and it sat close enough to the value to read as part of it.
-   * The hover lift is left as the affordance for the tiles that do navigate.
+   * Off, unless a caller says otherwise. It used to default to on and to also
+   * draw a `>` on the right of the tile — a destination that, for all but the
+   * handful of screens wrapping a Stat in a link, did not exist, and it sat
+   * close enough to the value to read as part of it. The chevron is gone; the
+   * hover lift is left as the affordance for the tiles that do navigate.
    */
   interactive?: boolean;
   className?: string;
