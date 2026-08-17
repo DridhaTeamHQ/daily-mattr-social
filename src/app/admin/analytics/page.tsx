@@ -245,7 +245,10 @@ export default async function AnalyticsPage({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {/* The page's one control bar. Given its own surface so it reads as
+          something that governs everything below it, rather than as chrome
+          belonging to the tiles it happens to sit above. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-surface p-3 shadow-xs">
         <PeriodFilter period={period.key} />
         <CohortFilter cohort={cohort} />
       </div>
@@ -314,30 +317,22 @@ export default async function AnalyticsPage({
       )}
 
       <Card className="overflow-hidden">
-        <CardBody className="pb-0">
+        <CardBody className="pb-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="display text-[16px] text-ink">Completion by ambassador</h2>
+              {/* No second filter row here. One set of controls, at the top of
+                  the page, scoping everything on it — two identical rows read
+                  as two independent filters even when they drive the same URL.
+                  This line is what tells the table apart from an unfiltered
+                  one: it names the slice the controls above have selected. */}
               <p className="mt-1 text-[12.5px] text-ink-soft">
-                {/* Says what the filter row above is currently doing to this
-                    table. A table that silently changes under a filter bar it
-                    does not mention looks like it is showing everyone. */}
                 {formatNumber(ranked.length)}{" "}
                 {ranked.length === 1 ? "ambassador" : "ambassadors"} ·{" "}
                 {scopeSummary}
               </p>
             </div>
             <Users className="size-5 shrink-0 text-ink-soft" />
-          </div>
-
-          {/* The same controls as the top of the page, not a second set of
-              state: both read and write the one set of URL params, so moving
-              either moves the whole page together. They are repeated here
-              because the table is a long scroll from the header, and a filter
-              you have to scroll back up to reach is one you stop using. */}
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 pb-5">
-            <PeriodFilter period={period.key} />
-            <CohortFilter cohort={cohort} />
           </div>
         </CardBody>
 

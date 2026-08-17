@@ -5,7 +5,6 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Clapperboard,
-  ClipboardList,
   Flame,
   Coins,
   Gift,
@@ -39,12 +38,9 @@ const ITEMS = [
     icon: Clapperboard,
     fill: "bg-reel",
   },
-  {
-    href: "/dashboard/surveys",
-    label: "Surveys",
-    icon: ClipboardList,
-    fill: "bg-poll",
-  },
+  // No Surveys entry: every survey is in Tasks now, listed among the campaigns
+  // in date order. The page still exists at /dashboard/surveys for anyone
+  // holding a link to it — it is just not a destination of its own any more.
   {
     // Off the phone bar: it is the one people check occasionally rather than
     // act on, and it is still one tap from Home and the top bar.
@@ -75,7 +71,7 @@ const ITEMS = [
 const ACCOUNT_LINKS = [
   {
     href: "/dashboard/rewards",
-    label: "Stipend progress",
+    label: "Reward Structure",
     icon: Coins,
     tint: "bg-rank-tint text-ink",
   },

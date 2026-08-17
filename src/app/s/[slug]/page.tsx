@@ -106,12 +106,15 @@ export default async function PublicSurveyPage({ params }: Params) {
           title now. */}
       <header className="border-b-[3px] border-ink bg-brand">
         <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
-          <h1 className="display text-[32px] leading-[0.95] text-ink sm:text-[44px]">
+          <h1 className="display text-[32px] leading-[0.95] text-white sm:text-[44px]">
             {survey.title}
           </h1>
 
+          {/* Full white, not a faded one: at 14.5px this is body text on a
+              mid-blue, and every step of transparency comes straight off the
+              contrast ratio. */}
           {survey.description && (
-            <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed font-semibold text-ink/80">
+            <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed font-semibold text-white">
               {survey.description}
             </p>
           )}

@@ -70,6 +70,7 @@ export const demoDashboard: DashboardData = {
       instagram_url: "https://www.instagram.com/reel/DEMO1/",
       expected_handle: "dailymattr",
       thumbnail_path: null,
+      starts_at: at(-2),
       ends_at: at(3),
       tasks: [
         {
@@ -115,6 +116,7 @@ export const demoDashboard: DashboardData = {
       instagram_url: "https://www.instagram.com/reel/DEMO2/",
       expected_handle: "dailymattr",
       thumbnail_path: null,
+      starts_at: at(-9),
       ends_at: at(-1), // ended — the card must still render
       tasks: [
         {

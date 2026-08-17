@@ -71,6 +71,8 @@ export type CampaignCard = {
   /** Shown in the upload dialog so students know what must be visible. */
   expected_handle: string;
   thumbnail_path: string | null;
+  /** When it went out. What Tasks sorts on, newest first. */
+  starts_at: string;
   ends_at: string | null;
   tasks: TaskCard[];
 };
@@ -264,6 +266,28 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   };
 });
 
+/**
+ * When each live survey was published, keyed by survey id.
+ *
+ * Tasks shows campaigns and surveys in one list ordered by date, and
+ * `my_survey_stats` carries counts rather than timestamps. Read separately
+ * instead of widening that RPC, which three other callers depend on. Any
+ * signed-in student can select live surveys, so this needs no extra privilege.
+ */
+export const getSurveyDates = cache(async (): Promise<Map<string, string>> => {
+  // Demo fixtures carry no dates. An empty map sorts every survey to the
+  // bottom, which is where they sat before this existed.
+  if (isDemoMode()) return new Map();
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("surveys")
+    .select("id, created_at")
+    .eq("status", "live");
+
+  return new Map((data ?? []).map((survey) => [survey.id, survey.created_at]));
+});
+
 export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   if (isDemoMode()) {
     const { demoDashboard } = await import("@/lib/demo-data");
@@ -280,7 +304,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     // Must stay a single string literal — postgrest-js infers the row shape
     // from it, and a concatenated expression degrades to `GenericStringError`.
     .select(
-      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
+      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, starts_at, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
     )
     .eq("status", "live")
     .order("starts_at", { ascending: false });
@@ -310,6 +334,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     instagram_url: c.instagram_url,
     expected_handle: c.expected_handle,
     thumbnail_path: c.thumbnail_path,
+    starts_at: c.starts_at,
     ends_at: c.ends_at,
     tasks: [...(c.campaign_tasks ?? [])]
       .sort((a, b) => a.order_index - b.order_index)

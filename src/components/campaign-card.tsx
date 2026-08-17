@@ -57,7 +57,15 @@ export function CampaignCard({
             <span className={cn("text-[16px] font-extrabold tracking-wide uppercase", ended ? "text-ink-soft" : "text-brand-strong")}>
               {title}
             </span>
-            <Badge tone={ended ? "neutral" : "reel"}>{deadlineLabel}</Badge>
+            {/* What kind of thing this is, in the same slot the survey card
+                uses for the same purpose. Tasks and surveys sit in one list
+                now, so the badge is what tells them apart. */}
+            <Badge tone={ended ? "neutral" : "reel"}>Task</Badge>
+            {/* The deadline only when there is one. "No deadline" was a chip
+                that took up the same room as a real answer to say nothing. */}
+            {deadlineLabel !== "No deadline" && (
+              <Badge tone={ended ? "neutral" : "warn"}>{deadlineLabel}</Badge>
+            )}
           </span>
           {description && (
             <span className="mt-1.5 block text-[13.5px] leading-relaxed font-medium text-ink-soft">

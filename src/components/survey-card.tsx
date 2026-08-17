@@ -10,20 +10,20 @@ import { cn } from "@/lib/utils";
 export function SurveyCard({
   id,
   title,
-  clicks,
   responses,
+  target,
   children,
 }: {
   id: string;
   title: string;
-  clicks: number;
   responses: number;
+  /** Responses that finish this survey — the programme threshold. */
+  target: number;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const bodyId = `survey-${id}-body`;
-  const shared = clicks > 0;
-  const answered = responses > 0;
+  const done = responses >= target;
 
   return (
     <Card id={id} className="scroll-mt-20 overflow-hidden">
@@ -39,15 +39,23 @@ export function SurveyCard({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="text-[16px] font-extrabold tracking-wide text-ink uppercase">{title}</span>
-            <Badge tone={shared ? "poll" : "neutral"}>{shared ? "Shared" : "Not shared yet"}</Badge>
+            {/* Same treatment as a campaign title — the two sit in one list on
+                Tasks, and a black title next to a blue one reads as a
+                different kind of thing rather than the same thing. */}
+            <span className="text-[16px] font-extrabold tracking-wide text-brand-strong uppercase">{title}</span>
+            {/* "Shared" said what the click count beside it already says. The
+                badge now answers the question the list actually raises: is
+                this a task or a survey. */}
+            <Badge tone="poll">Survey</Badge>
           </span>
         </span>
+        {/* Worded like a campaign's "All done 2/2", because it means the same
+            thing: this one is finished and there is nothing left to chase. */}
         <span className="order-last flex w-full flex-col gap-0.5 text-[12.5px] font-bold text-ink-soft sm:order-none sm:w-auto sm:shrink-0 sm:items-end">
-          <span className="text-ink">{clicks} {clicks === 1 ? "click" : "clicks"}</span>
-          <span className={cn(answered ? "text-ok" : "text-bad")}>
-            {responses} {responses === 1 ? "response" : "responses"}
+          <span className={cn(done ? "text-ok" : "text-bad")}>
+            {done ? "All done" : "Done"} {responses}/{target}
           </span>
+          <span className="text-ink-soft">responses</span>
         </span>
         <span aria-hidden className={cn("grid size-8 shrink-0 place-items-center rounded-full border border-gray-200 bg-white text-gray-500 transition-transform duration-300 ease-out", open && "rotate-180")}>
           <ChevronDown className="size-4.5" />
