@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import { BottomNav, TopNav } from "@/components/app-nav";
 import { mustChangePassword } from "@/lib/queries";
@@ -39,10 +40,17 @@ export default async function DashboardLayout({
         <main className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pb-12">
           {data.profile.role === "admin" && (
             <Note tone="brand" title="You're signed in as an admin" className="mb-5">
-              This is the ambassador view. Admins have no referral code, no
-              survey links or task progress, so most of these screens will look
-              empty — that is expected, not a fault. Sign in as an ambassador
-              to see what students see.
+              <p>
+                This is the ambassador view. Admins have no referral code, no
+                survey links or task progress, so most of these screens will look
+                empty — that is expected, not a fault. Sign in as an ambassador
+                to see what students see.
+              </p>
+              <div className="mt-3">
+                <Link href="/admin" className="font-semibold underline hover:no-underline">
+                  Return to admin dashboard
+                </Link>
+              </div>
             </Note>
           )}
 
