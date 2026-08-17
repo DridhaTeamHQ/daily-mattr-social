@@ -125,7 +125,7 @@ export function ProgressHero({
                 <CountUp value={completionPct} />%
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                This month's approved-task rate
+                This month&apos;s approved-task rate
               </p>
             </div>
             <InfoBadge

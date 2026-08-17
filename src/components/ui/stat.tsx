@@ -1,4 +1,3 @@
-import { ChevronRight } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 
 type StatTone = "brand" | "reel" | "poll" | "invite" | "rank";
@@ -44,6 +43,15 @@ export function Stat({
   icon?: React.ComponentType<{ className?: string }>;
   cornerIcon?: React.ComponentType<{ className?: string }>;
   tone?: StatTone;
+  /**
+   * Whether the tile lifts and shows a pointer on hover.
+   *
+   * This used to also draw a `>` on the right of every tile it was true for —
+   * which is the default, so nearly all of them. Only two screens actually wrap
+   * a Stat in a link, so the chevron was promising a destination that mostly
+   * did not exist, and it sat close enough to the value to read as part of it.
+   * The hover lift is left as the affordance for the tiles that do navigate.
+   */
   interactive?: boolean;
   className?: string;
 }) {
@@ -77,7 +85,6 @@ export function Stat({
           <p className="mt-0.5 text-[12px] font-medium text-gray-500">{sub}</p>
         )}
       </div>
-      {interactive && <ChevronRight className="size-5 shrink-0 text-gray-400" />}
     </div>
   );
 }
