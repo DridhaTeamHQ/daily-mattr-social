@@ -84,7 +84,7 @@ export default async function CampaignsPage({
         icon={Clapperboard}
         tone="reel"
         title="Campaigns"
-        description="Finish the challenge, submit your proof, and let the points roll in!"
+        description="Finish the challenge, submit your proof, and build your completion percentage."
       />
 
       {/* ─── Network filter ──────────────────────────────────────────────
@@ -126,12 +126,6 @@ export default async function CampaignsPage({
         );
         const doneCount = credited.length;
 
-        // Two different numbers: what the campaign is worth in total, and what
-        // has actually landed in the ledger. Only the second one may be called
-        // "gained".
-        const points = c.tasks.reduce((n, t) => n + t.points, 0);
-        const earnedPoints = credited.reduce((n, t) => n + t.points, 0);
-
         return (
           <CampaignCard
             key={c.id}
@@ -143,8 +137,6 @@ export default async function CampaignsPage({
             ended={ended}
             taskCount={c.tasks.length}
             doneCount={doneCount}
-            points={points}
-            earnedPoints={earnedPoints}
           >
             <CardBody className="px-6 pt-0 pb-6">
               <ul className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -168,9 +160,6 @@ export default async function CampaignsPage({
                           <p className="text-[14px] font-extrabold text-ink">
                             {t.label}
                           </p>
-                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[12px] font-extrabold text-gray-800">
-                            +{t.points}
-                          </span>
                           {!t.required && (
                             <span className="text-[12px] font-medium text-ink-soft">
                               Optional
@@ -204,7 +193,6 @@ export default async function CampaignsPage({
                             <UploadTask
                               taskId={t.id}
                               taskLabel={t.label}
-                              points={t.points}
                               expectedHandle={expectedHandle}
                               disabled={ended}
                             />

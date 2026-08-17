@@ -71,13 +71,13 @@ export const SUBMISSION_STATUS: Record<
   auto_approved: {
     label: "Approved",
     tone: "ok",
-    help: "Verified automatically. Points credited.",
+    help: "Verified automatically. Counts toward completion.",
     icon: CheckCircle2,
   },
   approved: {
     label: "Approved",
     tone: "ok",
-    help: "Verified by our team. Points credited.",
+    help: "Verified by our team. Counts toward completion.",
     icon: CheckCircle2,
   },
   needs_review: {
@@ -95,7 +95,7 @@ export const SUBMISSION_STATUS: Record<
   revoked: {
     label: "Revoked",
     tone: "bad",
-    help: "Previously approved, then reversed. Points removed.",
+    help: "Previously approved, then reversed.",
     icon: XCircle,
   },
 };

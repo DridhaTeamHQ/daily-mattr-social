@@ -10,6 +10,7 @@ import { EmptyState, Note } from "@/components/ui/feedback";
 import { issueSurveyLinks, setSurveyStatus } from "@/lib/admin/actions";
 import { getAdminSurveys } from "@/lib/admin/queries";
 import { formatDate } from "@/lib/utils";
+import { InfiniteList } from "@/components/infinite-scroll";
 
 export const metadata = { title: "Surveys" };
 
@@ -45,7 +46,7 @@ export default async function AdminSurveysPage() {
           />
         </Card>
       ) : (
-        <ul className="space-y-4">
+        <InfiniteList className="space-y-4" pageSize={10}>
           {surveys.map((s) => (
             <li key={s.id}>
               <Card>
@@ -57,7 +58,7 @@ export default async function AdminSurveysPage() {
                     <Badge tone={STATUS_TONE[s.status]} dot>
                       {s.status}
                     </Badge>
-                    <Badge tone="poll">+{s.points_per_response} per response</Badge>
+                    <Badge tone="poll">Responses tracked</Badge>
                   </div>
 
                   {s.description && (
@@ -139,7 +140,7 @@ export default async function AdminSurveysPage() {
               </Card>
             </li>
           ))}
-        </ul>
+        </InfiniteList>
       )}
     </div>
   );

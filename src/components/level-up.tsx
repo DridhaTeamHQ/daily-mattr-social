@@ -4,10 +4,10 @@ import * as React from "react";
 import { PartyPopper, Star, X } from "lucide-react";
 
 import { useCelebration } from "@/components/celebrate";
-import { TIERS, tierFor } from "@/components/points-hero";
+import { COMPLETION_TIERS, completionTierFor } from "@/components/points-hero";
 import { Button } from "@/components/ui/button";
 
-const STORAGE_KEY = "dm:last-tier";
+const STORAGE_KEY = "dm:last-completion-stage";
 
 /** `null` means "no baseline yet" — first visit, or storage unavailable. */
 function readStoredTier(): number | null {
@@ -40,7 +40,7 @@ function subscribeNever() {
  * the card again. Being congratulated twice is a much better failure than
  * being congratulated never.
  */
-export function LevelUpWatcher({ points }: { points: number }) {
+export function CompletionMilestoneWatcher({ completionPct }: { completionPct: number }) {
   const fireConfetti = useCelebration();
   const [dismissed, setDismissed] = React.useState(false);
 
@@ -63,8 +63,8 @@ export function LevelUpWatcher({ points }: { points: number }) {
     () => null,
   );
 
-  const { current } = tierFor(points);
-  const index = TIERS.findIndex((t) => t.name === current.name);
+  const { current } = completionTierFor(completionPct);
+  const index = COMPLETION_TIERS.findIndex((tier) => tier.name === current.name);
 
   // No baseline means first visit — record where they are rather than
   // congratulating them for simply existing.
@@ -115,14 +115,14 @@ export function LevelUpWatcher({ points }: { points: number }) {
         </div>
 
         <p className="mt-4 text-[13px] font-extrabold tracking-widest text-ink uppercase">
-          Level up
+          Progress milestone
         </p>
         <p className="display mt-1 text-[34px] leading-none text-ink">
           {current.name}
         </p>
         <p className="mt-3 text-[13.5px] leading-relaxed font-semibold text-ink/80">
-          You just crossed into a new tier. Keep the streak going and the next
-          one is closer than you think.
+          You just crossed a new completion milestone. Keep finishing tasks to
+          reach the next one.
         </p>
 
         <div className="mt-5 flex justify-center">

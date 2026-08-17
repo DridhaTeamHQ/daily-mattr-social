@@ -17,13 +17,11 @@ const MAX_BYTES = 10 * 1024 * 1024;
 export function UploadTask({
   taskId,
   taskLabel,
-  points,
   expectedHandle,
   disabled = false,
 }: {
   taskId: string;
   taskLabel: string;
-  points: number;
   expectedHandle: string;
   disabled?: boolean;
 }) {
@@ -133,21 +131,23 @@ export function UploadTask({
             "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-lg p-5",
             "sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md",
             "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6",
+            "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
           ].join(" ")}
         >
-          <Dialog.Title className="display text-[20px] text-ink">
+          <Dialog.Title className="display text-[20px] text-ink pr-8">
             {taskLabel}
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed font-semibold text-ink-soft">
             Upload a screenshot showing this done on{" "}
-            <span className="text-ink">@{expectedHandle}</span>. Worth {points}{" "}
-            points.
+            <span className="text-ink">@{expectedHandle}</span>. Once approved,
+            this task increases your completion percentage.
           </Dialog.Description>
 
           <form onSubmit={submit} className="mt-4 space-y-4">
             <label
               className={[
-                "brut flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md bg-canvas-sunk px-4 py-8 text-center",
+                "brut flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md bg-canvas-sunk text-center",
+                picked ? "p-2" : "px-4 py-8",
                 "transition-transform hover:-translate-x-px hover:-translate-y-px",
               ].join(" ")}
             >
@@ -159,7 +159,7 @@ export function UploadTask({
               />
 
               {picked ? (
-                <span className="relative block h-56 w-full">
+                <span className="relative block h-40 w-full">
                   <Image
                     src={picked.url}
                     alt="Your screenshot"
@@ -215,7 +215,7 @@ export function UploadTask({
             <button
               type="button"
               aria-label="Close"
-              className="brut-sm absolute -top-3 -right-3 grid size-9 place-items-center rounded-full bg-surface text-ink"
+              className="brut-sm absolute top-4 right-4 grid size-9 place-items-center rounded-full bg-surface text-ink"
             >
               <X className="size-4" />
             </button>

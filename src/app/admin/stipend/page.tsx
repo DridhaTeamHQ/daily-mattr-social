@@ -7,7 +7,6 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { PayoutQueue } from "@/components/payout-queue";
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
@@ -29,15 +28,6 @@ import { cn, formatNumber, initials } from "@/lib/utils";
 
 export const metadata = { title: "Stipend" };
 
-/**
- * The Stipend Eligibility Tracker.
- *
- * The threshold is two numbers ANDed together — 30 downloads and 3 surveys —
- * so the useful view is not a list of who passed but a list of who is close
- * and which half they are short on. Someone on 29 downloads and 5 surveys
- * needs one nudge; someone on 40 downloads and 0 surveys needs a different
- * one entirely, and a single "not met" badge would hide that difference.
- */
 export default async function StipendPage({
   searchParams,
 }: {
@@ -67,11 +57,7 @@ export default async function StipendPage({
             Stipend &amp; payouts
           </h1>
           <p className="mt-2 text-[13px] font-semibold text-ink-soft">
-            {thresholds.downloads} downloads and {thresholds.surveys} surveys of{" "}
-            {thresholds.responsesPerSurvey}+ responses earns ₹
-            {formatNumber(thresholds.amountInr)}, plus ₹
-            {formatNumber(thresholds.bonusInr)} per extra{" "}
-            {thresholds.bonusPerDownloads} downloads.
+            Track approved tasks and monthly stipend status.
           </p>
         </div>
 
@@ -86,7 +72,6 @@ export default async function StipendPage({
         </div>
       </div>
 
-      {/* ─── Month picker ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {months.map((m) => (
           <Link
@@ -103,8 +88,7 @@ export default async function StipendPage({
         ))}
       </div>
 
-      {/* ─── Headline ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="Eligible"
           value={totals.eligible}
@@ -115,7 +99,7 @@ export default async function StipendPage({
         <Stat
           label={isCurrent ? "At risk" : "Fell short"}
           value={isCurrent ? totals.atRisk : totals.notMet + totals.atRisk}
-          sub={isCurrent ? "Started but not there yet" : "Missed the threshold"}
+          sub={isCurrent ? "Completion in progress" : "Did not qualify"}
           icon={CircleAlert}
           tone="invite"
         />
@@ -159,7 +143,6 @@ export default async function StipendPage({
         </Note>
       )}
 
-      {/* ─── The list ──────────────────────────────────────────────────────── */}
       <SearchBox placeholder="Find by name, city or batch…" />
 
       <Card>
@@ -176,18 +159,13 @@ export default async function StipendPage({
         ) : (
           <ul className="divide-y-[3px] divide-ink">
             {rows.map((row) => {
-              const dlPct = Math.min(
-                100,
-                Math.round((row.downloads / thresholds.downloads) * 100),
-              );
-              // Against qualifying surveys, not touched ones: three links
-              // with one response each is not three surveys, and a bar that
-              // said it was would be telling an admin somebody is nearly there
-              // when they have not started.
-              const svPct = Math.min(
-                100,
-                Math.round((row.qualifyingSurveys / thresholds.surveys) * 100),
-              );
+              const approvalsNeeded = row.totalTasks
+                ? Math.max(
+                    0,
+                    Math.ceil((thresholds.completionPct / 100) * row.totalTasks) -
+                      row.approvedTasks,
+                  )
+                : 0;
 
               return (
                 <li key={row.ambassador_id} className="p-4">
@@ -212,9 +190,6 @@ export default async function StipendPage({
                       </p>
                     </div>
 
-                    {/* Attendance is its own fact. Somebody can be on track
-                        for the month and still have stopped opening the app,
-                        and that is the version worth catching early. */}
                     {row.inactive && (
                       <Badge tone="bad" dot>
                         {row.activeDays}/{thresholds.activityWindow} days
@@ -232,71 +207,54 @@ export default async function StipendPage({
                     ) : (
                       <Badge tone="neutral">not met</Badge>
                     )}
-                    {row.bonusInr > 0 && (
-                      <Badge tone="ok">+₹{formatNumber(row.bonusInr)} bonus</Badge>
-                    )}
                   </div>
 
-                  {/* Both bars always, even when one is complete — the gap is
-                      the actionable part, and hiding a finished bar makes the
-                      two rows impossible to compare down the column. */}
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
                     <div>
                       <div className="flex items-baseline justify-between text-[12px] font-bold">
-                        <span className="text-ink-soft">Downloads</span>
+                        <span className="text-ink-soft">Completion</span>
                         <span
                           className={cn(
                             "tabular",
-                            row.downloads >= thresholds.downloads
+                            row.completionPct >= thresholds.completionPct
                               ? "text-ok"
                               : "text-ink",
                           )}
                         >
-                          {row.downloads}/{thresholds.downloads}
+                          {formatNumber(row.completionPct)}%
                         </span>
                       </div>
                       <ProgressBar
-                        value={dlPct}
-                        max={100}
-                        tone={row.downloads >= thresholds.downloads ? "ok" : "invite"}
-                        className="mt-1.5"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-baseline justify-between text-[12px] font-bold">
-                        <span className="text-ink-soft">
-                          Surveys with {thresholds.responsesPerSurvey}+
-                        </span>
-                        <span
-                          className={cn(
-                            "tabular",
-                            row.qualifyingSurveys >= thresholds.surveys
-                              ? "text-ok"
-                              : "text-ink",
-                          )}
-                        >
-                          {row.qualifyingSurveys}/{thresholds.surveys}
-                        </span>
-                      </div>
-                      <ProgressBar
-                        value={svPct}
+                        value={row.completionPct}
                         max={100}
                         tone={
-                          row.qualifyingSurveys >= thresholds.surveys
-                            ? "ok"
-                            : "poll"
+                          row.completionPct >= thresholds.completionPct ? "ok" : "invite"
                         }
                         className="mt-1.5"
                       />
-                      {/* The gap between the two is the coaching note: links
-                          shared, responses not collected. */}
-                      {row.surveys > row.qualifyingSurveys && (
+                      {row.totalTasks > 0 ? (
                         <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
-                          {row.surveys - row.qualifyingSurveys} more started but
-                          under {thresholds.responsesPerSurvey} responses
+                          {row.met
+                            ? "Completion recorded."
+                            : `${formatNumber(approvalsNeeded)} more approval${approvalsNeeded === 1 ? "" : "s"} needed.`}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
+                          No campaign tasks landed in this month.
                         </p>
                       )}
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wider text-ink-soft">
+                        Approved tasks
+                      </p>
+                      <p className="mt-1 text-[22px] font-black text-ink">
+                        {formatNumber(row.approvedTasks)}/{formatNumber(row.totalTasks)}
+                      </p>
+                      <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
+                        Tasks approved out of the ones assigned this month
+                      </p>
                     </div>
                   </div>
                 </li>
@@ -306,10 +264,6 @@ export default async function StipendPage({
         )}
       </Card>
 
-      {/* Redemption decisions and payout batches used to be their own page.
-          Both are money leaving the programme, and keeping them here means
-          building a stipend batch and paying it are not two destinations. */}
-      <PayoutQueue />
     </div>
   );
 }

@@ -117,11 +117,6 @@ function Row({ row }: { row: SurveyAmbassador }) {
           }
           muted={row.conversion === null}
         />
-        <Figure
-          label="Points"
-          value={formatNumber(row.pointsEarned)}
-          muted={row.pointsEarned === 0}
-        />
       </div>
 
       {row.flagged > 0 && (

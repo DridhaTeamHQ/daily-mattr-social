@@ -22,7 +22,7 @@ export function ActionButton({
 }: {
   action: () => Promise<ActionResult>;
   children: React.ReactNode;
-  /** When set, the click asks first. Use for anything that moves points. */
+  /** When set, the click asks for confirmation before changing programme data. */
   confirmMessage?: string;
   successMessage?: string;
 } & Omit<ButtonProps, "onClick" | "children">) {

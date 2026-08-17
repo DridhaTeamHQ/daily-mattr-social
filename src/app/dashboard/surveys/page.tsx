@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
-import { ClipboardList, ExternalLink, Flag, Link as LinkIcon, Pointer, MessageSquare, Star } from "lucide-react";
+import { ClipboardList, ExternalLink, Flag, Link as LinkIcon, MessageSquare, Pointer } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { SurveyCard } from "@/components/survey-card";
 import { PageHeader } from "@/components/page-header";
+import { SurveyCard } from "@/components/survey-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
-import { getSiteUrl } from "@/lib/site-url";
 import { getDashboard } from "@/lib/queries";
+import { getSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Surveys" };
@@ -18,19 +18,12 @@ export default async function SurveysPage() {
   if (!data) redirect("/login");
 
   const { surveys } = data;
-
-  // Derived from the request host, so a student always copies a link that
-  // works from wherever they actually opened the app.
   const siteUrl = await getSiteUrl();
 
   if (surveys.length === 0) {
     return (
       <Card>
-        <EmptyState
-          icon={ClipboardList}
-          title="No surveys yet"
-          description="When the team publishes a survey you'll get your own link to share, and points for every genuine response."
-        />
+        <EmptyState icon={ClipboardList} title="No surveys yet" description="When the team publishes a survey, you'll get your own link to share." />
       </Card>
     );
   }
@@ -41,74 +34,47 @@ export default async function SurveysPage() {
         icon={ClipboardList}
         tone="poll"
         title="Surveys"
-        description="Share your survey, collect genuine responses, and watch your points grow!"
+        description="Share your survey and collect genuine responses."
         variant="outline"
-        action={
-          <div className="relative size-16 shrink-0 md:size-20 bg-brand-tint rounded-xl hidden sm:block">
-            {/* Simple CSS clipboard illustration to match the space */}
-            <div className="absolute inset-2 bg-white rounded-md border-2 border-brand/35 shadow-sm" />
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-3 bg-gray-200 rounded-sm border-2 border-brand/35" />
-            <div className="absolute top-6 left-4 w-6 h-1.5 bg-brand-tint rounded-full" />
-            <div className="absolute top-9 left-4 w-4 h-1.5 bg-brand-tint rounded-full" />
-            <div className="absolute top-12 left-4 w-8 h-1.5 bg-brand-tint rounded-full" />
-          </div>
-        }
       />
 
       <Note tone="neutral" size="sm">
-        Each link below is yours alone — responses collected through it are
-        credited to you. Duplicate submissions from the same person don&apos;t
-        count twice.
+        Each link below is yours alone. Duplicate submissions from the same person do not count twice.
       </Note>
 
-      {surveys.map((s) => {
-        const url = `${siteUrl}/s/${s.slug}`;
-
+      {surveys.map((survey) => {
+        const url = `${siteUrl}/s/${survey.slug}`;
         return (
           <SurveyCard
-            key={s.survey_id}
-            id={s.survey_id}
-            title={s.survey_title}
-            clicks={s.click_count}
-            responses={s.valid_responses}
-            points={s.points_earned}
+            key={survey.survey_id}
+            id={survey.survey_id}
+            title={survey.survey_title}
+            clicks={survey.click_count}
+            responses={survey.valid_responses}
           >
             <div className="px-6 pt-0 pb-6">
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Metric label="Clicks" value={s.click_count} tone="clicks" />
-                <Metric label="Responses" value={s.valid_responses} tone="responses" />
-                <Metric label="Points" value={s.points_earned} tone="points" />
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Metric label="Clicks" value={survey.click_count} tone="clicks" />
+                <Metric label="Responses" value={survey.valid_responses} tone="responses" />
               </dl>
 
-              {s.flagged > 0 && (
-                <p className="mt-4 text-[13px] font-medium text-ink-soft flex items-center gap-2">
+              {survey.flagged > 0 && (
+                <p className="mt-4 flex items-center gap-2 text-[13px] font-medium text-ink-soft">
                   <Flag className="size-4 text-red-500" />
                   <span>
-                    <strong className="text-ink font-semibold">{s.flagged} {s.flagged === 1 ? "response" : "responses"} flagged for review</strong> — these don&apos;t earn points until cleared.
+                    <strong className="font-semibold text-ink">{survey.flagged} {survey.flagged === 1 ? "response" : "responses"} flagged for review</strong>. These do not count until cleared.
                   </span>
                 </p>
               )}
 
-              <div className="mt-4 flex items-center gap-3">
-                <div className="flex flex-1 items-center gap-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
-                  <LinkIcon className="size-4 text-ink-soft shrink-0" />
-                  <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
-                    {url}
-                  </code>
-                </div>
+              <div className="mt-4 flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <LinkIcon className="size-4 shrink-0 text-ink-soft" />
+                <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">{url}</code>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <CopyButton
-                  value={url}
-                  size="md"
-                  variant="primary"
-                  className="bg-brand-strong text-white hover:bg-brand-press border-0 shadow-sm"
-                  label="Copy link"
-                  copiedLabel="Link copied"
-                  toastMessage="Survey link copied"
-                />
-                <Button size="md" variant="secondary" className="bg-white border border-gray-200 text-ink shadow-sm" asChild>
+                <CopyButton value={url} size="md" variant="primary" className="border-0 bg-brand-strong text-white shadow-sm hover:bg-brand-press" label="Copy link" copiedLabel="Link copied" toastMessage="Survey link copied" />
+                <Button size="md" variant="secondary" className="border border-gray-200 bg-white text-ink shadow-sm" asChild>
                   <a href={url} target="_blank" rel="noopener noreferrer">
                     Preview
                     <ExternalLink aria-hidden />
@@ -123,36 +89,20 @@ export default async function SurveysPage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone = "clicks",
-}: {
-  label: string;
-  value: number;
-  tone?: "clicks" | "responses" | "points";
-}) {
-  const METRIC_BG = {
-    clicks: "bg-gray-100",
-    responses: "bg-brand-tint",
-    points: "bg-gray-100",
-  };
-  const METRIC_ICON_BG = {
-    clicks: "bg-gray-800",
-    responses: "bg-brand-strong",
-    points: "bg-black",
-  };
-  const Icon = tone === "clicks" ? Pointer : tone === "responses" ? MessageSquare : Star;
+function Metric({ label, value, tone = "clicks" }: { label: string; value: number; tone?: "clicks" | "responses" }) {
+  const background = tone === "clicks" ? "bg-gray-100" : "bg-brand-tint";
+  const iconBackground = tone === "clicks" ? "bg-gray-800" : "bg-brand-strong";
+  const Icon = tone === "clicks" ? Pointer : MessageSquare;
 
   return (
-    <div className={cn("flex items-center gap-4 rounded-xl px-6 py-5", METRIC_BG[tone])}>
-       <div className={cn("grid size-12 shrink-0 place-items-center rounded-full text-white", METRIC_ICON_BG[tone])}>
-         <Icon className="size-5" />
-       </div>
-       <div className="text-left flex-1 min-w-0">
-         <dd className="text-[28px] font-extrabold text-ink leading-none">{value}</dd>
-         <dt className="mt-1 text-[12px] font-bold tracking-wide text-ink uppercase">{label}</dt>
-       </div>
+    <div className={cn("flex items-center gap-4 rounded-xl px-6 py-5", background)}>
+      <div className={cn("grid size-12 shrink-0 place-items-center rounded-full text-white", iconBackground)}>
+        <Icon className="size-5" />
+      </div>
+      <div className="min-w-0 flex-1 text-left">
+        <dd className="text-[28px] font-extrabold leading-none text-ink">{value}</dd>
+        <dt className="mt-1 text-[12px] font-bold uppercase tracking-wide text-ink">{label}</dt>
+      </div>
     </div>
   );
 }

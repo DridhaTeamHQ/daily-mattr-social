@@ -4,7 +4,6 @@ import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Stepper } from "@/components/ui/stepper";
 
 /**
  * Choosing a campaign's tasks while creating it.
@@ -193,16 +192,6 @@ export function TaskDraftBuilder({
                 Required
               </label>
 
-              <div className="ml-auto">
-                <Stepper
-                  label={`${task.label} points`}
-                  value={task.points}
-                  onChange={(points) => update(task.key, { points })}
-                  min={0}
-                  max={1000}
-                  step={5}
-                />
-              </div>
             </div>
           </div>
         ))}

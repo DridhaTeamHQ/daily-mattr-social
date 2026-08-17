@@ -146,7 +146,7 @@ export default async function CampaignDetailPage({
                 confirmMessage={
                   campaign.status === "archived"
                     ? undefined
-                    : `Archive "${campaign.title}"? Its submissions and points are untouched — it just stops cluttering the list.`
+                    : `Archive "${campaign.title}"? Its submissions are untouched. It just stops cluttering the list.`
                 }
               >
                 {campaign.status === "archived" ? "Unarchive" : "Archive"}
@@ -178,13 +178,6 @@ export default async function CampaignDetailPage({
           sub="Screenshots uploaded"
           icon={Upload}
           tone="brand"
-        />
-        <Stat
-          label="Points paid"
-          value={totals.pointsPaid}
-          sub={`${formatNumber(totals.pointsAvailable)} available each`}
-          icon={Percent}
-          tone="rank"
         />
         <Stat
           label="Approval rate"
@@ -281,7 +274,7 @@ export default async function CampaignDetailPage({
                       </p>
                     </div>
                     <span className="tabular display shrink-0 text-[15px] text-ink">
-                      {formatNumber(p.pointsEarned)}
+                      {p.approved}/{p.done} approved
                     </span>
                   </li>
                 ))}

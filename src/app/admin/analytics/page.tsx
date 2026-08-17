@@ -1,389 +1,189 @@
 import Link from "next/link";
 import {
-  Clapperboard,
-  ClipboardList,
-  Coins,
-  Download,
-  Percent,
-  TrendingUp,
+  BarChart3,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  ListChecks,
   Users,
-  Wallet,
 } from "lucide-react";
 
-import {
-  BarList,
-  ChartCard,
-  DataTable,
-  DayBars,
-  SERIES,
-} from "@/components/charts";
-import { LeagueTable, type LeagueRow } from "@/components/league-table";
-import { NavSelect, type NavOption } from "@/components/nav-select";
-import { GoalTracker } from "@/components/goal-tracker";
+import { BarList, ChartCard, DayBars } from "@/components/charts";
 import { Card, CardBody } from "@/components/ui/card";
-import { Note } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
-import { getAnalytics, requireAdmin } from "@/lib/admin/queries";
-import { getMoneySummary } from "@/lib/admin/money";
-import { getGeography, getGoalTracking } from "@/lib/admin/growth";
-import { DIMENSIONS, getCohort, type Dimension } from "@/lib/admin/scope";
-import {
-  getCampaignTotals,
-  getDownloadLeaders,
-  getPointsByAmbassador,
-  getSurveyParticipation,
-  getSurveyTotals,
-} from "@/lib/admin/participation";
-import { cn, formatNumber } from "@/lib/utils";
-import { PLATFORM_TONE } from "@/lib/platforms";
+import { readAll } from "@/lib/admin/read-all";
+import { requireAdmin } from "@/lib/admin/queries";
+import { createClient } from "@/lib/supabase/server";
+import { formatNumber, initials } from "@/lib/utils";
 
 export const metadata = { title: "Analytics" };
 
-/**
- * Status colours are reserved and never reused as series colours, so the
- * submissions chart maps each state to its own meaning rather than to a
- * position in the categorical order.
- */
-const STATUS_FILL: Record<string, string> = {
-  "Auto-approved": "#00a650",
-  Approved: "#00a650",
-  "Needs review": "#b06a00",
-  Checking: "#8a8a8a",
-  Rejected: "#e00b0b",
-  Revoked: "#e00b0b",
+const APPROVED = new Set(["approved", "auto_approved"]);
+const DECIDED = new Set(["approved", "auto_approved", "rejected", "revoked"]);
+
+type Campaign = {
+  id: string;
+  title: string;
+  status: string;
+  starts_at: string;
+  ends_at: string | null;
 };
 
-/**
- * Four categories, one at a time.
- *
- * Everything on one page meant scrolling past three subjects to reach the
- * fourth, and it invited comparing a download figure against a survey figure
- * that happen to sit next to each other and mean nothing together. Picking a
- * subject first makes each screen answer one question.
- */
-const CATEGORIES = [
-  { key: "downloads", label: "Downloads", icon: Download },
-  { key: "campaigns", label: "Campaigns", icon: Clapperboard },
-  { key: "ambassadors", label: "Ambassadors", icon: Users },
-  { key: "surveys", label: "Surveys", icon: ClipboardList },
-] as const;
+type Submission = {
+  ambassador_id: string;
+  campaign_task_id: string;
+  status: string;
+  uploaded_at: string;
+};
 
-type Category = (typeof CATEGORIES)[number]["key"];
-
-/** One window for every figure on screen, whichever category is showing. */
-const PERIODS = [
-  { key: "7", label: "Last 7 days" },
-  { key: "30", label: "Last 30 days" },
-  { key: "90", label: "Last 90 days" },
-] as const;
-
-/** Always offered, so an empty network is visible rather than absent. */
-const PINNED_NETWORKS = ["Instagram", "YouTube", "X", "LinkedIn"];
-
-/**
- * Past this many values the picker stops being chips and becomes a dropdown.
- *
- * Three cities read best as chips — every option visible, one click, and the
- * counts comparable at a glance. Thirty colleges as chips is a paragraph of
- * buttons that pushes the page down, so those get a select instead. The
- * threshold is on the number of values, not the dimension, because a
- * programme in one city has three colleges and a national one has ninety.
- */
-const CHIP_LIMIT = 8;
-
-export default async function AnalyticsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    days?: string;
-    by?: string;
-    cat?: string;
-    net?: string;
-    by2?: string;
-    only?: string;
-  }>;
-}) {
+export default async function AnalyticsPage() {
   await requireAdmin();
 
-  const params = await searchParams;
+  const supabase = await createClient();
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const trendStart = new Date(now);
+  trendStart.setDate(now.getDate() - 13);
+  trendStart.setHours(0, 0, 0, 0);
 
-  const days = PERIODS.some((p) => p.key === params.days)
-    ? Number(params.days)
-    : 30;
-  const by: Dimension = DIMENSIONS.some((d) => d.key === params.by)
-    ? (params.by as Dimension)
-    : "city";
-  const cat: Category = CATEGORIES.some((c) => c.key === params.cat)
-    ? (params.cat as Category)
-    : "downloads";
-  /**
-   * The second grouping, side by side with the first.
-   *
-   * One grouping answers "which colleges are ahead". Two answer "is that a
-   * college effect or a city effect", which is the question that actually
-   * changes what you do next — and switching back and forth between two
-   * single views to compare them is how you end up misremembering one of
-   * them. "off" is a real choice, not a missing value: on a narrow screen one
-   * list is enough.
-   */
-  const by2: Dimension | "off" =
-    params.by2 === "off"
-      ? "off"
-      : DIMENSIONS.some((d) => d.key === params.by2)
-        ? (params.by2 as Dimension)
-        : by === "college"
-          ? "city"
-          : "college";
-
-  const net = params.net?.trim() || "";
-  const netLabel = net ? `${net}, all time` : "All networks, all time";
-
-  /**
-   * The cohort every figure below is about.
-   *
-   * Resolved before anything else, because it is an argument to all of them
-   * rather than something applied to their results — a success rate filtered
-   * after the fact is the rate of the rows that survived, which is a
-   * different number from the rate of the cohort.
-   */
-  const only = params.only?.trim() || "";
-  const cohortPick = await getCohort(by, only || null);
-  const scope = cohortPick.ids;
-
-  const [
-    data,
-    goal,
-    geography,
-    money,
-    downloaders,
-    campaignRows,
-    surveyRows,
-    surveyPeople,
-    balances,
-  ] = await Promise.all([
-    getAnalytics(days, scope),
-    getGoalTracking(days, scope),
-    getGeography(scope),
-    getMoneySummary(scope),
-    getDownloadLeaders(),
-    getCampaignTotals(scope),
-    getSurveyTotals(scope),
-    getSurveyParticipation(),
-    getPointsByAmbassador(),
+  const [profiles, campaigns] = await Promise.all([
+    readAll<{ id: string; full_name: string; college: string | null }>(
+      (from, to) =>
+        supabase
+          .from("profiles")
+          .select("id, full_name, college")
+          .eq("role", "ambassador")
+          .eq("status", "active")
+          .order("id")
+          .range(from, to),
+      "analytics.profiles",
+    ),
+    supabase
+      .from("campaigns")
+      .select("id, title, status, starts_at, ends_at")
+      .neq("status", "draft"),
   ]);
 
-  /** The two per-person tables are filtered here; they are already per-id. */
-  const inScope = <T extends { id: string }>(rows: T[]) =>
-    scope ? rows.filter((row) => scope.has(row.id)) : rows;
+  const activeCampaigns = ((campaigns.data ?? []) as Campaign[]).filter(
+    (campaign) =>
+      new Date(campaign.starts_at) < nextMonth &&
+      (!campaign.ends_at || new Date(campaign.ends_at) >= monthStart),
+  );
+  const campaignIds = activeCampaigns.map((campaign) => campaign.id);
+  const { data: tasks } = campaignIds.length
+    ? await supabase
+        .from("campaign_tasks")
+        .select("id, campaign_id")
+        .in("campaign_id", campaignIds)
+    : { data: [] as { id: string; campaign_id: string }[] };
+  const taskRows = tasks ?? [];
+  const taskIds = new Set(taskRows.map((task) => task.id));
 
-  const people = inScope(downloaders);
-  const surveyCollectors = inScope(surveyPeople);
+  const submissions = await readAll<Submission>(
+    (from, to) =>
+      supabase
+        .from("submissions")
+        .select("ambassador_id, campaign_task_id, status, uploaded_at")
+        .order("id")
+        .range(from, to),
+    "analytics.submissions",
+  );
+  const relevantSubmissions = submissions.filter((submission) =>
+    taskIds.has(submission.campaign_task_id),
+  );
 
-  const num = (n: number) => ({ value: formatNumber(n), muted: n === 0 });
+  const taskTotal = taskRows.length;
+  const approvedByAmbassador = new Map<string, Set<string>>();
+  const approvedByCampaign = new Map<string, Set<string>>();
+  const submittedByCampaign = new Map<string, number>();
+  const taskCampaign = new Map(taskRows.map((task) => [task.id, task.campaign_id]));
+  let pendingReview = 0;
+  let decided = 0;
+  let approvedSubmissions = 0;
 
-  // Every category ends in a list of the actual things, because a total tells
-  // you the size of a problem and a row tells you whose it is.
-  const downloadLeague: LeagueRow[] = people.map((r) => ({
-    id: r.id,
-    name: r.name,
-    href: `/admin/ambassadors/${r.id}`,
-    meta:
-      [r.city, r.batch].filter(Boolean).join(" · ") ||
-      "No city or batch set",
-    columns: [
-      { label: "Downloads", ...num(r.downloads) },
-      { label: "Voided", ...num(r.voided) },
-      { label: "Points", ...num(r.pointsEarned) },
-    ],
-  }));
+  for (const submission of relevantSubmissions) {
+    const campaignId = taskCampaign.get(submission.campaign_task_id);
+    if (campaignId) {
+      submittedByCampaign.set(
+        campaignId,
+        (submittedByCampaign.get(campaignId) ?? 0) + 1,
+      );
+    }
+    if (!DECIDED.has(submission.status)) pendingReview += 1;
+    if (DECIDED.has(submission.status)) decided += 1;
+    if (!APPROVED.has(submission.status)) continue;
 
-  /**
-   * The four the programme runs on always get a chip, whether or not a
-   * campaign exists on them yet — an admin choosing where to put the next
-   * reel wants to see that YouTube is empty, and a filter that only lists
-   * what already exists can never tell them that. Anything else in use is
-   * appended, so no campaign is unreachable.
-   */
-  const campaignNetworks = [
-    ...PINNED_NETWORKS,
-    ...campaignRows
-      .map((c) => c.platform)
-      .filter(
-        (p): p is string => Boolean(p) && !PINNED_NETWORKS.includes(p),
-      ),
-  ].filter((p, i, all) => all.indexOf(p) === i);
+    approvedSubmissions += 1;
+    const ambassadorTasks = approvedByAmbassador.get(submission.ambassador_id) ?? new Set();
+    ambassadorTasks.add(submission.campaign_task_id);
+    approvedByAmbassador.set(submission.ambassador_id, ambassadorTasks);
 
-  const visibleCampaigns = net
-    ? campaignRows.filter((c) => c.platform === net)
-    : campaignRows;
+    if (campaignId) {
+      const campaignTasks = approvedByCampaign.get(campaignId) ?? new Set();
+      campaignTasks.add(`${submission.ambassador_id}:${submission.campaign_task_id}`);
+      approvedByCampaign.set(campaignId, campaignTasks);
+    }
+  }
 
-  /**
-   * The tiles and the chart read from the filtered campaigns, not from the
-   * window-wide submission counts.
-   *
-   * They used to read from `data`, which has no notion of a platform — so
-   * picking Instagram changed the table underneath and left four numbers
-   * above it unchanged. A filter that moves one thing on a screen of five is
-   * worse than no filter, because it looks like it worked.
-   */
-  const submitted = visibleCampaigns.reduce((n, c) => n + c.submitted, 0);
-  const approved = visibleCampaigns.reduce((n, c) => n + c.approved, 0);
-  const waiting = visibleCampaigns.reduce((n, c) => n + c.waiting, 0);
-  const rejected = Math.max(0, submitted - approved - waiting);
-  const decided = approved + rejected;
-  const successRate = decided > 0 ? `${Math.round((approved / decided) * 100)}%` : "—";
-
-  const outcomes = [
-    { label: "Approved", value: approved },
-    { label: "Needs review", value: waiting },
-    { label: "Rejected", value: rejected },
-  ].filter((row) => row.value > 0);
-
-  const campaignLeague: LeagueRow[] = visibleCampaigns.map((c) => ({
-    id: c.id,
-    name: c.title,
-    href: `/admin/campaigns/${c.id}`,
-    meta: `${c.platform} · ${c.status} · ${c.participants} took part`,
-    columns: [
-      { label: "Submitted", ...num(c.submitted) },
-      { label: "Approved", ...num(c.approved) },
-      { label: "Points", ...num(c.pointsPaid) },
-    ],
-  }));
-
-  const surveyLeague: LeagueRow[] = surveyRows.map((s) => ({
-    id: s.id,
-    name: s.title,
-    href: `/admin/surveys/${s.id}/responses`,
-    meta: `${s.status} · ${s.links} link${s.links === 1 ? "" : "s"} issued`,
-    columns: [
-      { label: "Clicks", ...num(s.clicks) },
-      { label: "Responses", ...num(s.responses) },
-      { label: "Points", ...num(s.pointsPaid) },
-    ],
-  }));
-
-  // One row per person. Downloads and responses are merged here rather than in
-  // SQL because each half is already fetched for its own category, and a
-  // fourth query would be the same three joins again.
-  //
-  // Points is their BALANCE, not the three routes added up. A manual
-  // adjustment or a streak bonus belongs to no route, so the sum came out
-  // lower than the number on the same person's own page — two figures called
-  // "points" that disagreed with each other.
-  const responsesById = new Map(surveyCollectors.map((r) => [r.id, r]));
-
-  const ambassadorLeague: LeagueRow[] = people
-    .map((r) => {
-      const survey = responsesById.get(r.id);
-      const points = balances.get(r.id) ?? 0;
-
-      return {
-        id: r.id,
-        name: r.name,
-        href: `/admin/ambassadors/${r.id}`,
-        meta:
-          [r.college, r.city, r.batch].filter(Boolean).join(" · ") ||
-          "No college, city or batch set",
-        points,
-        columns: [
-          { label: "Downloads", ...num(r.downloads) },
-          { label: "Responses", ...num(survey?.responses ?? 0) },
-          { label: "Points", ...num(points) },
-        ],
-      };
-    })
-    .sort((a, b) => b.points - a.points);
-
-  const surveyPeopleLeague: LeagueRow[] = surveyCollectors.map((r) => ({
-    id: r.id,
-    name: r.name,
-    href: `/admin/ambassadors/${r.id}`,
-    meta:
-      [r.city, r.batch].filter(Boolean).join(" · ") || "No city or batch set",
-    columns: [
-      { label: "Clicks", ...num(r.clicks) },
-      { label: "Responses", ...num(r.responses) },
-      { label: "Points", ...num(r.pointsEarned) },
-    ],
-  }));
-
-  const href = (next: Record<string, string>) => {
-    const sp = new URLSearchParams({
-      days: String(days),
-      by,
-      by2,
-      cat,
-      only,
-      ...next,
-    });
-    // An empty network means "all", and a stray `net=` in the URL is noise.
-    if (!sp.get("net")) sp.delete("net");
-    if (!sp.get("only")) sp.delete("only");
-    return `/admin/analytics?${sp.toString()}`;
-  };
-
-  const categoryOptions: NavOption[] = CATEGORIES.map((c) => ({
-    value: href({ cat: c.key }),
-    label: c.label,
-  }));
-
-  const periodOptions: NavOption[] = PERIODS.map((p) => ({
-    value: href({ days: p.key }),
-    label: p.label,
-  }));
-
-  // Changing the dimension clears the value. "College: GIET" carried over to
-  // batches is a filter for a batch called GIET, which nobody is in — the page
-  // would empty itself for no reason a user could see.
-  const dimensionOptions: NavOption[] = DIMENSIONS.map((d) => ({
-    value: href({ by: d.key, only: "" }),
-    label: d.label,
-  }));
-
-  const valueOptions: NavOption[] = [
-    { value: href({ only: "" }), label: `Everyone (${cohortPick.total})` },
-    ...cohortPick.values.map((v) => ({
-      value: href({ only: v.label }),
-      label: `${v.label} (${v.ambassadors})`,
-    })),
-  ];
-
-  const cohortFor = (dimension: Dimension) =>
-    dimension === "batch"
-      ? geography.batches
-      : dimension === "college"
-        ? geography.colleges
-        : geography.cities;
-
-  const cohort = cohortFor(by);
-  const cohort2 = by2 === "off" ? null : cohortFor(by2);
-
-  const secondOptions: NavOption[] = [
-    { value: href({ by2: "off" }), label: "Off" },
-    ...DIMENSIONS.map((d) => ({ value: href({ by2: d.key }), label: d.label })),
-  ];
-
-  const windowLabel = `Last ${days} days`;
-
-  // The heading names the split, because "Breakdown" on two cards side by side
-  // says nothing about which is which.
-  const groupTitle = `By ${by}`;
-
-  /**
-   * With a value picked, the first breakdown is one row — the cohort itself,
-   * split by the dimension it was selected on. So it is dropped, and the
-   * second split carries the card: inside GIET, which cities. That is the
-   * question a filtered page is being asked.
-   */
-  const showPrimarySplit = !cohortPick.value;
-  const active = CATEGORIES.find((c) => c.key === cat)!;
-  const ActiveIcon = active.icon;
-
-  const responses = data.responsesBySurvey.reduce(
-    (sum, row) => sum + row.value,
+  const availableAssignments = profiles.length * taskTotal;
+  const completedTasks = [...approvedByAmbassador.values()].reduce(
+    (total, tasksForAmbassador) => total + tasksForAmbassador.size,
     0,
   );
+  const completionPct = availableAssignments
+    ? Math.round((completedTasks * 100) / availableAssignments)
+    : 0;
+  const approvalPct = decided
+    ? Math.round((approvedSubmissions * 100) / decided)
+    : 0;
+
+  const topAmbassadors = profiles
+    .map((profile) => {
+      const approved = approvedByAmbassador.get(profile.id)?.size ?? 0;
+      return {
+        ...profile,
+        approved,
+        completion: taskTotal ? Math.round((approved * 100) / taskTotal) : 0,
+      };
+    })
+    .sort((left, right) => right.completion - left.completion || right.approved - left.approved)
+    .slice(0, 8);
+
+  const campaignPerformance = activeCampaigns
+    .map((campaign) => {
+      const campaignTaskCount = taskRows.filter(
+        (task) => task.campaign_id === campaign.id,
+      ).length;
+      const approved = approvedByCampaign.get(campaign.id)?.size ?? 0;
+      const total = campaignTaskCount * profiles.length;
+      return {
+        label: campaign.title,
+        value: total ? Math.round((approved * 100) / total) : 0,
+        sub: `${approved}/${total} approved tasks`,
+      };
+    })
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 8);
+
+  const approvalsByDay = new Map<string, number>();
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const date = new Date(trendStart);
+    date.setDate(trendStart.getDate() + (13 - offset));
+    approvalsByDay.set(date.toISOString().slice(0, 10), 0);
+  }
+  for (const submission of relevantSubmissions) {
+    if (!APPROVED.has(submission.status)) continue;
+    const day = new Date(submission.uploaded_at).toISOString().slice(0, 10);
+    if (approvalsByDay.has(day)) {
+      approvalsByDay.set(day, (approvalsByDay.get(day) ?? 0) + 1);
+    }
+  }
+  const approvalTrend = [...approvalsByDay.entries()].map(([day, value]) => ({
+    day,
+    value,
+  }));
 
   return (
     <div className="stagger space-y-5">
@@ -391,573 +191,133 @@ export default async function AnalyticsPage({
         <div>
           <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            One subject, one window. Everything on screen moves together.
+            Current-month task completion across active ambassadors.
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <NavSelect
-            label="Category"
-            value={href({ cat })}
-            options={categoryOptions}
-          />
-          <NavSelect
-            label="Period"
-            value={href({ days: String(days) })}
-            options={periodOptions}
-          />
-        </div>
+        <Link
+          href="/admin/leaderboard"
+          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-extrabold text-white hover:bg-ink/85"
+        >
+          <BarChart3 className="size-4" />
+          View leaderboard
+        </Link>
       </div>
 
-      {/* The tag repeats the choice as a heading, so a screenshot of this page
-          says what it is without the dropdown being in frame. The cohort is
-          part of that sentence: a screenshot of GIET's numbers that does not
-          say GIET is the most expensive kind of mistake this page can make. */}
-      <span className="inline-flex items-center gap-2 rounded-full bg-brand-tint px-3.5 py-1.5 text-[12.5px] font-extrabold text-brand-press">
-        <ActiveIcon className="size-3.5" />
-        {active.label} · {windowLabel}
-        {cohortPick.value ? ` · ${cohortPick.value}` : ""}
-      </span>
-
-      {/* ─── The filter the whole page obeys ────────────────────────────────
-          Grouping used to change one card. Now it picks who every tile,
-          chart and table below is about — in all four categories — so the
-          heading and the numbers under it are always about the same people. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3">
-        <NavSelect label="Group" value={href({ by })} options={dimensionOptions} />
-
-        <span aria-hidden className="hidden h-6 w-px bg-gray-200 sm:block" />
-
-        {cohortPick.values.length > CHIP_LIMIT ? (
-          <NavSelect
-            label="Only"
-            value={href({ only })}
-            options={valueOptions}
-          />
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterChip
-              label="Everyone"
-              count={cohortPick.total}
-              active={!cohortPick.value}
-              href={href({ only: "" })}
-            />
-            {cohortPick.values.map((value) => (
-              <FilterChip
-                key={value.label}
-                label={value.label}
-                count={value.ambassadors}
-                active={cohortPick.value === value.label}
-                href={href({ only: value.label })}
-              />
-            ))}
-          </div>
-        )}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat
+          label="Completion rate"
+          value={`${completionPct}%`}
+          sub={`${formatNumber(completedTasks)}/${formatNumber(availableAssignments)} approved tasks`}
+          icon={CheckCircle2}
+          tone="brand"
+        />
+        <Stat
+          label="Active tasks"
+          value={taskTotal}
+          sub={`${activeCampaigns.length} campaign${activeCampaigns.length === 1 ? "" : "s"} this month`}
+          icon={ListChecks}
+          tone="reel"
+        />
+        <Stat
+          label="Approval rate"
+          value={`${approvalPct}%`}
+          sub={`${formatNumber(approvedSubmissions)} approved submissions`}
+          icon={ClipboardCheck}
+          tone="poll"
+        />
+        <Stat
+          label="Awaiting review"
+          value={pendingReview}
+          sub="Current campaign submissions"
+          icon={Clock3}
+          tone="invite"
+        />
       </div>
 
-      {cohortPick.empty && (
-        <Note tone="warn">
-          Nobody is in <strong>{cohortPick.value}</strong> any more, so every
-          figure below is zero. It was probably renamed — pick another group,
-          or set it back on the ambassadors themselves.
-        </Note>
-      )}
-
-      {/* ─── Downloads ─────────────────────────────────────────────────────── */}
-      {cat === "downloads" && (
-        <>
-          <GoalTracker goal={goal} />
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title="Downloads per day" hint={windowLabel}>
-              <DayBars data={goal.perDay} color="gold" />
-              <DataTable
-                caption="Downloads per day"
-                rows={goal.perDay
-                  .filter((d) => d.value > 0)
-                  .map((d) => ({ label: d.day, value: d.value }))}
-              />
-            </ChartCard>
-
-            <ChartCard
-              title="Where installs come from"
-              hint="Store split, all time."
-            >
-              <BarList
-                data={goal.byStore}
-                emptyMessage="No downloads recorded yet."
-              />
-              <DataTable caption="Store split" rows={goal.byStore} />
-            </ChartCard>
-          </div>
-
-
-          <div>
-            <h2 className="display text-[16px] text-ink">Who drove them</h2>
-            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              Confirmed downloads per ambassador. Voided ones are shown beside them, because a big voided count is its own problem.
-            </p>
-            <LeagueTable
-              rows={downloadLeague}
-              emptyMessage="No ambassadors yet."
-            />
-          </div>
-
-          <div
-            className={cn(
-              "grid gap-4",
-              cohort2 && showPrimarySplit && "lg:grid-cols-2",
-            )}
+      {taskTotal === 0 ? (
+        <Card>
+          <EmptyState
+            icon={ListChecks}
+            title="No active tasks this month"
+            description="Publish a campaign task to start tracking completion percentages."
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ChartCard
+            title="Campaign completion"
+            hint="Approved tasks divided by all tasks available to active ambassadors."
           >
-            {showPrimarySplit && (
-              <CohortBreakdown
-                rows={cohort}
-                title={groupTitle}
-                hint="Downloads per head as well as the total — a group of thirty will always out-total a group of six."
-              />
-            )}
-            {cohort2 && (
-              <CohortBreakdown
-                rows={cohort2}
-                title="Split a second way"
-                groupHref={href({ by2: by2 })}
-                options={secondOptions}
-                hint="The same downloads, cut again. Two splits side by side is what separates a college effect from a city one."
-              />
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ─── Campaigns ─────────────────────────────────────────────────────── */}
-      {cat === "campaigns" && (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat
-              label="Success rate"
-              value={successRate}
-              sub="Of reviewed screenshots"
-              icon={Percent}
-              tone="poll"
-            />
-            <Stat
-              label="Approved"
-              value={formatNumber(approved)}
-              sub={netLabel}
-              icon={Clapperboard}
-              tone="brand"
-            />
-            <Stat
-              label="Waiting"
-              value={formatNumber(waiting)}
-              sub="In the review queue"
-              icon={Clapperboard}
-              tone="invite"
-            />
-            <Stat
-              label="Rejected"
-              value={formatNumber(rejected)}
-              sub={netLabel}
-              icon={Clapperboard}
-              tone="reel"
-            />
-          </div>
-
-          <ChartCard title="Screenshot outcomes" hint={netLabel}>
             <BarList
-              data={outcomes.map((row) => ({
-                ...row,
-                color: STATUS_FILL[row.label],
-              }))}
-              emptyMessage={
-                net
-                  ? `Nothing submitted on ${net} yet.`
-                  : "Nothing submitted yet."
-              }
+              data={campaignPerformance}
+              unit="%"
+              color="teal"
+              emptyMessage="No active campaigns this month."
             />
-            <DataTable caption="Outcomes" rows={outcomes} />
           </ChartCard>
-
-          <div>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
-                Network
-              </span>
-              <FilterChip
-                label="All"
-                count={campaignRows.length}
-                active={net === ""}
-                href={href({ net: "" })}
-              />
-              {campaignNetworks.map((platform) => (
-                <FilterChip
-                  key={platform}
-                  label={platform}
-                  count={
-                    campaignRows.filter((c) => c.platform === platform).length
-                  }
-                  active={net === platform}
-                  href={href({ net: platform })}
-                  tone={PLATFORM_TONE[platform]}
-                />
-              ))}
-            </div>
-
-            <h2 className="display text-[16px] text-ink">Each campaign</h2>
-            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              Every campaign, all time. A high submitted count with few approvals is usually a badly worded ask rather than badly done work.
-            </p>
-            <LeagueTable
-              rows={campaignLeague}
-              showRank={false}
-              emptyMessage="No campaigns yet."
-            />
-          </div>
-        </>
-      )}
-
-      {/* ─── Ambassadors ───────────────────────────────────────────────────── */}
-      {cat === "ambassadors" && (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat
-              label="Points issued"
-              value={formatNumber(data.totals.issued)}
-              sub={windowLabel}
-              icon={Coins}
-              tone="brand"
-            />
-            <Stat
-              label="Points reversed"
-              value={formatNumber(data.totals.reversed)}
-              sub={data.totals.reversed > 0 ? "Revoked or corrected" : "None"}
-              icon={TrendingUp}
-              tone="reel"
-            />
-            <Stat
-              label="Stipend paid"
-              value={`₹${formatNumber(money.stipendPaidInr)}`}
-              sub="To date"
-              icon={Wallet}
-              tone="rank"
-            />
-            <Stat
-              label="Incentives"
-              value={`₹${formatNumber(money.redemptionPaidInr)}`}
-              sub="Points turned to cash"
-              icon={Wallet}
-              tone="poll"
-            />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title="Where points come from" hint={windowLabel}>
-              <BarList
-                data={data.earningsBySource}
-                color="gold"
-                emptyMessage="Nobody has earned anything in this window."
-              />
-              <DataTable caption="Points by source" rows={data.earningsBySource} />
-            </ChartCard>
-
-            <Card>
-              <CardBody>
-                <h2 className="display text-[16px] text-ink">Money out</h2>
-                <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-                  What has been sent, and what is still owed.
-                </p>
-                <dl className="mt-4 space-y-2.5">
-                  <MoneyRow
-                    label="To be paid"
-                    value={`₹${formatNumber(money.pendingInr)}`}
-                    sub={`${money.redemptionsOpen} request${money.redemptionsOpen === 1 ? "" : "s"} open`}
-                  />
-                  <MoneyRow
-                    label="Stipend paid"
-                    value={`₹${formatNumber(money.stipendPaidInr)}`}
-                    sub="All time"
-                  />
-                  <MoneyRow
-                    label="Incentives paid"
-                    value={`₹${formatNumber(money.redemptionPaidInr)}`}
-                    sub="All time"
-                  />
-                </dl>
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* The same cohort split as Downloads, because "which college is
-              carrying this" is a question about people, and this is the
-              people category. */}
-          <div
-            className={cn(
-              "grid gap-4",
-              cohort2 && showPrimarySplit && "lg:grid-cols-2",
-            )}
+          <ChartCard
+            title="Approved tasks"
+            hint="Approved submissions uploaded over the last 14 days."
           >
-            {showPrimarySplit && (
-              <CohortBreakdown
-                rows={cohort}
-                title={groupTitle}
-                hint="Per head as well as the total, since a big cohort out-totals a good one."
-              />
+            {approvalTrend.some((day) => day.value > 0) ? (
+              <DayBars data={approvalTrend} color="violet" unit=" approved" />
+            ) : (
+              <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
+                No approved tasks in the last 14 days.
+              </p>
             )}
-            {cohort2 && (
-              <CohortBreakdown
-                rows={cohort2}
-                title="Split a second way"
-                groupHref={href({ by2: by2 })}
-                options={secondOptions}
-                hint="The same people, cut again."
-              />
-            )}
-          </div>
-
-          <div>
-            <h2 className="display text-[16px] text-ink">Every ambassador</h2>
-            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              Downloads and survey responses side by side, so somebody strong
-              on one and absent on the other is visible as both. Points is the
-              balance they hold today, reversals already taken off.
-            </p>
-            <LeagueTable
-              rows={ambassadorLeague}
-              emptyMessage="No ambassadors yet."
-            />
-          </div>
-        </>
-      )}
-
-      {/* ─── Surveys ───────────────────────────────────────────────────────── */}
-      {cat === "surveys" && (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat
-              label="Responses"
-              value={formatNumber(responses)}
-              sub={windowLabel}
-              icon={ClipboardList}
-              tone="poll"
-            />
-            <Stat
-              label="Surveys collecting"
-              value={formatNumber(data.responsesBySurvey.length)}
-              sub="With at least one response"
-              icon={ClipboardList}
-              tone="brand"
-            />
-            <Stat
-              label="Points from surveys"
-              value={formatNumber(
-                data.earningsBySource.find((s) => s.label === "Surveys")?.value ??
-                  0,
-              )}
-              sub={windowLabel}
-              icon={Coins}
-              tone="rank"
-            />
-            <Stat
-              label="Best survey"
-              value={formatNumber(data.responsesBySurvey[0]?.value ?? 0)}
-              sub={data.responsesBySurvey[0]?.label ?? "Nothing yet"}
-              icon={ClipboardList}
-              tone="invite"
-            />
-          </div>
-
-
-          <div>
-            <h2 className="display text-[16px] text-ink">Each survey</h2>
-            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              Clicks against responses, all time. Plenty of clicks with few responses means the survey itself is losing people.
-            </p>
-            <LeagueTable
-              rows={surveyLeague}
-              showRank={false}
-              emptyMessage="No surveys yet."
-            />
-          </div>
-
-          <div>
-            <h2 className="display text-[16px] text-ink">Who is collecting</h2>
-            <p className="mt-1 mb-3 text-[12.5px] font-semibold text-ink-soft">
-              The same two numbers per ambassador. No clicks means the link is not being shared at all.
-            </p>
-            <LeagueTable
-              rows={surveyPeopleLeague}
-              emptyMessage="No ambassadors yet."
-            />
-          </div>
-        </>
-      )}
-
-      <Note tone="neutral">
-        Series colours here are darker steps of the app&apos;s accents: the
-        bright UI versions fail a contrast check as chart fills. The steps used
-        were validated for colourblind separation, and every bar carries its own
-        number so nothing depends on colour alone.
-        <span aria-hidden className="mt-2 flex gap-1.5">
-          {Object.values(SERIES).map((hex) => (
-            <span
-              key={hex}
-              className="size-4 rounded-xs border-2 border-ink"
-              style={{ backgroundColor: hex }}
-            />
-          ))}
-        </span>
-      </Note>
-    </div>
-  );
-}
-
-function MoneyRow({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5">
-      <div>
-        <dt className="text-[13px] font-bold text-ink">{label}</dt>
-        <p className="text-[11.5px] font-semibold text-ink-soft">{sub}</p>
-      </div>
-      <dd className="tabular shrink-0 text-[16px] font-extrabold text-ink">
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-/**
- * One value of a filter, with the size of what it selects.
- *
- * The count is the point. "Instagram" tells you a filter exists; "Instagram 7"
- * tells you whether clicking it is worth it, and a zero tells you something no
- * amount of clicking would have — that the network is empty. Used for networks
- * and for cohorts alike.
- */
-function FilterChip({
-  label,
-  count,
-  active,
-  href,
-  tone,
-}: {
-  label: string;
-  /** How many campaigns are on it. A zero here is the useful answer. */
-  count?: number;
-  active: boolean;
-  href: string;
-  tone?: string;
-}) {
-  const empty = count === 0;
-
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "true" : undefined}
-      className={[
-        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors",
-        active
-          ? "bg-brand-strong text-white"
-          : (tone ?? "bg-gray-100 text-ink-soft") + " hover:opacity-80",
-        // Dimmed rather than hidden: an admin deciding where the next reel
-        // should go needs to see which networks have nothing on them.
-        !active && empty ? "opacity-55" : "",
-      ].join(" ")}
-    >
-      {label}
-      {count !== undefined && (
-        <span className={active ? "text-white/70" : "opacity-60"}>{count}</span>
-      )}
-    </Link>
-  );
-}
-
-/**
- * One cohort split — city, batch or college.
- *
- * Shown in both Downloads and Ambassadors. The grouping lives in the URL, so
- * switching to colleges and sending the page keeps the colleges.
- */
-function CohortBreakdown({
-  rows,
-  title,
-  groupHref,
-  options,
-  hint,
-  label = "And by",
-}: {
-  rows: { label: string; ambassadors: number; points: number; downloads: number; perHead: number }[];
-  title: string;
-  /**
-   * The second breakdown keeps its own picker. The first one has none: its
-   * dimension is the page filter, chosen at the top, and a second control
-   * bound to the same parameter is two places to change one thing.
-   */
-  groupHref?: string;
-  options?: NavOption[];
-  hint: string;
-  label?: string;
-}) {
-  return (
-    <Card>
-      <CardBody>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="display text-[16px] text-ink">{title}</h2>
-            <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-              {hint}
-            </p>
-          </div>
-          {options && groupHref && (
-            <NavSelect label={label} value={groupHref} options={options} />
-          )}
+          </ChartCard>
         </div>
+      )}
 
-        {rows.length === 0 ? (
-          <p className="mt-4 text-[12.5px] font-semibold text-ink-soft">
-            Nothing recorded yet.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y divide-gray-100">
-            {/* Twelve, and then it says so. A list that stops at twelve of
-                forty without a word reads as "these are the colleges", which
-                is a different and wrong statement. */}
-            {rows.slice(0, 12).map((row) => (
-              <li key={row.label} className="flex items-center gap-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-bold text-ink">
-                    {row.label}
-                  </p>
-                  <p className="text-[11.5px] text-ink-soft">
-                    {row.ambassadors} ambassador
-                    {row.ambassadors === 1 ? "" : "s"} ·{" "}
-                    {formatNumber(row.points)} points
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="tabular text-[14px] font-extrabold text-ink">
-                    {formatNumber(row.downloads)}
-                  </p>
-                  <p className="text-[11px] text-ink-soft">{row.perHead} each</p>
-                </div>
-              </li>
-            ))}
-            {rows.length > 12 && (
-              <li className="py-2.5 text-[12px] font-semibold text-ink-soft">
-                {rows.length - 12} more, not shown. Pick one above to see only
-                it.
-              </li>
-            )}
-          </ul>
-        )}
-      </CardBody>
-    </Card>
+      <Card>
+        <CardBody>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="display text-[16px] text-ink">Top completion</h2>
+              <p className="mt-1 text-[12.5px] text-ink-soft">
+                Active ambassadors ranked by approved task completion.
+              </p>
+            </div>
+            <Users className="size-5 text-ink-soft" />
+          </div>
+          {topAmbassadors.length === 0 ? (
+            <EmptyState title="No active ambassadors" />
+          ) : (
+            <ul className="mt-4 divide-y divide-gray-100">
+              {topAmbassadors.map((ambassador, index) => (
+                <li key={ambassador.id} className="flex items-center gap-3 py-3">
+                  <span className="w-6 text-center text-[13px] font-extrabold text-ink-faint">
+                    {index + 1}
+                  </span>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gray-100 text-[12px] font-extrabold text-ink">
+                    {initials(ambassador.full_name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/admin/ambassadors/${ambassador.id}`}
+                      className="truncate text-[13.5px] font-extrabold text-ink hover:underline"
+                    >
+                      {ambassador.full_name}
+                    </Link>
+                    <p className="truncate text-[12px] text-ink-soft">
+                      {ambassador.college || "No college set"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="tabular text-[15px] font-extrabold text-ink">
+                      {ambassador.completion}%
+                    </p>
+                    <p className="text-[11.5px] text-ink-soft">
+                      {ambassador.approved}/{taskTotal} approved
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+    </div>
   );
 }

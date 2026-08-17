@@ -138,9 +138,8 @@ export function AdminAssistant() {
                 : "bg-canvas-sunk text-ink",
             )}
           >
-            {/* Plain text: the model's output is never rendered as markup, so
-                nothing it writes can become HTML in the admin. */}
-            <p className="whitespace-pre-wrap">{m.content}</p>
+            {/* Safely render bold text without innerHTML */}
+            <FormattedMessage text={m.content} />
           </div>
         ))}
 
@@ -179,5 +178,26 @@ export function AdminAssistant() {
         </Button>
       </form>
     </div>
+  );
+}
+
+function FormattedMessage({ text }: { text: string }) {
+  // Replace markdown list dashes with actual bullet points
+  const formattedText = text.replace(/^[-*]\s/gm, "• ");
+  const parts = formattedText.split(/(\*\*.*?\*\*)/g);
+  
+  return (
+    <p className="whitespace-pre-wrap">
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+          return (
+            <strong key={i} className="font-extrabold text-ink">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      })}
+    </p>
   );
 }

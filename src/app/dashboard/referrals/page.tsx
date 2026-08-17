@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Gift, Download, Calendar, Coins, Star } from "lucide-react";
+import { Gift, Download, Calendar } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ReferralQr } from "@/components/referral-qr";
@@ -32,18 +32,14 @@ export default async function ReferralsPage() {
                 Installs
               </h1>
               <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-600">
-                Share your code and earn bonus points for every app download.
+                Share your code and help grow the DailyMattr community.
               </p>
             </div>
           </div>
 
-          {/* The other half of the pair that now lives behind the avatar menu.
-              Points earned here are spent there, so the two need a direct
-              hop rather than a trip back through the menu. */}
           <Button asChild variant="outline-blue" className="shrink-0">
             <Link href="/dashboard/rewards">
-              <Coins aria-hidden />
-              Your rewards
+              View stipend progress
             </Link>
           </Button>
         </div>
@@ -80,7 +76,7 @@ export default async function ReferralsPage() {
       />
 
       {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs flex items-center gap-5 relative">
           {referrals.last_conversion && (
             <div className="absolute top-4 right-4 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-400">
@@ -105,22 +101,6 @@ export default async function ReferralsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs flex items-center gap-5">
-          <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
-            <Star className="size-6 fill-current text-amber-400" />
-          </div>
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
-              Points Earned
-            </p>
-            <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
-              {referrals.points_earned}
-            </h3>
-            <p className="text-xs font-semibold text-brand-strong mt-0.5">
-              Total Bonus Points
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Info Note - Soft Light Blue */}

@@ -1,6 +1,8 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/lib/database.types";
 
 /**
  * Recording that a student was here today.
@@ -17,6 +19,10 @@ import { createClient } from "@/lib/supabase/server";
  * insert on conflict do nothing — so this is safe to call on every dashboard
  * load. The cache below exists to stop it *travelling*: without it, every page
  * view is a round trip to discover a row that is already there.
+ *
+ * The client comes in as an argument rather than being built here: this runs
+ * inside `after()`, and a Server Component may not touch `cookies()` once the
+ * render is over. The caller builds it during render and passes it in.
  */
 
 /** ambassador id → the day already recorded, in this instance's memory. */
@@ -33,11 +39,13 @@ function today(): string {
   }).format(new Date());
 }
 
-export async function markActiveToday(userId: string): Promise<void> {
+export async function markActiveToday(
+  userId: string,
+  supabase: SupabaseClient<Database>,
+): Promise<void> {
   const day = today();
   if (recorded.get(userId) === day) return;
 
-  const supabase = await createClient();
   const { error } = await supabase.rpc("touch_active_day");
 
   // Only remember it once the database has actually got it. Caching a failed

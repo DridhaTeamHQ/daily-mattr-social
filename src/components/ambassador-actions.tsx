@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as React from "react";
-import { CircleCheck, RefreshCw } from "lucide-react";
+import { CircleCheck, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { CopyButton } from "@/components/copy-button";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import {
-  adjustPoints,
   createAmbassador,
   resetAmbassadorPassword,
   type CreatedAmbassador,
@@ -21,7 +20,7 @@ import { batchLetter } from "@/lib/referral-code-shape";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
-  "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-lg p-5",
+  "inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto no-scrollbar rounded-t-lg p-5",
   "sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-md",
   "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6",
 ].join(" ");
@@ -75,7 +74,7 @@ function CredentialsPanel({
 
   return (
     <div>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 pr-8">
         <span className="grid size-9 place-items-center rounded-sm bg-ok-tint text-ok">
           <CircleCheck className="size-5" />
         </span>
@@ -186,6 +185,10 @@ export function AddAmbassadorDialog() {
       <Dialog.Portal>
         <Overlay />
         <Dialog.Content className={PANEL}>
+          <Dialog.Close className="absolute right-5 top-5 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none sm:right-6 sm:top-6">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Dialog.Close>
           {issued ? (
             <CredentialsPanel
               credentials={issued}
@@ -194,7 +197,7 @@ export function AddAmbassadorDialog() {
             />
           ) : (
             <>
-              <Dialog.Title className="text-[16px] font-bold text-ink">
+              <Dialog.Title className="text-[16px] font-bold text-ink pr-8">
                 Add an ambassador
               </Dialog.Title>
               <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -365,6 +368,10 @@ export function ResetPasswordDialog({
       <Dialog.Portal>
         <Overlay />
         <Dialog.Content className={PANEL}>
+          <Dialog.Close className="absolute right-5 top-5 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none sm:right-6 sm:top-6">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Dialog.Close>
           {issued ? (
             <CredentialsPanel
               credentials={issued}
@@ -373,7 +380,7 @@ export function ResetPasswordDialog({
             />
           ) : (
             <>
-              <Dialog.Title className="text-[16px] font-bold text-ink">
+              <Dialog.Title className="text-[16px] font-bold text-ink pr-8">
                 Reset {name}&apos;s password
               </Dialog.Title>
               <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -425,102 +432,3 @@ export function ResetPasswordDialog({
   );
 }
 
-/** Manual point grant or deduction. Always writes a ledger row, never edits. */
-export function AdjustPointsDialog({
-  profileId,
-  name,
-}: {
-  profileId: string;
-  name: string;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [delta, setDelta] = React.useState("");
-  const [note, setNote] = React.useState("");
-  const [pending, startTransition] = React.useTransition();
-
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const value = Number(delta);
-
-    startTransition(async () => {
-      const result = await adjustPoints(profileId, value, note);
-      if (result.ok) {
-        toast.success(result.message);
-        setOpen(false);
-        setDelta("");
-        setNote("");
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
-
-  return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <Button variant="ghost" size="sm">
-          Adjust
-        </Button>
-      </Dialog.Trigger>
-
-      <Dialog.Portal>
-        <Overlay />
-        <Dialog.Content className={PANEL}>
-          <Dialog.Title className="text-[16px] font-bold text-ink">
-            Adjust points
-          </Dialog.Title>
-          <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            For {name}. Use a negative number to take points away — either way
-            this is a new ledger row, so their history stays intact.
-          </Dialog.Description>
-
-          <form onSubmit={submit} className="mt-4 space-y-4">
-            <Field
-              label="Points"
-              htmlFor="delta"
-              hint="Whole number. Negative to deduct."
-              required
-            >
-              <Input
-                id="delta"
-                type="number"
-                inputMode="numeric"
-                step="1"
-                value={delta}
-                onChange={(e) => setDelta(e.target.value)}
-                placeholder="50"
-                required
-                autoFocus
-              />
-            </Field>
-
-            <Field label="Reason" htmlFor="note" required>
-              <Textarea
-                id="note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Ran the Christ University stall on Saturday."
-                required
-              />
-            </Field>
-
-            <div className="flex justify-end gap-2">
-              <Dialog.Close asChild>
-                <Button type="button" variant="secondary">
-                  Cancel
-                </Button>
-              </Dialog.Close>
-              <Button
-                type="submit"
-                loading={pending}
-                disabled={!delta.trim() || !note.trim()}
-              >
-                Record
-              </Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}

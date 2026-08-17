@@ -66,8 +66,7 @@ export function LibraryTaskDialog() {
             Add a task to the library
           </Dialog.Title>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            Reusable across campaigns. The points here are a starting figure —
-            each campaign can set its own.
+            Reusable across campaigns with a consistent proof method and cadence.
           </Dialog.Description>
 
           <form onSubmit={submit} className="mt-4 space-y-4">
@@ -116,17 +115,7 @@ export function LibraryTaskDialog() {
               </Field>
             </div>
 
-            <Field label="Default points" htmlFor="default_points" required>
-              <Input
-                id="default_points"
-                name="default_points"
-                type="number"
-                min={0}
-                max={10000}
-                defaultValue={10}
-                required
-              />
-            </Field>
+            <input type="hidden" name="default_points" value="0" />
 
             <div className="flex justify-end gap-2 pt-1">
               <Dialog.Close asChild>

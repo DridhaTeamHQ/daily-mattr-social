@@ -75,7 +75,7 @@ const ITEMS = [
 const ACCOUNT_LINKS = [
   {
     href: "/dashboard/rewards",
-    label: "Your rewards",
+    label: "Stipend progress",
     icon: Coins,
     tint: "bg-rank-tint text-ink",
   },
@@ -185,11 +185,19 @@ function ProfileMenu({ name }: { name: string }) {
 
           <DropdownMenu.Separator className="h-px bg-line" />
 
-          {/* The form wraps the item rather than sitting inside it: the submit
-              happens on the same click that closes the menu, so the action
-              must not depend on the item surviving the close. */}
+          {/* `onSelect` is prevented so the menu does NOT close on this click.
+              Closing it was what broke sign-out: Radix calls `onClose` inside
+              the click handler, React unmounts the portal synchronously, and
+              the browser then declines to submit a form that is no longer in
+              the document — the click did nothing at all, silently. Wrapping
+              the form around the item did not help, because the form is inside
+              the portal too. Leaving the menu open costs nothing: the action
+              redirects to /login, which takes the whole tree with it. */}
           <form action={signOut}>
-            <DropdownMenu.Item asChild>
+            <DropdownMenu.Item
+              asChild
+              onSelect={(event) => event.preventDefault()}
+            >
               <button
                 type="submit"
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13.5px] font-semibold text-bad outline-none transition-colors hover:bg-bad-tint focus:bg-bad-tint"

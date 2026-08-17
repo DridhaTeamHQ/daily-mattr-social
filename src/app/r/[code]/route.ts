@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 
+import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTextSetting } from "@/lib/settings";
 import type { Enums } from "@/lib/database.types";
@@ -84,9 +85,7 @@ export async function GET(
       ambassador_id: owner?.id ?? null,
       code,
       store,
-      ip_hash: hashIp(
-        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
-      ),
+      ip_hash: hashIp(clientIp(request.headers) ?? ""),
       user_agent: userAgent.slice(0, 400),
     });
   } catch {

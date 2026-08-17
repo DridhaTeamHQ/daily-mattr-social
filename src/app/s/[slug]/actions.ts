@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { headers } from "next/headers";
 
+import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
@@ -23,13 +24,26 @@ import type { Enums, Json } from "@/lib/database.types";
  * valid one from that person for that survey. Everything else is bookkeeping.
  */
 
-export type SubmitState = { status: "idle" | "error" | "done"; message: string };
+export type SubmitState = {
+  status: "idle" | "error" | "done" | "already";
+  message: string;
+};
+
+/** Shown whenever the same email (or phone) comes back to the same survey. */
+const ALREADY_SUBMITTED: SubmitState = {
+  status: "already",
+  message: "You've already submitted this survey.",
+};
 
 /** Respondent IPs are never stored raw — only a salted hash, for duplicate detection. */
 async function hashIp(): Promise<string | null> {
-  const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || headerList.get("x-real-ip");
+  // `clientIp` rather than the leftmost `x-forwarded-for`: that entry is the
+  // one the client writes, and the duplicate window below is the only thing
+  // standing between a public link and unlimited self-issued points on a survey
+  // that asks for neither an email nor a phone number. A rotating header would
+  // have given every submission a fresh identity and the window would never
+  // have fired.
+  const ip = clientIp(await headers());
   if (!ip) return null;
 
   return createHash("sha256")
@@ -113,6 +127,34 @@ export async function submitSurvey(
   }
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { status: "error", message: "That email doesn't look right." };
+  }
+
+  /**
+   * Someone coming back a second time is told so, and nothing is written.
+   *
+   * This used to record a `duplicate` row and thank them as if it had landed.
+   * That row is what surfaces on the ambassador's dashboard as "flagged for
+   * review", so an honest second visit read as something an admin had to go and
+   * clear. A repeat submission is not a moderation problem — it is a person who
+   * already filled the form in — so it is now refused at the door and leaves no
+   * trace to clear.
+   *
+   * The unique-violation branch further down stays as the real guarantee: this
+   * SELECT loses a race between two simultaneous submits, the index does not.
+   */
+  const identities: [column: "respondent_email" | "respondent_phone", value: string][] = [];
+  if (email) identities.push(["respondent_email", email]);
+  if (phone) identities.push(["respondent_phone", phone]);
+
+  for (const [column, value] of identities) {
+    const { count } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id)
+      .eq(column, value)
+      .eq("status", "valid");
+
+    if ((count ?? 0) > 0) return ALREADY_SUBMITTED;
   }
 
   // ─── Answers ──────────────────────────────────────────────────────────────
@@ -234,15 +276,25 @@ export async function submitSurvey(
       .select("id")
       .single();
 
-    if (repeat) {
-      // The respondent is told the same thing either way. Whether their answer
-      // earned the ambassador a point is not their business, and saying so
-      // would teach anyone farming the link exactly where the line is.
-      return {
-        status: "done",
-        message: "Thanks — your answers were recorded.",
-      };
+    // Returned whether or not the row landed. It used to fall through to the
+    // `valid` insert when the flagged one failed, which turned a refused
+    // submission into a paid one — the single case this branch exists to
+    // prevent. Losing the flagged row is a gap in the audit trail; crediting it
+    // is a gap in the money.
+    //
+    // The respondent is told the same thing either way. Whether their answer
+    // earned the ambassador a point is not their business, and saying so would
+    // teach anyone farming the link exactly where the line is.
+    if (!repeat) {
+      console.error("survey duplicate row failed to record", {
+        surveyId: survey.id,
+      });
     }
+
+    return {
+      status: "done",
+      message: "Thanks — your answers were recorded.",
+    };
   }
 
   const { data: inserted, error: insertError } = await db
@@ -256,18 +308,10 @@ export async function submitSurvey(
     counted = true;
   } else if (isUniqueViolation(insertError)) {
     // The partial unique indexes on (survey_id, email) and (survey_id, phone)
-    // are the real duplicate check — doing it with a SELECT first would still
-    // let two simultaneous submits both through. Record it, don't pay for it.
-    const { data: duplicate } = await db
-      .from("survey_responses")
-      .insert({
-        ...base,
-        status: "duplicate",
-        flag_reason: "Already responded to this survey",
-      })
-      .select("id")
-      .single();
-    responseId = duplicate?.id ?? null;
+    // are the real duplicate check — the SELECT above can be lost by two
+    // simultaneous submits, this cannot. Same answer either way: refused, and
+    // nothing recorded for an admin to clear.
+    return ALREADY_SUBMITTED;
   } else if (insertError) {
     return {
       status: "error",
@@ -284,9 +328,27 @@ export async function submitSurvey(
   await awardStreakBonus(link.ambassador_id, null).catch(() => {});
   await evaluateBadges(link.ambassador_id).catch(() => {});
 
-  await db.from("survey_answers").insert(
+  // Checked, because a response with no answers is worse than no response: it
+  // counts towards the cap, it counts towards the ambassador's total, and it
+  // pays a point for a row the admin's summary cannot read anything out of.
+  const { error: answersError } = await db.from("survey_answers").insert(
     answers.map((a) => ({ ...a, response_id: responseId! })),
   );
+
+  if (answersError) {
+    await db
+      .from("survey_responses")
+      .update({
+        status: "flagged",
+        flag_reason: "Answers failed to save",
+      })
+      .eq("id", responseId);
+
+    return {
+      status: "error",
+      message: "Something went wrong saving your answers. Try again.",
+    };
+  }
 
   // ─── Credit the ambassador ────────────────────────────────────────────────
   if (counted && survey.points_per_response > 0) {
@@ -313,18 +375,16 @@ export async function submitSurvey(
   }
 
   /**
-   * One answer for everyone, whatever happened underneath.
+   * The IP-window branch above still answers with this sentence rather than
+   * "already submitted": it is a coarse signal — a lecture hall behind one NAT
+   * shares an address — and telling a stranger they had already responded when
+   * they had not would be wrong. Only a matching email or phone, which is the
+   * person identifying themselves, gets the "already submitted" answer.
    *
-   * "Thanks — your answers are in" versus "looks like you've already filled
-   * this in" is a yes/no on whether a given email or phone number has
-   * responded to this survey, answerable by anyone holding the link, one
-   * address at a time. Against a list of guessed addresses that is a
-   * membership oracle over the respondent pool — and the respondents are
-   * strangers who gave their details to a student, not users of this app.
-   *
-   * Whether the response counted is the ambassador's business and the admin's,
-   * and both can see it on their own pages. The person filling in the form
-   * gets the same sentence either way.
+   * That answer is a yes/no on whether a given address has responded, to anyone
+   * holding the link. It is a deliberate trade: a duplicate that reads as a
+   * successful submission is worse, because the respondent walks away believing
+   * their answers were counted when they were not.
    */
   return {
     status: "done",

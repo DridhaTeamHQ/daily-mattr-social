@@ -1,4 +1,4 @@
-import { Coins, Gift, TrendingUp, Users } from "lucide-react";
+import { Gift, TrendingUp, Users } from "lucide-react";
 
 import Link from "next/link";
 
@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getReferralSummary } from "@/lib/admin/queries";
-import { cn, formatDate, formatNumber, initials } from "@/lib/utils";
+import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Installs" };
 
@@ -49,7 +49,7 @@ export default async function AdminInstallsPage({
         <AmbassadorNav />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
           label="Confirmed downloads"
           value={summary.totals.confirmed}
@@ -63,13 +63,6 @@ export default async function AdminInstallsPage({
           sub={`of ${summary.rows.length} on the programme`}
           icon={Users}
           tone="brand"
-        />
-        <Stat
-          label="Points paid"
-          value={summary.totals.pointsPaid}
-          sub="For referrals only"
-          icon={Coins}
-          tone="rank"
         />
         <Stat
           label="Voided"
@@ -87,8 +80,7 @@ export default async function AdminInstallsPage({
 
       {summary.totals.confirmed === 0 && (
         <Note tone="warn" title="No conversions yet">
-          Click any download number to set it by hand. Points are credited
-          automatically, and the ambassador is notified.
+          Click any download number to set it by hand. The ambassador is notified.
         </Note>
       )}
 
@@ -113,7 +105,6 @@ export default async function AdminInstallsPage({
                   <th className="px-4 py-3">Ambassador</th>
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3 text-right">Downloads (editable)</th>
-                  <th className="px-4 py-3 text-right">Points paid</th>
                   <th className="px-4 py-3">Last one</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
@@ -175,9 +166,6 @@ export default async function AdminInstallsPage({
                       />
                     </td>
 
-                    <td className="tabular px-4 py-3 text-right text-[13.5px] font-extrabold text-ink">
-                      {formatNumber(row.pointsPaid)}
-                    </td>
 
                     <td className="px-4 py-3 text-[12.5px] text-ink-soft">
                       {row.lastConversion ? formatDate(row.lastConversion) : "—"}

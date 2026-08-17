@@ -55,6 +55,7 @@ export function MilestoneProgress({
         >
           <span className="pixel-fill block h-full w-full" />
         </div>
+
       </div>
 
       {/* ─── Runner ────────────────────────────────────────────────────────── */}
@@ -136,12 +137,18 @@ export function MilestoneLevel({
   at,
   remaining,
   pct,
+  approvedTasks,
+  totalTasks,
 }: {
   name: string;
   at: number;
   remaining: number;
   pct: number;
+  approvedTasks: number;
+  totalTasks: number;
 }) {
+  const hasTasks = totalTasks > 0;
+
   return (
     <div className="mario-level relative overflow-hidden border-[3px] border-ink p-5 sm:p-6">
       {/* ─── Scenery ───────────────────────────────────────────────────────
@@ -162,12 +169,24 @@ export function MilestoneLevel({
         <span className="flex items-center gap-2.5">
           <Coin className="shrink-0" />
           <span>
-            Next milestone: <strong className="font-black">{name}</strong>{" "}
-            <span className="opacity-80">({formatNumber(at)} pts)</span>
+            {hasTasks ? (
+              <>
+                Task completion: <strong className="font-black">{formatNumber(pct)}%</strong>{" "}
+                <span className="opacity-80">
+                  ({formatNumber(approvedTasks)}/{formatNumber(totalTasks)} approved)
+                </span>
+              </>
+            ) : (
+              <>
+                Waiting for <strong className="font-black">this month's tasks</strong>
+              </>
+            )}
           </span>
         </span>
         <span className="font-black">
-          {formatNumber(remaining)} pts needed ({pct}%)
+          {hasTasks
+            ? `${formatNumber(Math.max(0, remaining))}% to ${name} (${formatNumber(at)}%)`
+            : "No tasks assigned yet"}
         </span>
       </div>
 

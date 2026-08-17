@@ -48,16 +48,12 @@ export type EligibilityRow = {
   full_name: string;
   city: string | null;
   batch: string | null;
-  downloads: number;
-  /** Surveys they collected anything on at all. */
-  surveys: number;
-  /** Surveys that cleared the per-survey response floor — the ones that count. */
-  qualifyingSurveys: number;
+  totalTasks: number;
+  approvedTasks: number;
+  completionPct: number;
   met: boolean;
   at_risk: boolean;
-  /** Earned above the target, in whole blocks of extra downloads. */
-  bonusInr: number;
-  /** Stipend plus bonus. Zero until the target is met — the bonus is a top-up. */
+  /** The flat monthly stipend once the completion threshold is met. */
   totalInr: number;
   /** Days they opened the app inside the activity window. */
   activeDays: number;
@@ -71,12 +67,8 @@ export type StipendPeriod = {
   month: string;
   label: string;
   thresholds: {
-    downloads: number;
-    surveys: number;
-    responsesPerSurvey: number;
+    completionPct: number;
     amountInr: number;
-    bonusPerDownloads: number;
-    bonusInr: number;
     activeDays: number;
     activityWindow: number;
   };
@@ -103,12 +95,8 @@ export const getStipendPeriod = cache(
     const [{ data: rows }, settings, { data: payouts }] = await Promise.all([
       supabase.rpc("stipend_eligibility", { period_start: month }),
       getSettings(
-        "stipend_min_downloads",
-        "stipend_min_surveys",
-        "stipend_min_responses_per_survey",
+        "stipend_min_completion_pct",
         "stipend_amount_inr",
-        "stipend_bonus_per_downloads",
-        "stipend_bonus_inr",
         "activity_min_days",
         "activity_window_days",
       ),
@@ -129,12 +117,11 @@ export const getStipendPeriod = cache(
       full_name: r.full_name,
       city: r.city,
       batch: r.batch,
-      downloads: Number(r.downloads),
-      surveys: Number(r.surveys),
-      qualifyingSurveys: Number(r.qualifying_surveys),
+      totalTasks: Number(r.total_tasks),
+      approvedTasks: Number(r.approved_tasks),
+      completionPct: Number(r.completion_pct),
       met: r.met,
       at_risk: r.at_risk,
-      bonusInr: Number(r.bonus_inr),
       totalInr: Number(r.total_inr),
       activeDays: Number(r.active_days),
       inactive: r.inactive,
@@ -147,12 +134,8 @@ export const getStipendPeriod = cache(
       month,
       label: monthLabel(month),
       thresholds: {
-        downloads: settings.stipend_min_downloads,
-        surveys: settings.stipend_min_surveys,
-        responsesPerSurvey: settings.stipend_min_responses_per_survey,
+        completionPct: settings.stipend_min_completion_pct,
         amountInr: settings.stipend_amount_inr,
-        bonusPerDownloads: settings.stipend_bonus_per_downloads,
-        bonusInr: settings.stipend_bonus_inr,
         activeDays: settings.activity_min_days,
         activityWindow: settings.activity_window_days,
       },
@@ -165,9 +148,6 @@ export const getStipendPeriod = cache(
         cohort: list.length,
         // What it would cost to pay everyone who has qualified but hasn't been
         // paid yet — the number finance actually needs to hold.
-        // Stipend plus whatever they earned above the target — the bonus is
-        // part of the bill, and leaving it out understated what finance has
-        // to hold by exactly the amount the best ambassadors earned.
         projectedCostInr: eligible
           .filter((r) => !r.paid)
           .reduce((sum, r) => sum + r.totalInr, 0),

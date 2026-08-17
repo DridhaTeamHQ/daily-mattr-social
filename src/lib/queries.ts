@@ -102,6 +102,17 @@ export type LeaderboardRow = {
   is_me: boolean;
 };
 
+export type CompletionLeaderboardRow = {
+  position: number;
+  ambassador_id: string;
+  full_name: string;
+  college: string | null;
+  total_tasks: number;
+  approved_tasks: number;
+  completion_pct: number;
+  is_me: boolean;
+};
+
 export type NotificationRow = {
   id: string;
   type: string;
@@ -122,7 +133,13 @@ export type DashboardData = {
     status: Enums<"user_status">;
     must_change_password: boolean;
   };
-  standing: { points: number; position: number; total: number };
+  standing: {
+    completionPct: number;
+    approvedTasks: number;
+    totalTasks: number;
+    position: number;
+    total: number;
+  };
   surveys: SurveyStat[];
   campaigns: CampaignCard[];
   referrals: {
@@ -168,19 +185,20 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
 
   const [
     profileRes,
-    standingRes,
+    completionBoardRes,
     surveysRes,
     referralsRes,
     ledgerRes,
     streakRes,
     notificationsRes,
+    campaigns,
   ] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, full_name, college, referral_code, role, status, must_change_password")
         .eq("id", user.id)
         .maybeSingle(),
-      supabase.rpc("my_standing"),
+      supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
       supabase.rpc("my_survey_stats"),
       supabase.rpc("my_referral_stats"),
       supabase
@@ -196,13 +214,33 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         .eq("profile_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20),
+      getCampaigns(),
     ]);
 
   const profile = profileRes.data;
   if (!profile) return null;
 
-  const standing = standingRes.data?.[0] ?? {
-    points: 0,
+  // Say so when the board could not be read. Without this the fallback below
+  // renders a confident 0% that is indistinguishable from a real 0%, which is
+  // how an unapplied migration once looked like a working page.
+  if (completionBoardRes.error) {
+    console.error("completion_leaderboard failed", completionBoardRes.error);
+  }
+
+  const completionBoard = completionBoardRes.data ?? [];
+  const mine = completionBoard.find((row) => row.is_me);
+  const standing = mine
+    ? {
+        completionPct: mine.completion_pct,
+        approvedTasks: mine.approved_tasks,
+        totalTasks: mine.total_tasks,
+        position: mine.position,
+        total: completionBoard.length,
+      }
+    : {
+        completionPct: 0,
+        approvedTasks: 0,
+        totalTasks: 0,
     position: 0,
     total: 0,
   };
@@ -213,7 +251,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
     profile,
     standing,
     surveys: surveysRes.data ?? [],
-    campaigns: await getCampaigns(),
+    campaigns,
     referrals: {
       code: referral?.code ?? profile.referral_code,
       total_confirmed: referral?.total_confirmed ?? 0,
@@ -312,6 +350,28 @@ export const getLeaderboard = cache(async (
   const { data } = await supabase.rpc("leaderboard", { limit_count: limit });
   return data ?? [];
 });
+
+/** The programme-wide current-month board, ranked by approved task completion. */
+export const getCompletionLeaderboard = cache(
+  async (limit = 200): Promise<CompletionLeaderboardRow[]> => {
+    if (isDemoMode()) {
+      const { demoCompletionLeaderboard } = await import("@/lib/demo-data");
+      return demoCompletionLeaderboard.slice(0, limit);
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("completion_leaderboard", {
+      limit_count: limit,
+    });
+
+    if (error) {
+      console.error("completion_leaderboard failed", error);
+      return [];
+    }
+
+    return data ?? [];
+  },
+);
 
 // ─── Windowed leaderboard ───────────────────────────────────────────────────
 

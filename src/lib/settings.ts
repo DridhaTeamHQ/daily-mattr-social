@@ -21,6 +21,7 @@ export const SETTING_FALLBACKS = {
   stipend_min_downloads: 30,
   stipend_min_surveys: 2,
   stipend_min_responses_per_survey: 10,
+  stipend_min_completion_pct: 80,
   stipend_amount_inr: 3000,
   stipend_bonus_per_downloads: 50,
   stipend_bonus_inr: 500,
