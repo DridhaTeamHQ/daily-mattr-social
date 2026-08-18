@@ -41,11 +41,18 @@ export function SurveyForm({
   questions,
   requireEmail,
   requirePhone,
+  askWhoYouAre = true,
 }: {
   slug: string;
   questions: PublicQuestion[];
   requireEmail: boolean;
   requirePhone: boolean;
+  /**
+   * False on a participant survey. The ambassador is signed in, so the account
+   * already says who they are, and asking again would be a form asking a
+   * question it can answer itself.
+   */
+  askWhoYouAre?: boolean;
 }) {
   const action = submitSurvey.bind(null, slug);
   const [state, formAction] = useActionState(action, initial);
@@ -117,6 +124,7 @@ export function SurveyForm({
       ))}
 
       {/* ─── Who you are ───────────────────────────────────────────────── */}
+      {askWhoYouAre && (
       <Card>
         <CardBody className="space-y-4">
           <h2 className="display text-[18px] text-ink">About you</h2>
@@ -155,6 +163,7 @@ export function SurveyForm({
           )}
         </CardBody>
       </Card>
+      )}
 
       {state.status === "error" && <Note tone="bad">{state.message}</Note>}
 

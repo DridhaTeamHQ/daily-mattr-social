@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { setCampaignStatus } from "@/lib/admin/actions";
-import { deleteCampaign } from "@/lib/admin/edit-actions";
 import { getAdminCampaigns } from "@/lib/admin/queries";
 import { aiEnabled } from "@/lib/ai";
 import { cn, formatDate, timeRemaining } from "@/lib/utils";
@@ -261,21 +260,10 @@ export default async function AdminCampaignsPage({
                     </ActionButton>
                   )}
 
-                  {/* Only offered while nothing has been submitted. Once there
-                      is work against a campaign the action refuses anyway, so
-                      showing the button then would be a button that exists to
-                      say no — Archive is the answer at that point. */}
-                  {c.submissionCount === 0 && (
-                    <ActionButton
-                      size="sm"
-                      variant="secondary"
-                      className="text-bad hover:bg-bad-tint"
-                      action={deleteCampaign.bind(null, c.id)}
-                      confirmMessage={`Delete "${c.title}"? It and its ${c.tasks.length} task${c.tasks.length === 1 ? "" : "s"} go for good. This cannot be undone.`}
-                    >
-                      Delete
-                    </ActionButton>
-                  )}
+                  {/* Delete lives on the campaign's own page, not out here.
+                      A list is for picking things, and an irreversible action
+                      repeated down a grid of cards is one mis-aimed click from
+                      deleting the wrong campaign. */}
 
                   {/* How far the campaign actually got: active ambassadors
                       who cleared every required task, over the number being

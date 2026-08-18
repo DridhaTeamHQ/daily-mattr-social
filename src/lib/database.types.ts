@@ -228,6 +228,7 @@ export type Database = {
           updated_at: string;
           phase: Enums<"program_phase">;
           response_cap: number | null;
+          audience: Enums<"survey_audience">;
         };
         Insert: {
           id?: string;
@@ -242,6 +243,7 @@ export type Database = {
           updated_at?: string;
           phase?: Enums<"program_phase">;
           response_cap?: number | null;
+          audience?: Enums<"survey_audience">;
         };
         Update: {
           id?: string;
@@ -256,6 +258,7 @@ export type Database = {
           updated_at?: string;
           phase?: Enums<"program_phase">;
           response_cap?: number | null;
+          audience?: Enums<"survey_audience">;
         };
         Relationships: [
           {
@@ -1368,6 +1371,7 @@ export type Database = {
         | "manual_adjust"
         | "revoke";
       survey_status: "draft" | "live" | "closed";
+      survey_audience: "public" | "participant";
       response_status: "valid" | "duplicate" | "flagged" | "rejected";
       question_type:
         | "short_text"

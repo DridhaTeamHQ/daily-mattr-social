@@ -23,7 +23,8 @@ import { EmptyState } from "@/components/ui/feedback";
 import {
   getCampaigns,
   getDashboard,
-  getSurveyDates,
+  getSurveyMeta,
+  surveyTargetFor,
   type CampaignCard as CampaignCardData,
 } from "@/lib/queries";
 import { getSetting } from "@/lib/settings";
@@ -58,11 +59,11 @@ export default async function CampaignsPage({
 }) {
   // `getDashboard` is what the layout already loaded and it is memoised per
   // request, so reading the surveys off it here is free — no second round trip.
-  const [campaigns, data, surveyDates, siteUrl, surveyTarget] =
+  const [campaigns, data, surveyMeta, siteUrl, sharedTarget] =
     await Promise.all([
       getCampaigns(),
       getDashboard(),
-      getSurveyDates(),
+      getSurveyMeta(),
       getSiteUrl(),
       getSetting("stipend_min_responses_per_survey"),
     ]);
@@ -108,7 +109,7 @@ export default async function CampaignsPage({
           key: `survey:${survey.survey_id}`,
           // ISO strings, so a plain string compare is a date compare. A survey
           // with no date sorts last rather than jumping to the top.
-          at: surveyDates.get(survey.survey_id) ?? "",
+          at: surveyMeta.get(survey.survey_id)?.createdAt ?? "",
           campaign: null,
           survey,
         }))),
@@ -174,7 +175,10 @@ export default async function CampaignsPage({
             key={item.key}
             survey={item.survey!}
             siteUrl={siteUrl}
-            target={surveyTarget}
+            target={surveyTargetFor(
+              surveyMeta.get(item.survey!.survey_id),
+              sharedTarget,
+            )}
           />
         ),
       )}

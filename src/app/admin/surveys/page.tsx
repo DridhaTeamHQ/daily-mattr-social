@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { issueSurveyLinks, setSurveyStatus } from "@/lib/admin/actions";
-import { deleteSurvey } from "@/lib/admin/edit-actions";
 import { getAdminSurveys } from "@/lib/admin/queries";
 import { formatDate } from "@/lib/utils";
 import { InfiniteList } from "@/components/infinite-scroll";
@@ -59,7 +58,13 @@ export default async function AdminSurveysPage() {
                     <Badge tone={STATUS_TONE[s.status]} dot>
                       {s.status}
                     </Badge>
-                    <Badge tone="poll">Responses tracked</Badge>
+                    {/* Who it is for changes what every other number on this
+                        card means, so it sits next to the status. */}
+                    <Badge tone={s.audience === "participant" ? "reel" : "poll"}>
+                      {s.audience === "participant"
+                        ? "Ambassadors answer"
+                        : "Public responses"}
+                    </Badge>
                   </div>
 
                   {s.description && (
@@ -71,11 +76,24 @@ export default async function AdminSurveysPage() {
                   <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
                     <Metric label="Questions" value={s.questionCount} />
                     <Metric label="Links issued" value={s.linkCount} />
-                    <Metric label="Responses" value={s.responseCount} tone="poll" />
+                    <Metric
+                      label={
+                        s.audience === "public" && s.response_cap
+                          ? `Responses of ${s.response_cap}`
+                          : "Responses"
+                      }
+                      value={s.responseCount}
+                      tone="poll"
+                    />
                   </dl>
 
                   <p className="mt-3 text-[12px] text-ink-faint">
                     Created {formatDate(s.created_at)}
+                    {s.audience === "participant"
+                      ? " · one answer per ambassador"
+                      : s.response_cap
+                        ? ` · closes at ${s.response_cap} responses`
+                        : " · no response limit"}
                     {s.require_email && " · email required"}
                     {s.require_phone && " · phone required"}
                   </p>
@@ -138,24 +156,10 @@ export default async function AdminSurveysPage() {
                     </ActionButton>
                   )}
 
-                  {/* Only while nobody has answered. After that the action
-                      refuses and Close is the right move, so the button would
-                      exist only to say no. */}
-                  {s.responseCount === 0 && (
-                    <ActionButton
-                      size="sm"
-                      variant="secondary"
-                      className="text-bad hover:bg-bad-tint"
-                      action={deleteSurvey.bind(null, s.id)}
-                      confirmMessage={
-                        s.linkCount > 0
-                          ? `Delete "${s.title}"? Its ${s.questionCount} question${s.questionCount === 1 ? "" : "s"} and ${s.linkCount} issued link${s.linkCount === 1 ? "" : "s"} go with it, and those links stop working. This cannot be undone.`
-                          : `Delete "${s.title}"? It and its ${s.questionCount} question${s.questionCount === 1 ? "" : "s"} go for good. This cannot be undone.`
-                      }
-                    >
-                      Delete
-                    </ActionButton>
-                  )}
+                  {/* Delete lives on the survey's own page. A list repeats
+                      every button down the column, and an irreversible one
+                      repeated is one mis-aimed click from deleting the wrong
+                      survey. */}
                 </CardFooter>
               </Card>
             </li>

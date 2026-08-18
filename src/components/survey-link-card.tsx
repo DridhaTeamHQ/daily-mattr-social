@@ -33,12 +33,15 @@ export function SurveyLinkCard({
 }: {
   survey: SurveyStat;
   siteUrl: string;
-  /** Responses that finish this survey. */
+  /** Responses that finish this survey. One means they answer it themselves. */
   target: number;
 }) {
   const url = `${siteUrl}/s/${survey.slug}`;
   const done = survey.valid_responses >= target;
   const remaining = Math.max(0, target - survey.valid_responses);
+  // A target of one is a survey the ambassador answers themselves, so every
+  // word about sharing it is wrong.
+  const selfAnswer = target === 1;
 
   return (
     <SurveyCard
@@ -89,7 +92,9 @@ export function SurveyLinkCard({
           <p className="mt-2 text-[12.5px] font-semibold text-ink-soft">
             {done
               ? "Complete — this survey is done."
-              : `${remaining} more ${remaining === 1 ? "response" : "responses"} to complete this survey.`}
+              : selfAnswer
+                ? "This one is for you to answer yourself."
+                : `${remaining} more ${remaining === 1 ? "response" : "responses"} to complete this survey.`}
           </p>
         </div>
 
@@ -107,12 +112,18 @@ export function SurveyLinkCard({
           </p>
         )}
 
-        <div className="mt-4 flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-          <LinkIcon className="size-4 shrink-0 text-ink-soft" />
-          <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
-            {url}
-          </code>
-        </div>
+        {/* The URL is shown so it can be sent to somebody. On a survey only
+            this ambassador can answer there is nobody to send it to — the
+            server refuses anyone else — so displaying it just invites the
+            sharing that will not work. Participate now still opens it. */}
+        {!selfAnswer && (
+          <div className="mt-4 flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <LinkIcon className="size-4 shrink-0 text-ink-soft" />
+            <code className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-ink">
+              {url}
+            </code>
+          </div>
+        )}
 
         {/* Participate first, because filling the survey in is the thing that
             moves the count. Copy is last: it is what you reach for once you
@@ -128,22 +139,29 @@ export function SurveyLinkCard({
               <ExternalLink aria-hidden />
             </a>
           </Button>
-          <CopyButton
-            value={url}
-            size="md"
-            variant="secondary"
-            className="border border-gray-200 bg-white text-ink shadow-sm"
-            label="Copy link"
-            copiedLabel="Link copied"
-            toastMessage="Survey link copied"
-          />
+          {/* No Copy link on a survey only they can answer — the link is no
+              use to anybody else, and offering to copy it invites exactly the
+              sharing the server is about to refuse. */}
+          {!selfAnswer && (
+            <CopyButton
+              value={url}
+              size="md"
+              variant="secondary"
+              className="border border-gray-200 bg-white text-ink shadow-sm"
+              label="Copy link"
+              copiedLabel="Link copied"
+              toastMessage="Survey link copied"
+            />
+          )}
 
           {/* Directly beside Copy link rather than pushed to the far edge —
               it reads as a caption on the two buttons, which is what it is.
               Wraps under them on a phone rather than squeezing them. */}
           <p className="flex items-center gap-2 text-[13px] font-medium text-ink-soft">
             <Sparkles className="size-4 shrink-0 text-brand-strong" />
-            Share it around, collect responses, and get the task done!
+            {selfAnswer
+              ? "Answer it yourself — it takes a minute and the task is done."
+              : "Share it around, collect responses, and get the task done!"}
           </p>
         </div>
       </div>

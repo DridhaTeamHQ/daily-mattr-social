@@ -306,19 +306,60 @@ export const getMyAchievements = cache(async (): Promise<MyAchievement[]> => {
  * instead of widening that RPC, which three other callers depend on. Any
  * signed-in student can select live surveys, so this needs no extra privilege.
  */
-export const getSurveyDates = cache(async (): Promise<Map<string, string>> => {
-  // Demo fixtures carry no dates. An empty map sorts every survey to the
-  // bottom, which is where they sat before this existed.
-  if (isDemoMode()) return new Map();
+export type SurveyMeta = {
+  createdAt: string;
+  audience: Enums<"survey_audience">;
+  /** The survey-wide ceiling an admin set, or null for no limit. */
+  responseCap: number | null;
+};
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("surveys")
-    .select("id, created_at")
-    .eq("status", "live");
+/**
+ * How many responses finish one survey, from the ambassador's point of view.
+ *
+ * In order of who decided it:
+ *
+ *  1. A participant survey is one answer from them and it is done.
+ *  2. A response limit set on the survey itself wins next — an admin who asked
+ *     for 2 responses meant 2, and showing the programme default of 10 next to
+ *     it made the limit look ignored.
+ *  3. Otherwise the programme-wide target from `app_settings`.
+ *
+ * One function because two pages render the same card and a rule this fiddly
+ * would not stay identical in two places.
+ */
+export function surveyTargetFor(
+  meta: SurveyMeta | undefined,
+  programmeTarget: number,
+): number {
+  if (meta?.audience === "participant") return 1;
+  if (meta?.responseCap && meta.responseCap > 0) return meta.responseCap;
+  return programmeTarget;
+}
 
-  return new Map((data ?? []).map((survey) => [survey.id, survey.created_at]));
-});
+export const getSurveyMeta = cache(
+  async (): Promise<Map<string, SurveyMeta>> => {
+    // Demo fixtures carry no dates. An empty map sorts every survey to the
+    // bottom, which is where they sat before this existed.
+    if (isDemoMode()) return new Map();
+
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("surveys")
+      .select("id, created_at, audience, response_cap")
+      .eq("status", "live");
+
+    return new Map(
+      (data ?? []).map((survey) => [
+        survey.id,
+        {
+          createdAt: survey.created_at,
+          audience: survey.audience,
+          responseCap: survey.response_cap,
+        },
+      ]),
+    );
+  },
+);
 
 export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   if (isDemoMode()) {

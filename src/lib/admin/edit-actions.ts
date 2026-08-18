@@ -290,15 +290,19 @@ export async function deleteAchievement(
 // ─── Deleting a campaign ────────────────────────────────────────────────────
 
 /**
- * Removes a campaign and its tasks outright.
+ * Removes a campaign and everything that belongs to it.
  *
- * Refused once anybody has submitted to it. The foreign keys cascade
- * campaigns → tasks → submissions, so deleting a campaign with work against it
- * would take students' uploads with it while the point_ledger rows that paid
- * for those uploads stayed behind — that ledger is append-only, so the points
- * cannot be walked back either. The result would be points paid for work the
- * database can no longer show. Archiving is the answer for those; this is for
- * the drafts and mistakes.
+ * Tasks and the submissions against them go with it — the foreign keys
+ * cascade. Nothing outside this campaign is touched.
+ *
+ * Points paid for those submissions are reversed first, for the same reason
+ * the survey delete reverses survey points: the ledger is append-only, so a
+ * credit whose submission has been deleted is points for work the database can
+ * no longer show. Submissions already revoked net to zero and are skipped.
+ *
+ * The screenshots themselves stay in the storage bucket. Storage refuses
+ * deletes from SQL, and orphaned image files are a tidiness problem rather
+ * than a correctness one.
  */
 export async function deleteCampaign(campaignId: string): Promise<ActionResult> {
   try {
@@ -318,17 +322,61 @@ export async function deleteCampaign(campaignId: string): Promise<ActionResult> 
       .eq("campaign_id", campaignId);
     const taskIds = (tasks ?? []).map((task) => task.id);
 
-    if (taskIds.length > 0) {
-      const { count } = await db
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .in("campaign_task_id", taskIds);
+    // ── Give back what this campaign paid ────────────────────────────────
+    let submissionCount = 0;
+    let reversed = 0;
 
-      if ((count ?? 0) > 0) {
-        return {
-          ok: false,
-          message: `"${campaign.title}" has ${count} submission${count === 1 ? "" : "s"}. Archive it instead — deleting would take those uploads with it.`,
-        };
+    if (taskIds.length > 0) {
+      const { data: submissionRows } = await db
+        .from("submissions")
+        .select("id")
+        .in("campaign_task_id", taskIds);
+      const submissionIds = (submissionRows ?? []).map((row) => row.id);
+      submissionCount = submissionIds.length;
+
+      if (submissionIds.length > 0) {
+        const { data: credits } = await db
+          .from("point_ledger")
+          .select("ambassador_id, delta, source_id, phase")
+          .eq("source_type", "submission")
+          .in("source_id", submissionIds);
+
+        const net = new Map<
+          string,
+          { ambassador: string; delta: number; phase: Enums<"program_phase"> | null }
+        >();
+        for (const row of credits ?? []) {
+          if (!row.source_id) continue;
+          const running = net.get(row.source_id);
+          net.set(row.source_id, {
+            ambassador: row.ambassador_id,
+            delta: (running?.delta ?? 0) + row.delta,
+            phase: running?.phase ?? row.phase,
+          });
+        }
+
+        const reversals = [...net.entries()]
+          .filter(([, entry]) => entry.delta > 0)
+          .map(([submissionId, entry]) => ({
+            ambassador_id: entry.ambassador,
+            delta: -entry.delta,
+            reason: "revoke" as const,
+            // Its own source_type, so it cannot collide with the revoke a
+            // reviewer may already have written against the same submission.
+            source_type: "campaign_delete",
+            source_id: submissionId,
+            note: `Campaign deleted: ${campaign.title}`,
+            created_by: actorId,
+            ...(entry.phase ? { phase: entry.phase } : {}),
+          }));
+
+        if (reversals.length > 0) {
+          const { error: ledgerError } = await db
+            .from("point_ledger")
+            .insert(reversals);
+          if (ledgerError) throw ledgerError;
+          reversed = reversals.reduce((sum, row) => sum - row.delta, 0);
+        }
       }
     }
 
@@ -342,29 +390,44 @@ export async function deleteCampaign(campaignId: string): Promise<ActionResult> 
       action: "campaign.delete",
       entity_type: "campaign",
       entity_id: campaignId,
-      meta: { title: campaign.title, tasks: taskIds.length },
+      meta: {
+        title: campaign.title,
+        tasks: taskIds.length,
+        submissions: submissionCount,
+        points_reversed: reversed,
+      },
     });
 
     revalidatePath("/admin/campaigns");
     revalidatePath("/dashboard/campaigns");
+    revalidatePath("/admin/review");
+    revalidatePath("/dashboard/leaderboard");
 
-    return { ok: true, message: `"${campaign.title}" deleted.` };
+    return {
+      ok: true,
+      message: reversed
+        ? `"${campaign.title}" deleted, and ${reversed} points reversed.`
+        : `"${campaign.title}" deleted.`,
+    };
   } catch (err) {
     return fail(err);
   }
 }
 
 /**
- * Removes a survey, its questions, and every link issued for it.
+ * Removes a survey and everything that belongs to it.
  *
- * Refused once anybody has answered. Deleting cascades surveys → responses →
- * answers, so it would erase what members of the public typed while the
- * point_ledger rows that paid for those responses stayed behind — and that
- * ledger is append-only. Closing a survey is the answer for those: it stops
- * new responses and keeps the ones already given.
+ * Questions, issued links, responses and the answers inside them all go — the
+ * foreign keys cascade, so deleting the survey row is enough. Nothing outside
+ * this survey is touched.
  *
- * Issued links are not a reason to refuse. Nothing is lost by revoking a link
- * nobody has used, though the confirmation says how many are going.
+ * Points are the one thing that cannot simply vanish with the rows. The ledger
+ * is append-only by design, so a response that paid an ambassador leaves a
+ * credit behind after its response is gone — points for work with no record.
+ * Each such credit is therefore reversed with a compensating negative row
+ * before the delete, which is how the rest of this file reverses points too.
+ * Already-reversed responses are skipped, so a flagged response is not
+ * subtracted twice.
  */
 export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
   try {
@@ -378,16 +441,62 @@ export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
       .maybeSingle();
     if (!survey) return { ok: false, message: "That survey is already gone." };
 
-    const { count: responses } = await db
+    const { data: responseRows } = await db
       .from("survey_responses")
-      .select("id", { count: "exact", head: true })
+      .select("id")
       .eq("survey_id", surveyId);
+    const responseIds = (responseRows ?? []).map((row) => row.id);
 
-    if ((responses ?? 0) > 0) {
-      return {
-        ok: false,
-        message: `"${survey.title}" has ${responses} response${responses === 1 ? "" : "s"}. Close it instead — deleting would erase what people answered.`,
-      };
+    // ── Give back what this survey paid ──────────────────────────────────
+    let reversed = 0;
+    if (responseIds.length > 0) {
+      const { data: credits } = await db
+        .from("point_ledger")
+        .select("ambassador_id, delta, source_id, phase")
+        .in("source_type", ["survey_response", "survey_response_moderation"])
+        .in("source_id", responseIds);
+
+      // Net per response: a credit that moderation already took back nets to
+      // zero and needs nothing further.
+      const net = new Map<
+        string,
+        { ambassador: string; delta: number; phase: Enums<"program_phase"> | null }
+      >();
+      for (const row of credits ?? []) {
+        if (!row.source_id) continue;
+        const running = net.get(row.source_id);
+        net.set(row.source_id, {
+          ambassador: row.ambassador_id,
+          delta: (running?.delta ?? 0) + row.delta,
+          // Carried from the credit rather than defaulted: the stipend maths
+          // is scoped by phase, so a reversal in the wrong one would leave the
+          // original credit standing where it counts.
+          phase: running?.phase ?? row.phase,
+        });
+      }
+
+      const reversals = [...net.entries()]
+        .filter(([, entry]) => entry.delta > 0)
+        .map(([responseId, entry]) => ({
+          ambassador_id: entry.ambassador,
+          delta: -entry.delta,
+          reason: "revoke" as const,
+          // Unique per response against (source_type, source_id, direction),
+          // and `direction` is generated from the sign of delta.
+          source_type: "survey_delete",
+          source_id: responseId,
+          note: `Survey deleted: ${survey.title}`,
+          created_by: actorId,
+          ...(entry.phase ? { phase: entry.phase } : {}),
+        }));
+
+      if (reversals.length > 0) {
+        const { error: ledgerError } = await db
+          .from("point_ledger")
+          .insert(reversals);
+        if (ledgerError) throw ledgerError;
+        reversed = reversals.reduce((sum, row) => sum - row.delta, 0);
+      }
     }
 
     const { error } = await db.from("surveys").delete().eq("id", surveyId);
@@ -398,15 +507,25 @@ export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
       action: "survey.delete",
       entity_type: "survey",
       entity_id: surveyId,
-      meta: { title: survey.title },
+      meta: {
+        title: survey.title,
+        responses: responseIds.length,
+        points_reversed: reversed,
+      },
     });
 
     revalidatePath("/admin/surveys");
     revalidatePath("/dashboard/surveys");
     // Surveys sit in the ambassadors' Tasks list too.
     revalidatePath("/dashboard/campaigns");
+    revalidatePath("/dashboard/leaderboard");
 
-    return { ok: true, message: `"${survey.title}" deleted.` };
+    return {
+      ok: true,
+      message: reversed
+        ? `"${survey.title}" deleted, and ${reversed} points reversed.`
+        : `"${survey.title}" deleted.`,
+    };
   } catch (err) {
     return fail(err);
   }

@@ -40,7 +40,7 @@ const loadSurvey = unstable_cache(
 
     const { data: link } = await db
       .from("survey_links")
-      .select("id, survey_id, surveys(id, title, description, status, points_per_response, require_email, require_phone), profiles(full_name)")
+      .select("id, survey_id, surveys(id, title, description, status, points_per_response, require_email, require_phone, audience), profiles(full_name)")
       .eq("slug", slug)
       .maybeSingle();
 
@@ -149,6 +149,7 @@ export default async function PublicSurveyPage({ params }: Params) {
             slug={slug}
             requireEmail={survey.require_email}
             requirePhone={survey.require_phone}
+            askWhoYouAre={survey.audience !== "participant"}
             questions={(questions as PublicQuestion[]).map((q) => ({
               ...q,
               options: Array.isArray(q.options) ? (q.options as string[]) : [],

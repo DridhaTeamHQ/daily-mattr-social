@@ -6,6 +6,9 @@ import { headers } from "next/headers";
 
 import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
+// The signed-in session, used only to prove a participant survey is being
+// answered by the ambassador it was issued to.
+import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { serverEnv } from "@/lib/env";
@@ -71,7 +74,7 @@ export async function submitSurvey(
   // ─── Load the link, survey and questions ──────────────────────────────────
   const { data: link } = await db
     .from("survey_links")
-    .select("id, survey_id, ambassador_id, surveys(id, title, status, points_per_response, require_email, require_phone, response_cap)")
+    .select("id, survey_id, ambassador_id, surveys(id, title, status, points_per_response, require_email, require_phone, response_cap, audience)")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -84,13 +87,58 @@ export async function submitSurvey(
   }
 
   /**
+   * A participant survey is the ambassador answering for themselves.
+   *
+   * Checked against the signed-in account rather than anything in the form: a
+   * link that has been forwarded, screenshotted or guessed still cannot be
+   * answered by whoever holds it, which is the whole point of the setting.
+   */
+  if (survey.audience === "participant") {
+    const sessionClient = await createSessionClient();
+    const {
+      data: { user },
+    } = await sessionClient.auth.getUser();
+
+    if (!user) {
+      return {
+        status: "error",
+        message: "Sign in to your ambassador account to answer this one.",
+      };
+    }
+    if (user.id !== link.ambassador_id) {
+      return {
+        status: "error",
+        message: "This survey is only for the ambassador it was issued to.",
+      };
+    }
+
+    // One each. The link is per-ambassador, so its own response count is the
+    // whole story — no need to look at who else has answered.
+    const { count } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_link_id", link.id);
+
+    if ((count ?? 0) > 0) {
+      return {
+        status: "error",
+        message: "You've already answered this one. Thanks!",
+      };
+    }
+  }
+
+  /**
    * The cap an admin set is now actually a cap.
    *
    * `surveys.response_cap` was collected in the builder and shown as a limit
    * and never read by anything. An admin who capped a survey at 200 got as
    * many as arrived.
+   *
+   * Participant surveys skip it: their limit is one per ambassador, and a
+   * survey-wide ceiling would let the first few responders use up everyone
+   * else's turn.
    */
-  if (survey.response_cap && survey.response_cap > 0) {
+  if (survey.audience === "public" && survey.response_cap && survey.response_cap > 0) {
     const { count } = await db
       .from("survey_responses")
       .select("id", { count: "exact", head: true })
@@ -374,6 +422,41 @@ export async function submitSurvey(
         href: "/dashboard/surveys",
         meta: { surveyId: survey.id, responseId },
       }).catch(() => {});
+    }
+  }
+
+  /**
+   * Close the survey the moment it has what it asked for.
+   *
+   * The cap already refuses response 201 on a survey of 200, but until now the
+   * survey sat there saying "live" with a queue of ambassadors still sharing
+   * links that could only turn people away. Flipping the status is what makes
+   * it read as finished — on the admin list, and on the ambassador's card.
+   *
+   * Only counts valid responses, so a batch of flagged duplicates cannot close
+   * a survey that has not really been answered. Failure here is deliberately
+   * swallowed: the response is saved and credited, and a survey that stays
+   * open one response too long is a smaller problem than an error shown to a
+   * respondent whose answers went through fine.
+   */
+  if (
+    counted &&
+    survey.audience === "public" &&
+    survey.response_cap &&
+    survey.response_cap > 0
+  ) {
+    const { count } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id)
+      .eq("status", "valid");
+
+    if ((count ?? 0) >= survey.response_cap) {
+      await db
+        .from("surveys")
+        .update({ status: "closed" })
+        .eq("id", survey.id)
+        .eq("status", "live");
     }
   }
 

@@ -10,12 +10,12 @@ import { ResponseTable } from "@/components/response-table";
 import { SurveyAmbassadors } from "@/components/survey-ambassadors";
 import { SearchBox } from "@/components/search-box";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
 import { getSurveyAmbassadors } from "@/lib/admin/participation";
-import { setResponseStatus } from "@/lib/admin/edit-actions";
+import { deleteSurvey, setResponseStatus } from "@/lib/admin/edit-actions";
 import { matches } from "@/lib/search";
 import { formatDate } from "@/lib/utils";
 
@@ -273,6 +273,45 @@ export default async function SurveyResponsesPage({
           </div>
         </div>
       ))}
+
+      {/* ─── Danger zone ─────────────────────────────────────────────────────
+          On the survey's own page rather than in the list, where an
+          irreversible button repeated down a column is one mis-aimed click
+          from deleting the wrong survey. Here it is unmistakably about the
+          survey whose responses you are reading. */}
+      <Card className="border-bad-line">
+        <CardBody className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="display text-[16px] text-ink">Delete this survey</h2>
+            <p className="mt-1 text-[13px] text-ink-soft">
+              Removes the survey, its {data.questions.length} question
+              {data.questions.length === 1 ? "" : "s"}, every issued link, and
+              all {data.responses.length} response
+              {data.responses.length === 1 ? "" : "s"} with the answers inside
+              them. Points paid for those responses are reversed. Closing the
+              survey keeps everything and just stops new answers.
+            </p>
+          </div>
+
+          <ActionButton
+            size="sm"
+            variant="secondary"
+            className="shrink-0 text-bad hover:bg-bad-tint"
+            action={deleteSurvey.bind(null, id)}
+            confirmMessage={[
+              `Delete "${data.survey.title}" and everything in it?`,
+              "",
+              `· ${data.questions.length} question${data.questions.length === 1 ? "" : "s"}`,
+              "· every issued link, which stops working",
+              `· ${data.responses.length} response${data.responses.length === 1 ? "" : "s"} and every answer inside them`,
+              "",
+              "Points paid for them are reversed. This cannot be undone.",
+            ].join("\n")}
+          >
+            Delete survey
+          </ActionButton>
+        </CardBody>
+      </Card>
     </div>
   );
 }

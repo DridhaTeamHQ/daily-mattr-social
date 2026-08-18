@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { SurveyLinkCard } from "@/components/survey-link-card";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
-import { getDashboard } from "@/lib/queries";
+import { getDashboard, getSurveyMeta, surveyTargetFor } from "@/lib/queries";
 import { getSetting } from "@/lib/settings";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -18,9 +18,10 @@ export default async function SurveysPage() {
   const { surveys } = data;
   // The programme's own threshold, not a number invented here — it is the
   // same one the stipend rules are published with.
-  const [siteUrl, target] = await Promise.all([
+  const [siteUrl, sharedTarget, surveyMeta] = await Promise.all([
     getSiteUrl(),
     getSetting("stipend_min_responses_per_survey"),
+    getSurveyMeta(),
   ]);
 
   if (surveys.length === 0) {
@@ -50,7 +51,10 @@ export default async function SurveysPage() {
           key={survey.survey_id}
           survey={survey}
           siteUrl={siteUrl}
-          target={target}
+          target={surveyTargetFor(
+            surveyMeta.get(survey.survey_id),
+            sharedTarget,
+          )}
         />
       ))}
     </div>

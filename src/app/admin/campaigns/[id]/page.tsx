@@ -19,7 +19,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { setCampaignStatus } from "@/lib/admin/actions";
-import { archiveCampaign } from "@/lib/admin/edit-actions";
+import { archiveCampaign, deleteCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
@@ -326,6 +326,44 @@ export default async function CampaignDetailPage({
           </CardBody>
         </Card>
       </div>
+
+      {/* ─── Danger zone ─────────────────────────────────────────────────────
+          At the bottom of the campaign's own page rather than on the list.
+          A grid of cards repeats every button, and an irreversible one
+          repeated is one mis-aimed click from deleting the wrong campaign;
+          here it is unmistakably about the campaign you are reading. */}
+      <Card className="border-bad-line">
+        <CardBody className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="display text-[16px] text-ink">Delete this campaign</h2>
+            <p className="mt-1 text-[13px] text-ink-soft">
+              Removes the campaign, its {data.tasks.length} task
+              {data.tasks.length === 1 ? "" : "s"} and{" "}
+              {totals.submissions} submission
+              {totals.submissions === 1 ? "" : "s"}. Points paid for those
+              submissions are reversed. Archiving keeps all of it and just
+              hides the campaign.
+            </p>
+          </div>
+
+          <ActionButton
+            size="sm"
+            variant="secondary"
+            className="shrink-0 text-bad hover:bg-bad-tint"
+            action={deleteCampaign.bind(null, campaign.id)}
+            confirmMessage={[
+              `Delete "${campaign.title}" and everything in it?`,
+              "",
+              `· ${data.tasks.length} task${data.tasks.length === 1 ? "" : "s"}`,
+              `· ${totals.submissions} submission${totals.submissions === 1 ? "" : "s"}, including the uploaded screenshots`,
+              "",
+              "Points paid for them are reversed. This cannot be undone.",
+            ].join("\n")}
+          >
+            Delete campaign
+          </ActionButton>
+        </CardBody>
+      </Card>
     </div>
   );
 }

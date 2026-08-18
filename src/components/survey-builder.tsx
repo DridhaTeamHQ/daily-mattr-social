@@ -61,6 +61,11 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
   const [description, setDescription] = React.useState("");
   const [requireEmail, setRequireEmail] = React.useState(true);
   const [requirePhone, setRequirePhone] = React.useState(false);
+  const [audience, setAudience] =
+    React.useState<Enums<"survey_audience">>("public");
+  // Kept as a string: an empty box means "no limit", which a number state
+  // would have to represent as 0 or NaN and then translate back.
+  const [responseCap, setResponseCap] = React.useState("");
   const [questions, setQuestions] = React.useState<Draft[]>([newQuestion()]);
 
   function update(key: string, patch: Partial<Draft>) {
@@ -121,6 +126,8 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
         pointsPerResponse: 0,
         requireEmail,
         requirePhone,
+        audience,
+        responseCap: responseCap.trim() ? Number(responseCap) : null,
         // `key` is a local list identity only; the server assigns order_index.
         questions: questions.map((q) => ({
           type: q.type,
@@ -226,7 +233,61 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
             />
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* ─── Who answers it ──────────────────────────────────────────
+              Above the respondent toggles, because it decides whether those
+              toggles apply at all. */}
+          <fieldset>
+            <legend className="mb-1.5 block text-[13px] font-medium text-ink">
+              Who answers it
+            </legend>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <AudienceOption
+                checked={audience === "public"}
+                onChange={() => setAudience("public")}
+                title="The public"
+                detail="Ambassadors share their link and collect responses from other people."
+              />
+              <AudienceOption
+                checked={audience === "participant"}
+                onChange={() => setAudience("participant")}
+                title="The ambassador"
+                detail="Each ambassador answers it themselves, signed in, once. No email or phone asked."
+              />
+            </div>
+          </fieldset>
+
+          {audience === "public" ? (
+            <Field
+              label="Responses needed"
+              htmlFor="response-cap"
+              hint="Across the whole survey. It closes itself once it fills. Leave blank for no limit."
+            >
+              <Input
+                id="response-cap"
+                type="number"
+                min={1}
+                value={responseCap}
+                onChange={(e) => setResponseCap(e.target.value)}
+                placeholder="No limit"
+                className="max-w-[12rem]"
+              />
+            </Field>
+          ) : (
+            <Note tone="neutral" size="sm">
+              One response per ambassador. It stays open until everyone has had
+              their turn, so there is no total to set.
+            </Note>
+          )}
+
+          <div
+            className={cn(
+              "grid gap-4 sm:grid-cols-2",
+              // The toggles below are about identifying a stranger. A signed-in
+              // ambassador is already identified, so they do not apply.
+              audience === "participant" && "hidden",
+            )}
+          >
             <fieldset>
               <legend className="mb-1.5 block text-[13px] font-medium text-ink">
                 Respondent details
@@ -250,7 +311,7 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
             </fieldset>
           </div>
 
-          {!requireEmail && !requirePhone && (
+          {audience === "public" && !requireEmail && !requirePhone && (
             <Note tone="warn">
               With neither required, nothing stops one person submitting the
               same survey repeatedly and distorting the results.
@@ -484,6 +545,44 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** One of the two audiences, as a card rather than a bare radio. */
+function AudienceOption({
+  checked,
+  onChange,
+  title,
+  detail,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer gap-2.5 rounded-lg border p-3 transition-colors",
+        checked
+          ? "border-brand bg-brand-tint/40"
+          : "border-gray-200 hover:bg-canvas-sunk",
+      )}
+    >
+      <input
+        type="radio"
+        name="audience"
+        checked={checked}
+        onChange={onChange}
+        className="mt-0.5 size-4 shrink-0 accent-[var(--color-brand)]"
+      />
+      <span className="min-w-0">
+        <span className="block text-[13.5px] font-bold text-ink">{title}</span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-ink-soft">
+          {detail}
+        </span>
+      </span>
+    </label>
   );
 }
 

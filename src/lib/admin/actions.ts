@@ -1023,6 +1023,9 @@ export async function createSurvey(input: {
   pointsPerResponse: number;
   requireEmail: boolean;
   requirePhone: boolean;
+  /** Survey-wide ceiling. Null means keep going. Ignored for participant surveys. */
+  responseCap: number | null;
+  audience: Enums<"survey_audience">;
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult & { surveyId?: string }> {
   try {
@@ -1031,6 +1034,21 @@ export async function createSurvey(input: {
 
     const title = input.title.trim();
     if (!title) return { ok: false, message: "Give the survey a title." };
+
+    const participant = input.audience === "participant";
+
+    // A participant survey is one answer per ambassador, so a survey-wide
+    // ceiling would mean the first few people to respond used up everybody
+    // else's turn. Stored as null rather than refused, so switching the
+    // audience does not make the admin go back and clear a field.
+    const cap = participant ? null : input.responseCap;
+
+    if (cap !== null && (!Number.isInteger(cap) || cap < 1)) {
+      return {
+        ok: false,
+        message: "Responses needed must be a whole number, or left blank.",
+      };
+    }
 
     if (!Number.isInteger(input.pointsPerResponse) ||
         input.pointsPerResponse < 0 ||
@@ -1066,8 +1084,12 @@ export async function createSurvey(input: {
         title,
         description: input.description?.trim() || null,
         points_per_response: input.pointsPerResponse,
-        require_email: input.requireEmail,
-        require_phone: input.requirePhone,
+        // A signed-in ambassador is already identified, so a participant
+        // survey never asks them to type an email or phone number.
+        require_email: participant ? false : input.requireEmail,
+        require_phone: participant ? false : input.requirePhone,
+        response_cap: cap,
+        audience: input.audience,
         status: "draft",
         created_by: actorId,
       })
