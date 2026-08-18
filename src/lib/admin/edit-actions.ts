@@ -353,3 +353,61 @@ export async function deleteCampaign(campaignId: string): Promise<ActionResult> 
     return fail(err);
   }
 }
+
+/**
+ * Removes a survey, its questions, and every link issued for it.
+ *
+ * Refused once anybody has answered. Deleting cascades surveys → responses →
+ * answers, so it would erase what members of the public typed while the
+ * point_ledger rows that paid for those responses stayed behind — and that
+ * ledger is append-only. Closing a survey is the answer for those: it stops
+ * new responses and keeps the ones already given.
+ *
+ * Issued links are not a reason to refuse. Nothing is lost by revoking a link
+ * nobody has used, though the confirmation says how many are going.
+ */
+export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const db = createAdminClient();
+
+    const { data: survey } = await db
+      .from("surveys")
+      .select("title")
+      .eq("id", surveyId)
+      .maybeSingle();
+    if (!survey) return { ok: false, message: "That survey is already gone." };
+
+    const { count: responses } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", surveyId);
+
+    if ((responses ?? 0) > 0) {
+      return {
+        ok: false,
+        message: `"${survey.title}" has ${responses} response${responses === 1 ? "" : "s"}. Close it instead — deleting would erase what people answered.`,
+      };
+    }
+
+    const { error } = await db.from("surveys").delete().eq("id", surveyId);
+    if (error) throw error;
+
+    await db.from("audit_log").insert({
+      actor_id: actorId,
+      action: "survey.delete",
+      entity_type: "survey",
+      entity_id: surveyId,
+      meta: { title: survey.title },
+    });
+
+    revalidatePath("/admin/surveys");
+    revalidatePath("/dashboard/surveys");
+    // Surveys sit in the ambassadors' Tasks list too.
+    revalidatePath("/dashboard/campaigns");
+
+    return { ok: true, message: `"${survey.title}" deleted.` };
+  } catch (err) {
+    return fail(err);
+  }
+}

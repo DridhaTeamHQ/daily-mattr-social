@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { issueSurveyLinks, setSurveyStatus } from "@/lib/admin/actions";
+import { deleteSurvey } from "@/lib/admin/edit-actions";
 import { getAdminSurveys } from "@/lib/admin/queries";
 import { formatDate } from "@/lib/utils";
 import { InfiniteList } from "@/components/infinite-scroll";
@@ -134,6 +135,25 @@ export default async function AdminSurveysPage() {
                       action={setSurveyStatus.bind(null, s.id, "live")}
                     >
                       Re-open
+                    </ActionButton>
+                  )}
+
+                  {/* Only while nobody has answered. After that the action
+                      refuses and Close is the right move, so the button would
+                      exist only to say no. */}
+                  {s.responseCount === 0 && (
+                    <ActionButton
+                      size="sm"
+                      variant="secondary"
+                      className="text-bad hover:bg-bad-tint"
+                      action={deleteSurvey.bind(null, s.id)}
+                      confirmMessage={
+                        s.linkCount > 0
+                          ? `Delete "${s.title}"? Its ${s.questionCount} question${s.questionCount === 1 ? "" : "s"} and ${s.linkCount} issued link${s.linkCount === 1 ? "" : "s"} go with it, and those links stop working. This cannot be undone.`
+                          : `Delete "${s.title}"? It and its ${s.questionCount} question${s.questionCount === 1 ? "" : "s"} go for good. This cannot be undone.`
+                      }
+                    >
+                      Delete
                     </ActionButton>
                   )}
                 </CardFooter>
