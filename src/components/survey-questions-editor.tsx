@@ -13,6 +13,9 @@ import {
   type QuestionEdit,
 } from "@/lib/admin/edit-actions";
 import { polishSurveyQuestion } from "@/lib/admin/ai-actions";
+import { QUESTION_TYPES, typeHasOptions } from "@/lib/question-types";
+import { cn } from "@/lib/utils";
+import type { Enums } from "@/lib/database.types";
 
 export type EditableQuestion = {
   id: string;
@@ -55,6 +58,7 @@ export function SurveyQuestionsEditor({
       prompt: q.prompt,
       help_text: q.help_text ?? "",
       options: [...q.options],
+      type: q.type as Enums<"question_type">,
     })),
   );
 
@@ -71,6 +75,26 @@ export function SurveyQuestionsEditor({
           ? { ...d, options: d.options.map((o, i) => (i === index ? value : o)) }
           : d,
       ),
+    );
+  }
+
+  function setType(id: string, type: Enums<"question_type">) {
+    setDrafts((current) =>
+      current.map((d) => {
+        if (d.id !== id) return d;
+        const needsOptions = typeHasOptions(type);
+        return {
+          ...d,
+          type,
+          // Moving into a choice type with nothing to choose from is a dead
+          // form, so seed two empty boxes. Moving out keeps the old list in
+          // state — switch back and it is still there, unsaved.
+          options:
+            needsOptions && d.options.length < 2
+              ? [...d.options, "", ""].slice(0, 2)
+              : d.options,
+        };
+      }),
     );
   }
 
@@ -97,7 +121,7 @@ export function SurveyQuestionsEditor({
       prompt: draft.prompt,
       helpText: draft.help_text,
       options: draft.options,
-      type: question.type,
+      type: draft.type,
       lockOptions: answered,
     })
       .then((result) => {
@@ -180,9 +204,9 @@ export function SurveyQuestionsEditor({
         )}
 
         {drafts.map((draft, index) => {
-          const question = questions.find((q) => q.id === draft.id)!;
-          const choice =
-            question.type === "single_choice" || question.type === "multi_choice";
+          // The draft's type, not the saved one — switching to "Pick one"
+          // has to reveal the choices before Save, not after.
+          const choice = typeHasOptions(draft.type);
 
           return (
             <div
@@ -223,6 +247,32 @@ export function SurveyQuestionsEditor({
                   </Button>
                 )}
               </div>
+
+              {/* Frozen once answered, like the choices: a rating stored as 4
+                  is meaningless if the question becomes a paragraph. */}
+              {!answered && (
+                <div>
+                  <p className="mb-1.5 text-[13px] font-medium text-ink">Type</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUESTION_TYPES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        title={t.hint}
+                        onClick={() => setType(draft.id, t.value)}
+                        className={cn(
+                          "tap rounded-lg border px-3 py-1.5 text-[12.5px] font-bold transition-colors",
+                          draft.type === t.value
+                            ? "border-brand bg-brand-tint text-brand-press"
+                            : "border-gray-200 bg-white text-ink-soft hover:bg-canvas-sunk hover:text-ink",
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {choice && (
                 <div>

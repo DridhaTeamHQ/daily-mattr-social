@@ -20,23 +20,11 @@ import { Note } from "@/components/ui/feedback";
 import { createSurvey, type SurveyQuestionInput } from "@/lib/admin/actions";
 import { draftSurvey } from "@/lib/admin/ai-actions";
 import type { Enums } from "@/lib/database.types";
+import { QUESTION_TYPES } from "@/lib/question-types";
 import { cn } from "@/lib/utils";
 
-const TYPES: {
-  value: Enums<"question_type">;
-  label: string;
-  hint: string;
-  hasOptions?: boolean;
-}[] = [
-  { value: "short_text", label: "Short text", hint: "One line" },
-  { value: "long_text", label: "Paragraph", hint: "A few sentences" },
-  { value: "single_choice", label: "Pick one", hint: "Radio buttons", hasOptions: true },
-  { value: "multi_choice", label: "Pick many", hint: "Checkboxes", hasOptions: true },
-  { value: "rating", label: "Rating", hint: "1 to 5" },
-  { value: "number", label: "Number", hint: "Digits only" },
-  { value: "email", label: "Email", hint: "Validated" },
-  { value: "phone", label: "Phone", hint: "Validated" },
-];
+// The list itself lives in lib/question-types so the editor shares it.
+const TYPES = QUESTION_TYPES;
 
 type Draft = SurveyQuestionInput & { key: string };
 
