@@ -124,12 +124,15 @@ export default async function CampaignsPage({
         description="Finish the challenge, submit your proof, and build your completion percentage."
       />
 
-      {campaigns.length === 0 && (
+      {/* Keyed on the list that actually renders, not on campaigns alone.
+          Surveys sit in the same list, so counting only campaigns put "no live
+          tasks" directly above a live survey. */}
+      {!active && items.length === 0 && (
         <Card>
           <EmptyState
             icon={Clapperboard}
-            title="No live campaigns"
-            description="When the team publishes a reel, it shows up here with the tasks you can complete."
+            title="No live tasks right now"
+            description="When the team publishes a reel or a survey, it shows up here with everything you can complete."
           />
         </Card>
       )}
@@ -157,7 +160,9 @@ export default async function CampaignsPage({
         </nav>
       )}
 
-      {campaigns.length > 0 && visible.length === 0 && (
+      {/* The filtered-to-nothing case owns its own message, so the general
+          empty state above steps aside while a network is picked. */}
+      {active && visible.length === 0 && (
         <Card>
           <EmptyState
             icon={Clapperboard}

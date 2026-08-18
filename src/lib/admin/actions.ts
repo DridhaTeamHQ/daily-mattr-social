@@ -495,22 +495,61 @@ export async function createAmbassador(
 
     const db = createAdminClient();
 
-    const { data: created, error } = await db.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName, college: college || null, role: "ambassador" },
-    });
+    const makeUser = () =>
+      db.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName, college: college || null, role: "ambassador" },
+      });
 
-    if (error) {
-      // The most common failure by far, and the generic message is unhelpful.
-      if (/already|registered|exists/i.test(error.message)) {
+    let { data: created, error } = await makeUser();
+
+    /**
+     * The orphaned-login case.
+     *
+     * Deleting somebody from `public.profiles` — in the SQL editor, or through
+     * the dashboard's table view — leaves their `auth.users` row behind. The
+     * address is then permanently taken: creating them again fails as "already
+     * registered", while the ambassador list shows nobody to reset, so the
+     * admin is stuck with no way out of the UI.
+     *
+     * An auth user with no profile cannot sign in to anything this app shows,
+     * so it is safe to clear out and start again. Only ever for the exact
+     * address being created, and only when the profile really is missing — a
+     * real account keeps the original error.
+     */
+    if (error && /already|registered|exists/i.test(error.message)) {
+      const { data: list } = await db.auth.admin.listUsers();
+      const existing = list?.users.find(
+        (u) => u.email?.toLowerCase() === email,
+      );
+
+      const { count: profiles } = existing
+        ? await db
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("id", existing.id)
+        : { count: null };
+
+      if (existing && (profiles ?? 0) === 0) {
+        const { error: removeError } = await db.auth.admin.deleteUser(existing.id);
+        if (removeError) throw removeError;
+
+        ({ data: created, error } = await makeUser());
+      } else {
         return {
           ok: false,
           message: `${email} already has an account. Use "Reset password" on their row instead.`,
         };
       }
-      throw error;
+    }
+
+    if (error) throw error;
+    // Narrowing for the retry path: `created` is reassigned above, so TypeScript
+    // can no longer see that a successful create always carries a user.
+    if (!created?.user) {
+      return { ok: false, message: "The account could not be created. Try again." };
     }
 
     // The trigger marks anyone created with a password as active. Walk that
