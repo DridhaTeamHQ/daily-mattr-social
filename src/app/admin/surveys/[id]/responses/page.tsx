@@ -8,6 +8,7 @@ import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
 import { ResponseTable } from "@/components/response-table";
 import { SurveyAmbassadors } from "@/components/survey-ambassadors";
+import { SurveyQuestionsEditor } from "@/components/survey-questions-editor";
 import { SearchBox } from "@/components/search-box";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -273,6 +274,18 @@ export default async function SurveyResponsesPage({
           </div>
         </div>
       ))}
+
+      <SurveyQuestionsEditor
+        surveyId={id}
+        answered={data.responses.length > 0}
+        questions={data.questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          prompt: q.prompt,
+          help_text: q.help_text,
+          options: Array.isArray(q.options) ? (q.options as string[]) : [],
+        }))}
+      />
 
       {/* ─── Danger zone ─────────────────────────────────────────────────────
           On the survey's own page rather than in the list, where an

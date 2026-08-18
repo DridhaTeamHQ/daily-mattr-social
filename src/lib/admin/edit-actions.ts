@@ -114,9 +114,9 @@ export async function updateSurvey(
 
     const db = createAdminClient();
 
-    // Questions are not editable here on purpose. Changing a question after
-    // people have answered it leaves stored answers pointing at a prompt
-    // nobody was actually shown.
+    // Questions are not edited here — `updateSurveyQuestions` below owns them,
+    // because their rules are different: wording can always be corrected, but
+    // the options freeze the moment somebody answers.
     const { error } = await db
       .from("surveys")
       .update({
@@ -525,6 +525,112 @@ export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
       message: reversed
         ? `"${survey.title}" deleted, and ${reversed} points reversed.`
         : `"${survey.title}" deleted.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// ─── Survey questions ───────────────────────────────────────────────────────
+
+export type QuestionEdit = {
+  id: string;
+  prompt: string;
+  help_text: string;
+  options: string[];
+};
+
+/**
+ * Fixes the wording of a survey's questions after it exists.
+ *
+ * Two different things, with two different rules:
+ *
+ *  · The prompt and the help text can always be corrected. A typo fixed after
+ *    the fact still describes the same question, and every stored answer goes
+ *    on pointing at the row it was given for.
+ *
+ *  · The options can only change while nobody has answered. Answers are stored
+ *    as the option text itself, so renaming "Instagram" to "Insta" would leave
+ *    real answers referring to a choice the survey no longer offers, and the
+ *    summary would count them as two different things.
+ *
+ * Adding, removing, reordering and retyping questions are deliberately not
+ * here. Those change what the survey asked, which is a different act from
+ * fixing how it was worded — build a new survey for that.
+ */
+export async function updateSurveyQuestions(
+  surveyId: string,
+  edits: QuestionEdit[],
+): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+    const db = createAdminClient();
+
+    const { data: existing } = await db
+      .from("survey_questions")
+      .select("id, type, prompt, options")
+      .eq("survey_id", surveyId);
+
+    if (!existing?.length) {
+      return { ok: false, message: "That survey has no questions." };
+    }
+
+    const { count: responses } = await db
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", surveyId);
+    const answered = (responses ?? 0) > 0;
+
+    const byId = new Map(existing.map((q) => [q.id, q]));
+
+    for (const [index, edit] of edits.entries()) {
+      const current = byId.get(edit.id);
+      // Silently ignoring an unknown id would report success while saving
+      // nothing, which is the worst of both.
+      if (!current) {
+        return { ok: false, message: "One of those questions no longer exists." };
+      }
+
+      const prompt = edit.prompt.trim();
+      if (prompt.length < 3) {
+        return { ok: false, message: `Question ${index + 1} needs a prompt.` };
+      }
+
+      const choice =
+        current.type === "single_choice" || current.type === "multi_choice";
+      const options = (edit.options ?? []).map((o) => o.trim()).filter(Boolean);
+
+      if (choice && !answered) {
+        // Mirrors survey_questions_choices_present, so the failure is a
+        // sentence rather than a raw constraint violation.
+        if (options.length < 2) {
+          return {
+            ok: false,
+            message: `Question ${index + 1} is a choice question, so it needs at least two options.`,
+          };
+        }
+      }
+
+      const { error } = await db
+        .from("survey_questions")
+        .update({
+          prompt,
+          help_text: edit.help_text.trim() || null,
+          // Left untouched once anybody has answered.
+          ...(choice && !answered ? { options } : {}),
+        })
+        .eq("id", edit.id);
+      if (error) throw error;
+    }
+
+    revalidatePath(`/admin/surveys/${surveyId}/responses`);
+    revalidatePath("/admin/surveys");
+
+    return {
+      ok: true,
+      message: answered
+        ? "Wording updated. Options were left alone — this survey has answers."
+        : "Questions updated.",
     };
   } catch (err) {
     return fail(err);
