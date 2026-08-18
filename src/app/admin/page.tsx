@@ -25,9 +25,11 @@ const ACTION_LABELS: Record<string, string> = {
   "points.adjust": "updated an ambassador record",
   "campaign.status": "changed a campaign's status",
   "campaign.create": "created a campaign",
+  "campaign.delete": "deleted a campaign",
   "survey.status": "changed a survey's status",
   "survey.links": "issued survey links",
   "survey.create": "built a survey",
+  "survey.delete": "deleted a survey",
   "ambassador.create": "added an ambassador",
   "ambassador.reset_password": "reset an ambassador's password",
 };
@@ -196,8 +198,11 @@ export default async function AdminOverviewPage() {
                         {ACTION_LABELS[entry.action] ?? entry.action}
                       </span>
                     </span>
-                    <span className="shrink-0 text-[12px] text-ink-faint">
-                      {formatDate(entry.created_at)}
+                    {/* With the time: this is a log, and six entries from the
+                        same day all reading "18 Aug 2026" cannot be told
+                        apart or put in order by eye. */}
+                    <span className="shrink-0 text-[12px] whitespace-nowrap text-ink-faint">
+                      {formatDate(entry.created_at, true)}
                     </span>
                   </li>
                 ))}
