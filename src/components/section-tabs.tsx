@@ -52,7 +52,7 @@ export function SectionTabs({ tabs }: { tabs: SectionTab[] }) {
 }
 
 export const CAMPAIGN_TABS: SectionTab[] = [
-  { href: "/admin/campaigns", label: "Campaigns" },
+  { href: "/admin/campaigns", label: "Tasks" },
   // Reviewing a screenshot is the second half of running a campaign, so the
   // queue sits inside this section rather than beside it in the top bar.
   { href: "/admin/review", label: "Review" },

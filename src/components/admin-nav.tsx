@@ -35,7 +35,7 @@ import { cn, initials } from "@/lib/utils";
  */
 const ITEMS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/campaigns", label: "Campaigns", icon: Clapperboard },
+  { href: "/admin/campaigns", label: "Tasks", icon: Clapperboard },
   { href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
   { href: "/admin/ambassadors", label: "Ambassadors", icon: Users },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },

@@ -18,7 +18,7 @@ import { getAdminCampaigns } from "@/lib/admin/queries";
 import { aiEnabled } from "@/lib/ai";
 import { cn, formatDate, timeRemaining } from "@/lib/utils";
 
-export const metadata = { title: "Campaigns" };
+export const metadata = { title: "Tasks" };
 
 const STATUS_TONE = {
   live: "ok",
@@ -77,7 +77,7 @@ export default async function AdminCampaignsPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-[26px] leading-none text-ink">
-            Campaigns
+            Tasks
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
             Only live campaigns appear on ambassador dashboards.
