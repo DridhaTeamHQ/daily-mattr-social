@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
+import { isOtherOption } from "@/lib/survey-other";
 import { cn } from "@/lib/utils";
 
 export type PublicQuestion = {
@@ -23,14 +24,6 @@ export type PublicQuestion = {
   max_select: number | null;
 };
 
-/**
- * Google Forms convention: an option literally called "Other" opens a box to
- * type into. Matching the label rather than adding a per-option flag keeps the
- * question editor a plain list of strings.
- */
-function isOtherOption(option: string): boolean {
-  return /^other\b/i.test(option.trim());
-}
 
 const initial: SubmitState = { status: "idle", message: "" };
 

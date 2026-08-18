@@ -10,6 +10,7 @@ import { awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { serverEnv } from "@/lib/env";
 import { notify } from "@/lib/notifications";
+import { isOtherOption } from "@/lib/survey-other";
 import type { Enums, Json } from "@/lib/database.types";
 
 /**
@@ -181,12 +182,14 @@ export async function submitSurvey(
       };
     }
 
-    // An option called "Other" carries a typed description alongside it.
-    // Stored as "Other: forestry" so a single answer stays one readable
-    // string and the summary can still group every "Other" together.
+    // An option called "Other" — or "Others" — carries a typed description
+    // alongside it. Stored as "Other: forestry" so a single answer stays one
+    // readable string and the summary can still group every "Other" together.
+    // The same matcher the form used to decide whether to show the box, so a
+    // respondent can never type into a field the server then ignores.
     const otherText = String(formData.get(`q_${question.id}_other`) ?? "").trim();
     const withOther = (choice: string) =>
-      /^other\b/i.test(choice) && otherText ? `Other: ${otherText}` : choice;
+      isOtherOption(choice) && otherText ? `Other: ${otherText}` : choice;
 
     let value: Json;
     switch (question.type as Enums<"question_type">) {
