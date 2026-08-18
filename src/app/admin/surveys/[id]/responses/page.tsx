@@ -18,6 +18,7 @@ import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
 import { getSurveyAmbassadors } from "@/lib/admin/participation";
 import { deleteSurvey, setResponseStatus } from "@/lib/admin/edit-actions";
 import { matches } from "@/lib/search";
+import { aiEnabled } from "@/lib/ai";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Responses" };
@@ -278,6 +279,7 @@ export default async function SurveyResponsesPage({
       <SurveyQuestionsEditor
         surveyId={id}
         answered={data.responses.length > 0}
+        aiEnabled={aiEnabled()}
         questions={data.questions.map((q) => ({
           id: q.id,
           type: q.type,

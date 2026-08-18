@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ import {
   updateSurveyQuestions,
   type QuestionEdit,
 } from "@/lib/admin/edit-actions";
+import { polishSurveyQuestion } from "@/lib/admin/ai-actions";
+import { QUESTION_TYPES, typeHasOptions } from "@/lib/question-types";
+import { cn } from "@/lib/utils";
+import type { Enums } from "@/lib/database.types";
 
 export type EditableQuestion = {
   id: string;
@@ -37,11 +41,14 @@ export function SurveyQuestionsEditor({
   surveyId,
   questions,
   answered,
+  aiEnabled,
 }: {
   surveyId: string;
   questions: EditableQuestion[];
   /** True once the survey has at least one response. */
   answered: boolean;
+  /** Hidden entirely without an API key, rather than offering a dead button. */
+  aiEnabled: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -51,6 +58,7 @@ export function SurveyQuestionsEditor({
       prompt: q.prompt,
       help_text: q.help_text ?? "",
       options: [...q.options],
+      type: q.type as Enums<"question_type">,
     })),
   );
 
@@ -68,6 +76,71 @@ export function SurveyQuestionsEditor({
           : d,
       ),
     );
+  }
+
+  function setType(id: string, type: Enums<"question_type">) {
+    setDrafts((current) =>
+      current.map((d) => {
+        if (d.id !== id) return d;
+        const needsOptions = typeHasOptions(type);
+        return {
+          ...d,
+          type,
+          // Moving into a choice type with nothing to choose from is a dead
+          // form, so seed two empty boxes. Moving out keeps the old list in
+          // state — switch back and it is still there, unsaved.
+          options:
+            needsOptions && d.options.length < 2
+              ? [...d.options, "", ""].slice(0, 2)
+              : d.options,
+        };
+      }),
+    );
+  }
+
+  function removeOption(id: string, index: number) {
+    setDrafts((current) =>
+      current.map((d) =>
+        d.id === id
+          ? { ...d, options: d.options.filter((_, i) => i !== index) }
+          : d,
+      ),
+    );
+  }
+
+  // Which question is being rewritten, so only that card shows a spinner.
+  const [polishing, setPolishing] = React.useState<string | null>(null);
+
+  function polish(id: string) {
+    const draft = drafts.find((d) => d.id === id);
+    const question = questions.find((q) => q.id === id);
+    if (!draft || !question) return;
+
+    setPolishing(id);
+    void polishSurveyQuestion({
+      prompt: draft.prompt,
+      helpText: draft.help_text,
+      options: draft.options,
+      type: draft.type,
+      lockOptions: answered,
+    })
+      .then((result) => {
+        if (!result.ok) {
+          toast.error(result.message);
+          return;
+        }
+        // Straight into the fields, unsaved. The admin reads it, edits it, and
+        // presses Save — or closes without saving and nothing happened.
+        // Help text is deliberately not applied: the field is not shown, so
+        // an AI-written line would reach respondents without anybody having
+        // read it. Whatever is stored stays stored.
+        update(id, {
+          prompt: result.data.prompt,
+          ...(answered ? {} : { options: result.data.options }),
+        });
+        toast.success("Rewritten — check it before saving.");
+      })
+      .finally(() => setPolishing(null));
   }
 
   function save() {
@@ -131,32 +204,75 @@ export function SurveyQuestionsEditor({
         )}
 
         {drafts.map((draft, index) => {
-          const question = questions.find((q) => q.id === draft.id)!;
-          const choice =
-            question.type === "single_choice" || question.type === "multi_choice";
+          // The draft's type, not the saved one — switching to "Pick one"
+          // has to reveal the choices before Save, not after.
+          const choice = typeHasOptions(draft.type);
 
           return (
             <div
               key={draft.id}
               className="space-y-3 rounded-xl border border-gray-200 bg-canvas-sunk p-4"
             >
-              <Field label={`Question ${index + 1}`} htmlFor={`q-${draft.id}`} required>
-                <Textarea
-                  id={`q-${draft.id}`}
-                  rows={2}
-                  value={draft.prompt}
-                  onChange={(e) => update(draft.id, { prompt: e.target.value })}
-                />
-              </Field>
+              <div className="flex items-start justify-between gap-3">
+                <Field
+                  className="min-w-0 flex-1"
+                  label={`Question ${index + 1}`}
+                  htmlFor={`q-${draft.id}`}
+                  required
+                >
+                  <Textarea
+                    id={`q-${draft.id}`}
+                    rows={2}
+                    value={draft.prompt}
+                    onChange={(e) => update(draft.id, { prompt: e.target.value })}
+                  />
+                </Field>
 
-              <Field label="Help text" htmlFor={`h-${draft.id}`}>
-                <Input
-                  id={`h-${draft.id}`}
-                  value={draft.help_text}
-                  onChange={(e) => update(draft.id, { help_text: e.target.value })}
-                  placeholder="Optional — shown under the question."
-                />
-              </Field>
+                {/* Per question, not per survey: an admin fixing one awkward
+                    sentence should not have the other four rewritten under
+                    them. */}
+                {aiEnabled && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="mt-6 shrink-0"
+                    loading={polishing === draft.id}
+                    disabled={polishing !== null || !draft.prompt.trim()}
+                    onClick={() => polish(draft.id)}
+                    title="Rewrite this question with AI — you review it before saving"
+                  >
+                    <Sparkles aria-hidden />
+                    Rewrite
+                  </Button>
+                )}
+              </div>
+
+              {/* Frozen once answered, like the choices: a rating stored as 4
+                  is meaningless if the question becomes a paragraph. */}
+              {!answered && (
+                <div>
+                  <p className="mb-1.5 text-[13px] font-medium text-ink">Type</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUESTION_TYPES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        title={t.hint}
+                        onClick={() => setType(draft.id, t.value)}
+                        className={cn(
+                          "tap rounded-lg border px-3 py-1.5 text-[12.5px] font-bold transition-colors",
+                          draft.type === t.value
+                            ? "border-brand bg-brand-tint text-brand-press"
+                            : "border-gray-200 bg-white text-ink-soft hover:bg-canvas-sunk hover:text-ink",
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {choice && (
                 <div>
@@ -165,12 +281,28 @@ export function SurveyQuestionsEditor({
                   </p>
                   <div className="space-y-2">
                     {draft.options.map((option, i) => (
-                      <Input
-                        key={i}
-                        value={option}
-                        disabled={answered}
-                        onChange={(e) => setOption(draft.id, i, e.target.value)}
-                      />
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          className="min-w-0 flex-1"
+                          value={option}
+                          disabled={answered}
+                          onChange={(e) => setOption(draft.id, i, e.target.value)}
+                        />
+
+                        {/* Two is the floor: a choice question with one option
+                            is not a question, and the database refuses it. The
+                            button disappears rather than failing on save. */}
+                        {!answered && draft.options.length > 2 && (
+                          <button
+                            type="button"
+                            aria-label={`Remove choice ${i + 1}`}
+                            onClick={() => removeOption(draft.id, i)}
+                            className="tap grid size-9 shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-ink-soft transition-colors hover:bg-bad-tint hover:text-bad"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
 

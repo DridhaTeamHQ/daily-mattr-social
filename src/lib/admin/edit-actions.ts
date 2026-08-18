@@ -538,6 +538,7 @@ export type QuestionEdit = {
   prompt: string;
   help_text: string;
   options: string[];
+  type: Enums<"question_type">;
 };
 
 /**
@@ -596,8 +597,12 @@ export async function updateSurveyQuestions(
         return { ok: false, message: `Question ${index + 1} needs a prompt.` };
       }
 
-      const choice =
-        current.type === "single_choice" || current.type === "multi_choice";
+      // The type an answer was given under cannot change: a rating stored as
+      // 4 makes no sense once the question is a paragraph, and the summary
+      // would try to chart prose. Frozen alongside the options, and for the
+      // same reason.
+      const type = answered ? current.type : edit.type;
+      const choice = type === "single_choice" || type === "multi_choice";
       const options = (edit.options ?? []).map((o) => o.trim()).filter(Boolean);
 
       if (choice && !answered) {
@@ -616,8 +621,10 @@ export async function updateSurveyQuestions(
         .update({
           prompt,
           help_text: edit.help_text.trim() || null,
-          // Left untouched once anybody has answered.
-          ...(choice && !answered ? { options } : {}),
+          // Type and options both freeze once anybody has answered. Switching
+          // away from a choice type clears the options, or the row keeps a
+          // list nothing renders.
+          ...(answered ? {} : { type, options: choice ? options : [] }),
         })
         .eq("id", edit.id);
       if (error) throw error;
