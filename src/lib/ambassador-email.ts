@@ -51,7 +51,7 @@ export async function sendAmbassadorWelcomeEmail(
           name: input.fullName,
         },
       ],
-      subject: "Your DailyMattr ambassador account is ready",
+      subject: "Your Marketing Ambassador login credentials",
       htmlContent: welcomeEmailHtml({
         fullName: input.fullName,
         email: input.email,
@@ -94,7 +94,7 @@ function welcomeEmailHtml(input: {
       <div style="max-width:640px;margin:0 auto;overflow:hidden;border:1px solid #bfdbfe;border-radius:24px;background:#ffffff;box-shadow:0 14px 40px rgba(37,99,235,0.12);">
         <div style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);padding:28px 32px;color:#ffffff;">
           <div style="font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;opacity:0.92;">DailyMattr</div>
-          <h1 style="margin:12px 0 0;font-size:30px;line-height:1.1;font-weight:800;">Your ambassador login is ready</h1>
+          <h1 style="margin:12px 0 0;font-size:30px;line-height:1.1;font-weight:800;">Your Marketing Ambassador login credentials</h1>
           <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#dbeafe;">
             Welcome aboard, ${escapeHtml(input.fullName)}. Use the credentials below to sign in and get started.
           </p>
@@ -138,7 +138,7 @@ function welcomeEmailText(input: {
   return [
     `Hi ${input.fullName},`,
     "",
-    "Your DailyMattr ambassador account is ready.",
+    "Here are your DailyMattr Marketing Ambassador login credentials.",
     "",
     `Email: ${input.email}`,
     `Temporary password: ${input.password}`,
