@@ -362,3 +362,79 @@ export async function adjudicateScreenshot(input: {
     return { ok: false, message };
   }
 }
+
+// ─── One question, rewritten ────────────────────────────────────────────────
+
+export type PolishedQuestion = {
+  prompt: string;
+  help_text: string;
+  options: string[];
+};
+
+const POLISH_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["prompt", "help_text", "options"],
+  properties: {
+    prompt: { type: "string" },
+    help_text: { type: "string" },
+    options: { type: "array", items: { type: "string" } },
+  },
+} as const;
+
+/**
+ * Rewrites a question that already exists, rather than inventing one.
+ *
+ * The distinction matters: an admin pressing this has decided what to ask and
+ * wants it said better. A model that "improves" a question into a different
+ * question produces a survey nobody meant to run, and — once answers exist —
+ * one whose stored responses no longer match what is on screen.
+ *
+ * `lockOptions` is passed once a survey has been answered. The options are
+ * then returned untouched, because an answer is stored as the option's own
+ * text and rewording a choice would orphan every response that picked it.
+ */
+export async function polishQuestion(input: {
+  prompt: string;
+  helpText: string;
+  options: string[];
+  type: string;
+  lockOptions: boolean;
+}): Promise<AiResult<PolishedQuestion>> {
+  const system = [
+    "You edit survey questions for Indian college students answering on a phone.",
+    "You are rewriting ONE existing question. Keep what it asks identical — change only how it reads.",
+    "Rules:",
+    "- Keep the same meaning. Never broaden, narrow, or split the question.",
+    "- Plain, direct, friendly. No 'kindly', no 'please indicate', no market-research voice.",
+    "- Keep it short enough to read at a glance on a phone.",
+    "- help_text is usually an empty string. Add one short line only if the question is genuinely ambiguous without it.",
+    input.lockOptions
+      ? "- Return the options EXACTLY as given, unchanged, in the same order."
+      : "- Options: keep the same choices and the same order, tightened only for wording. Never add or remove one.",
+  ].join("\n");
+
+  const user = [
+    `Type: ${input.type}`,
+    `Question: ${input.prompt}`,
+    `Help text: ${input.helpText || "(none)"}`,
+    input.options.length
+      ? `Options:\n${input.options.map((o) => `- ${o}`).join("\n")}`
+      : "Options: (none)",
+  ].join("\n");
+
+  const result = await askForJson<PolishedQuestion>(
+    system,
+    user,
+    POLISH_SCHEMA,
+    "question",
+  );
+
+  // The prompt asks for the options back untouched; this makes it true even if
+  // the model ignores that, because the alternative is silently orphaning
+  // answers that were stored as the old wording.
+  if (result.ok && input.lockOptions) {
+    return { ...result, data: { ...result.data, options: input.options } };
+  }
+  return result;
+}

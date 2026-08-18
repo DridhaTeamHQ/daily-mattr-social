@@ -3,9 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   aiEnabled,
+  polishQuestion,
   suggestCampaign,
   suggestSurvey,
   type AiResult,
+  type PolishedQuestion,
   type SuggestedCampaign,
   type SuggestedSurvey,
 } from "@/lib/ai";
@@ -77,6 +79,41 @@ export async function draftCampaign(
     return {
       ok: false,
       message: err instanceof Error ? err.message : "Couldn't draft that.",
+    };
+  }
+}
+
+/**
+ * Rewrites one existing survey question.
+ *
+ * Nothing is saved here — the polished wording goes back into the form for an
+ * admin to read, change or discard. The model suggests; the person decides.
+ */
+export async function polishSurveyQuestion(input: {
+  prompt: string;
+  helpText: string;
+  options: string[];
+  type: string;
+  lockOptions: boolean;
+}): Promise<AiResult<PolishedQuestion>> {
+  try {
+    await assertAdmin();
+
+    if (!input.prompt.trim()) {
+      return { ok: false, message: "Write the question first, then polish it." };
+    }
+
+    return await polishQuestion({
+      prompt: input.prompt.trim().slice(0, 500),
+      helpText: input.helpText.trim().slice(0, 500),
+      options: input.options.slice(0, 12).map((o) => o.slice(0, 200)),
+      type: input.type,
+      lockOptions: input.lockOptions,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Couldn't rewrite that.",
     };
   }
 }
