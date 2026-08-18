@@ -18,7 +18,7 @@
  * Without --live it prints what it would do and writes nothing.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 
@@ -65,6 +65,8 @@ if (!live) {
   process.exit(0);
 }
 
+const EOL = "\r\n";
+const stamp = new Date().toISOString();
 const created: { name: string; email: string; password: string; code: string; emailed: string }[] = [];
 const failed: { email: string; reason: string }[] = [];
 
@@ -129,11 +131,26 @@ for (const row of valid) {
   console.log(`  ${delivery.ok ? "✓" : "✗"} ${row.full_name} · ${row.email} · ${code}`);
 }
 
-const out = file.replace(/\.csv$/, "") + "-credentials.csv";
-writeFileSync(
+/**
+ * Appended, never overwritten.
+ *
+ * A temporary password exists in exactly two places: the message that was
+ * emailed, and this file. Writing to a name derived from the input meant two
+ * runs with the same input filename silently replaced the first run's record,
+ * leaving no way back except resetting that person's password. Appending to
+ * one file costs nothing and turns it into a log of every account this script
+ * has created.
+ */
+const out = ".local/credentials.csv";
+if (!existsSync(out)) {
+  appendFileSync(out, "Created at,Name,Email,Temporary password,Referral code,Emailed" + EOL, "utf8");
+}
+appendFileSync(
   out,
-  ["Name,Email,Temporary password,Referral code,Emailed",
-    ...created.map((c) => `"${c.name}","${c.email}","${c.password}","${c.code}","${c.emailed}"`)].join("\r\n"),
+  created
+    .map((c) => [stamp, c.name, c.email, c.password, c.code, c.emailed]
+      .map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(",") + EOL)
+    .join(""),
   "utf8",
 );
 
