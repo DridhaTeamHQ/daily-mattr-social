@@ -293,7 +293,7 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
               isClip ? "text-brand-strong" : "text-gray-600",
             )}
           />
-          Open the reel, complete the task, then upload your screenshot.
+          Complete the task, then upload your screenshot.
         </p>
         <Button
           size="sm"
