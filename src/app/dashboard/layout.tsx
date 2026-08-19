@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 
 import { BottomNav, TopNav } from "@/components/app-nav";
 import { mustChangePassword } from "@/lib/queries";
 import { CelebrationProvider } from "@/components/celebrate";
 import { Note } from "@/components/ui/feedback";
+import { ViewAsBar } from "@/components/view-as-bar";
+import { getViewer } from "@/lib/view-as";
 import { getDashboard, isDemoMode } from "@/lib/queries";
 
 export default async function DashboardLayout({
@@ -21,7 +22,13 @@ export default async function DashboardLayout({
   // A student still on an admin-issued password gets nowhere until they
   // replace it. Checked here rather than in proxy.ts because proxy does
   // optimistic checks only.
-  if (await mustChangePassword()) redirect("/welcome");
+  //
+  // Skipped while previewing: the flag being read belongs to the student, and
+  // an admin does not get sent to a change-password screen for somebody else's
+  // password — which would also make exactly those students impossible to
+  // preview.
+  const viewer = await getViewer();
+  if (!viewer?.isPreview && (await mustChangePassword())) redirect("/welcome");
 
   // Read literally so Next can inline it. Null when push isn't configured,
   // which makes the bell hide the opt-in rather than offer something broken.
@@ -38,21 +45,9 @@ export default async function DashboardLayout({
         />
 
         <main className="mx-auto max-w-5xl px-4 pt-6 pb-28 sm:px-6 sm:pb-12">
-          {data.profile.role === "admin" && (
-            <Note tone="brand" title="You're signed in as an admin" className="mb-5">
-              <p>
-                This is the ambassador view. Admins have no referral code, no
-                survey links or task progress, so most of these screens will look
-                empty — that is expected, not a fault. Sign in as an ambassador
-                to see what students see.
-              </p>
-              <div className="mt-3">
-                <Link href="/admin" className="font-semibold underline hover:no-underline">
-                  Return to admin dashboard
-                </Link>
-              </div>
-            </Note>
-          )}
+          {/* Renders the picker for an admin, the preview bar while one is
+              running, and nothing at all for a student. */}
+          <ViewAsBar />
 
           {isDemoMode() && (
             <Note tone="warn" title="Demo data" className="mb-5">

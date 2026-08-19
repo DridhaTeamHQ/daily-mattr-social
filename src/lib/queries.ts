@@ -6,6 +6,12 @@ import { earningRoute } from "@/lib/admin/participation";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  previewReferralStats,
+  previewStreak,
+  previewSurveyStats,
+} from "@/lib/preview-stats";
+import { getViewer } from "@/lib/view-as";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -185,6 +191,17 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   const user = await currentUser();
   if (!user) return null;
 
+  /**
+   * Every read below keys on the viewer, not the signed-in account.
+   *
+   * They are the same id unless an admin is previewing a student, in which
+   * case this is the whole of the difference — the queries themselves do not
+   * change, they just answer about somebody else.
+   */
+  const viewer = await getViewer();
+  const subjectId = viewer?.id ?? user.id;
+  const preview = viewer?.isPreview ?? false;
+
   const [
     profileRes,
     completionBoardRes,
@@ -198,22 +215,30 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
       supabase
         .from("profiles")
         .select("id, full_name, college, referral_code, role, status, must_change_password")
-        .eq("id", user.id)
+        .eq("id", subjectId)
         .maybeSingle(),
       supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
-      supabase.rpc("my_survey_stats"),
-      supabase.rpc("my_referral_stats"),
+      // The `my_*` RPCs filter on auth.uid() internally, so a preview has to
+      // read the same tables directly. See preview-stats.ts.
+      preview
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.rpc("my_survey_stats"),
+      preview
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.rpc("my_referral_stats"),
       supabase
         .from("point_ledger")
         .select("id, delta, reason, note, created_at")
-        .eq("ambassador_id", user.id)
+        .eq("ambassador_id", subjectId)
         .order("created_at", { ascending: false })
         .limit(8),
-      supabase.rpc("my_streak"),
+      preview
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.rpc("my_streak"),
       supabase
         .from("notifications")
         .select("id, type, title, body, href, read_at, created_at")
-        .eq("profile_id", user.id)
+        .eq("profile_id", subjectId)
         .order("created_at", { ascending: false })
         .limit(20),
       getCampaigns(),
@@ -230,7 +255,11 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   }
 
   const completionBoard = completionBoardRes.data ?? [];
-  const mine = completionBoard.find((row) => row.is_me);
+  // `is_me` is stamped by the database against auth.uid(), so a preview finds
+  // its row by id instead. Same row, different way of pointing at it.
+  const mine = preview
+    ? completionBoard.find((row) => row.ambassador_id === subjectId)
+    : completionBoard.find((row) => row.is_me);
   const standing = mine
     ? {
         completionPct: mine.completion_pct,
@@ -249,19 +278,28 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
 
   const referral = referralsRes.data?.[0];
 
+  // Filled from the direct reads while previewing, from the RPCs otherwise.
+  const [previewSurveys, previewReferrals, previewStreakDays] = preview
+    ? await Promise.all([
+        previewSurveyStats(supabase, subjectId),
+        previewReferralStats(supabase, subjectId, profile.referral_code),
+        previewStreak(supabase, subjectId),
+      ])
+    : [null, null, null];
+
   return {
     profile,
     standing,
-    surveys: surveysRes.data ?? [],
+    surveys: previewSurveys ?? surveysRes.data ?? [],
     campaigns,
-    referrals: {
+    referrals: previewReferrals ?? {
       code: referral?.code ?? profile.referral_code,
       total_confirmed: referral?.total_confirmed ?? 0,
       points_earned: referral?.points_earned ?? 0,
       last_conversion: referral?.last_conversion ?? null,
     },
     recentLedger: ledgerRes.data ?? [],
-    streak: streakRes.data ?? 0,
+    streak: previewStreakDays ?? streakRes.data ?? 0,
     notifications: notificationsRes.data ?? [],
   };
 });
@@ -276,8 +314,9 @@ export type MyAchievement = {
 /**
  * The recognition an admin has written onto this student's record.
  *
- * RLS restricts the table to `ambassador_id = auth.uid()`, so this reads
- * their own and could not read anybody else's even if asked to.
+ * A student reads their own: `achievements_select_own` restricts the table to
+ * `ambassador_id = auth.uid()`, so asking for anybody else's returns nothing.
+ * An admin previewing a student reads theirs through `achievements_all_admin`.
  */
 export const getMyAchievements = cache(async (): Promise<MyAchievement[]> => {
   if (isDemoMode()) {
@@ -289,10 +328,11 @@ export const getMyAchievements = cache(async (): Promise<MyAchievement[]> => {
   const user = await currentUser();
   if (!user) return [];
 
+  const subjectId = (await getViewer())?.id ?? user.id;
   const { data } = await supabase
     .from("achievements")
     .select("id, title, note, awarded_at")
-    .eq("ambassador_id", user.id)
+    .eq("ambassador_id", subjectId)
     .order("awarded_at", { ascending: false });
 
   return data ?? [];
@@ -384,11 +424,13 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
 
   if (!campaigns?.length) return [];
 
-  // RLS already restricts this to the caller's own rows.
+  // Own rows by RLS, or the previewed student's — an admin may read those too,
+  // which is what turns "Done 0/1" on every card into their real progress.
+  const subjectId = (await getViewer())?.id ?? user.id;
   const { data: mine } = await supabase
     .from("submissions")
     .select("campaign_task_id, status, attempt")
-    .eq("ambassador_id", user.id)
+    .eq("ambassador_id", subjectId)
     .order("attempt", { ascending: false });
 
   // Highest attempt wins — that's the one the student is looking at.
@@ -628,6 +670,11 @@ const getLeaderboardBySource = cache(
     const user = await currentUser();
     if (!user) return [];
 
+    // Highlights the previewed student's row rather than the admin's, who is
+    // not on this board at all — an unhighlighted board would be the one place
+    // the preview quietly stopped pretending.
+    const subjectId = (await getViewer())?.id ?? user.id;
+
     const db = createAdminClient();
     const since = windowStart(opts.window);
 
@@ -676,7 +723,7 @@ const getLeaderboardBySource = cache(
         city: p.city,
         batch: p.batch,
         points: totals.get(p.id) ?? 0,
-        is_me: p.id === user.id,
+        is_me: p.id === subjectId,
       }))
       .sort(
         (a, b) =>

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
+import { getViewer } from "@/lib/view-as";
 import { fail, type ActionResult } from "@/lib/admin/guards";
 
 /**
@@ -30,6 +31,25 @@ export async function requestRedemption(
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, message: "Sign in first." };
+
+    /**
+     * Not from inside a preview.
+     *
+     * The screen shows a student's balance, but the insert pins
+     * `ambassador_id` to auth.uid() — the admin. So an admin who clicked
+     * Redeem while previewing would file a real redemption request against
+     * their own account for points they were only looking at. The two
+     * submission actions are already closed to admins by their role check;
+     * this one had none.
+     */
+    const viewer = await getViewer();
+    if (viewer?.isPreview) {
+      return {
+        ok: false,
+        message:
+          "You're previewing an ambassador's view. Stop the preview before redeeming.",
+      };
+    }
 
     const settings = await getSettings("points_per_rupee", "min_redemption_points");
     const rate = settings.points_per_rupee || 10;
