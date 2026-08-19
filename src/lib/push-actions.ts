@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/view-as";
 
 /**
  * Push subscription registration.
@@ -62,6 +63,16 @@ export async function savePushSubscription(subscription: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Not signed in" };
+
+  // The bell is showing a student's notifications during a preview, but this
+  // would register the *admin's* browser for push. Declining keeps the
+  // preview from quietly signing anyone up for anything.
+  if ((await getViewer())?.isPreview) {
+    return {
+      ok: false,
+      message: "Stop the ambassador preview before changing notifications.",
+    };
+  }
 
   if (!isAllowedPushEndpoint(subscription.endpoint)) {
     return { ok: false, message: "That push endpoint isn't one we recognise." };
