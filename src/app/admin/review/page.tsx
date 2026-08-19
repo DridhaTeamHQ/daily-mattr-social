@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ProofImage } from "@/components/proof-image";
 import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
-import { CircleAlert, ExternalLink, Inbox, Sparkles } from "lucide-react";
+import { CheckCheck, CircleAlert, ExternalLink, Inbox, Sparkles } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import {
+  approveAllSubmissions,
   approveSubmission,
   rejectSubmission,
   revokeSubmission,
@@ -46,6 +47,21 @@ export default async function ReviewPage({
   };
 
   const query = q ?? "";
+
+  /**
+   * How many the bulk button would act on.
+   *
+   * Counted from `all`, not from the search-filtered list: the action approves
+   * everything open in scope. Which is also why the button hides while a
+   * search is running — the screen would show three results above a button
+   * that acts on forty, and searching is how you find one submission, never
+   * how you choose a set. The campaign filter is different: that one narrows
+   * the action too, so the two stay in step.
+   */
+  const openCount = all.filter(
+    (item) => item.status === "pending" || item.status === "needs_review",
+  ).length;
+  const canApproveAll = openCount > 0 && !query;
   const items = all.filter((item) =>
     matches(query, item.ambassador.full_name, item.ambassador.college, item.campaign.title),
   );
@@ -66,9 +82,29 @@ export default async function ReviewPage({
           </p>
         </div>
 
-        <div className="brut-sm flex gap-1 rounded-sm bg-surface p-1">
-          <FilterTab href={tabHref(false)} active={!showAll} label="Open" />
-          <FilterTab href={tabHref(true)} active={showAll} label="All" />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Only when there is something to approve, and it says how many —
+              "Approve all" on its own is a button whose effect you cannot
+              predict, which is the wrong kind of button to put next to
+              somebody's points. Scoped to the campaign filter if one is on. */}
+          {canApproveAll && (
+            <ActionButton
+              action={approveAllSubmissions.bind(null, campaign ?? null)}
+              confirmMessage={
+                campaign
+                  ? `Approve all ${openCount} waiting on ${campaignTitle ?? "this campaign"}? Points are credited to each ambassador and this cannot be undone in bulk.`
+                  : `Approve all ${openCount} waiting across every campaign? Points are credited to each ambassador and this cannot be undone in bulk.`
+              }
+            >
+              <CheckCheck aria-hidden />
+              Approve all {openCount}
+            </ActionButton>
+          )}
+
+          <div className="brut-sm flex gap-1 rounded-sm bg-surface p-1">
+            <FilterTab href={tabHref(false)} active={!showAll} label="Open" />
+            <FilterTab href={tabHref(true)} active={showAll} label="All" />
+          </div>
         </div>
       </div>
 
