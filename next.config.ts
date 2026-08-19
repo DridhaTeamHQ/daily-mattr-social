@@ -70,6 +70,31 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  /**
+   * Ship sharp's native library with the functions that use it.
+   *
+   * Uploading a screenshot returned 500 in production with
+   *   ERR_DLOPEN_FAILED: libvips-cpp.so.8.18.3: cannot open shared object file
+   * while working locally, because the two environments fail differently:
+   * sharp is on Next's built-in external list, so it is `require`d at runtime
+   * rather than bundled, and output file tracing followed the JS but not the
+   * platform binary it dlopens. Locally the file is simply there in
+   * node_modules; on Vercel the function shipped without it.
+   *
+   * The glob covers every @img platform package rather than naming
+   * linux-x64: the correct one differs by build machine, an unused one is a
+   * few unreferenced megabytes, and a missing one is every upload failing.
+   *
+   * Keyed to the routes that actually read an image — the student upload and
+   * the admin review queue that re-checks it — so nothing else carries the
+   * weight.
+   */
+  outputFileTracingIncludes: {
+    "/dashboard/campaigns": ["./node_modules/@img/**/*"],
+    "/dashboard/campaigns/**": ["./node_modules/@img/**/*"],
+    "/admin/review": ["./node_modules/@img/**/*"],
+  },
+
   // The banner tells an attacker which framework and version to look up.
   poweredByHeader: false,
 

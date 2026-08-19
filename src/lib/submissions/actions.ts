@@ -165,10 +165,16 @@ export async function uploadSubmission(
     // The perceptual check is the one that actually catches fraud: an image
     // passed around a group chat is recompressed, so every byte differs while
     // the picture is identical.
-    const { data: similar } = await db.rpc("find_similar_submissions", {
-      probe: facts.phash,
-      max_distance: config.rejectDistance,
-    });
+    //
+    // No hash means no comparison to make — the upload still goes through and
+    // a human reviews it, rather than the whole request failing over a
+    // fingerprint we could not compute.
+    const { data: similar } = facts.phash
+      ? await db.rpc("find_similar_submissions", {
+          probe: facts.phash,
+          max_distance: config.rejectDistance,
+        })
+      : { data: [] as { id: string; ambassador_id: string; distance: number }[] };
 
     /**
      * Your own screenshot counts against you on a different task.
