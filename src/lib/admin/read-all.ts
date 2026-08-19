@@ -69,11 +69,48 @@ export async function readAll<T>(
   const rows: T[] = [];
 
   for (let from = 0; from < MAX; from += PAGE) {
-    const { data, error } = await page(from, from + PAGE - 1);
+    /**
+     * A failed page is retried before it becomes an error page.
+     *
+     * Refusing to return a half-read total is right — a wrong number shown as
+     * an authoritative one is worse than an error. But most failures here are
+     * not the database being wrong, they are a socket the pool had already
+     * closed or a cold PostgREST taking its first request: transient, and
+     * cured by asking again a moment later. Without this, one blip on one page
+     * of a thirty-page read turns an admin screen into "Something broke".
+     *
+     * Three tries, backing off, and only then does it give up. Read-only and
+     * idempotent, so a retry cannot double anything.
+     */
+    let data: T[] | null = null;
+    let lastError: string | null = null;
 
-    if (error) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const result = await page(from, from + PAGE - 1).then(
+        (r) => r,
+        // A rejected promise is the network-level version of the same
+        // problem and has to be caught, not left to reject the whole render.
+        (cause: unknown) => ({
+          data: null,
+          error: { message: cause instanceof Error ? cause.message : String(cause) },
+        }),
+      );
+
+      if (!result.error) {
+        data = result.data;
+        lastError = null;
+        break;
+      }
+
+      lastError = result.error.message;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+      }
+    }
+
+    if (lastError) {
       throw new Error(
-        `[${label}] page at offset ${from} failed: ${error.message}`,
+        `[${label}] page at offset ${from} failed after 3 attempts: ${lastError}`,
       );
     }
 
