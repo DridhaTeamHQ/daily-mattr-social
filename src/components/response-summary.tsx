@@ -63,15 +63,16 @@ function bucketsFor(
     if (response.status !== "valid") continue;
 
     const answer = response.answers.find((a) => a.questionId === questionId);
-    if (!answer || !answer.answer || answer.answer === "—") continue;
+    if (!answer || answer.values.length === 0) continue;
 
     answered += 1;
 
-    // Multi-choice arrives already joined for display, so it splits back out
-    // here — one respondent picking three options is three votes, not one
-    // bucket labelled "a, b, c".
-    for (const part of answer.answer.split(",").map((p) => p.trim())) {
-      if (!part) continue;
+    // One vote per selection the respondent actually made. These arrive as
+    // separate entries and are never derived by splitting the display string:
+    // option labels contain commas ("Social Media (Instagram, X, Reddit,
+    // Facebook, Whatsapp)"), and splitting on them invented five options that
+    // each inherited the real one's count.
+    for (const part of answer.values) {
       counts.set(part, (counts.get(part) ?? 0) + 1);
       votes += 1;
     }
@@ -232,7 +233,11 @@ function BarChart({
       {fold(buckets).map((bucket, i) => (
         <li key={bucket.label}>
           <div className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
+            {/* Wraps rather than truncates. An option label is the only thing
+                identifying its bar, and these run long — "Social Media
+                (Instagram, X, Reddit, Facebook, Whatsapp)" ends at "Social
+                Media (Instagra…" in one line, which names nothing. */}
+            <span className="min-w-0 flex-1 text-[13px] leading-snug font-bold text-ink">
               {bucket.label}
             </span>
             <span className="tabular shrink-0 text-[12.5px] font-extrabold text-ink">
@@ -362,7 +367,7 @@ function Legend({ slices, total }: { slices: Bucket[]; total: number }) {
             className="mt-1 size-2.5 shrink-0 rounded-full"
             style={{ background: SERIES[i % SERIES.length] }}
           />
-          <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
+          <span className="min-w-0 flex-1 text-[13px] leading-snug font-bold text-ink">
             {slice.label}
           </span>
           <span className="tabular shrink-0 text-[12.5px] font-extrabold text-ink">

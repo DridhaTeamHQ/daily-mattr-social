@@ -604,6 +604,15 @@ export type ResponseAnswer = {
   type: Enums<"question_type">;
   /** Already flattened for display — arrays joined, numbers stringified. */
   answer: string;
+  /**
+   * The selections as they were stored, one per entry, never joined.
+   *
+   * Counting has to read this rather than split `answer` back apart. Option
+   * labels contain commas of their own — "Social Media (Instagram, X, Reddit,
+   * Facebook, Whatsapp)" is one option, and splitting the joined string turned
+   * it into five phantom options that each scored the parent's share.
+   */
+  values: string[];
 };
 
 export type SurveyResponseRow = {
@@ -633,16 +642,51 @@ function readable(value: unknown): string {
   return String(value);
 }
 
+/**
+ * The same answer as discrete selections, for counting rather than reading.
+ *
+ * A multi-choice answer is stored as an array and stays one; everything else
+ * is a single value and stays one entry. No string is ever split, so a comma
+ * inside an option label is just a character in that label.
+ */
+function selections(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value))
+    return value.map(String).map((v) => v.trim()).filter(Boolean);
+  if (typeof value === "object") return [JSON.stringify(value)];
+  const single = String(value).trim();
+  return single ? [single] : [];
+}
+
 export async function getSurveyResponses(
   surveyId: string,
 ): Promise<SurveyWithResponses | null> {
   const supabase = await createClient();
 
-  const { data: survey } = await supabase
+  /**
+   * The error is read, not discarded.
+   *
+   * This was `const { data: survey }`, which threw the error away — so a
+   * refused request, an expired token or an RLS denial all arrived as `null`,
+   * the caller read that as "no such survey" and rendered the "that page has
+   * moved" screen. A live survey that exists reported itself as deleted, and
+   * the one fact that would explain why was already in hand and dropped.
+   *
+   * A failed read and an absent row are different answers, so they get
+   * different outcomes: this throws and shows what went wrong, and only a
+   * genuinely missing row returns null for the 404.
+   */
+  const { data: survey, error: surveyError } = await supabase
     .from("surveys")
     .select("*")
     .eq("id", surveyId)
     .maybeSingle();
+
+  if (surveyError) {
+    throw new Error(
+      `[surveyResponses.survey] reading survey ${surveyId} failed: ${surveyError.message}`,
+    );
+  }
   if (!survey) return null;
 
   const [{ data: questions }, responses] = await Promise.all([
@@ -725,12 +769,16 @@ export async function getSurveyResponses(
     ambassador: r.profiles?.full_name ?? "—",
     // Every question, in order, even the ones this person skipped — a gap is
     // itself a finding, and hiding it makes responses look inconsistent.
-    answers: ordered.map((q) => ({
-      questionId: q.id,
-      prompt: q.prompt,
-      type: q.type,
-      answer: readable(byResponse.get(r.id)?.get(q.id)),
-    })),
+    answers: ordered.map((q) => {
+      const value = byResponse.get(r.id)?.get(q.id);
+      return {
+        questionId: q.id,
+        prompt: q.prompt,
+        type: q.type,
+        answer: readable(value),
+        values: selections(value),
+      };
+    }),
   }));
 
   return {
