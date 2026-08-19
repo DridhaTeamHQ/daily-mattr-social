@@ -55,101 +55,202 @@ async function audit(
 
 // ─── Review queue ───────────────────────────────────────────────────────────
 
+/**
+ * Approve one submission. The whole of it, minus the session check.
+ *
+ * Split out so "Approve all" runs the identical path rather than a second
+ * implementation of it — the points, the streak, the badges, the audit row and
+ * the notification are the part that must not drift between approving one
+ * screenshot and approving forty.
+ *
+ * Returns the points actually credited, which is not the same as the task's
+ * value: a submission that was approved and later revoked keeps both ledger
+ * rows, and the unique index refuses a third, so re-approving restores the
+ * status and credits nothing.
+ */
+async function approveOne(
+  db: ReturnType<typeof createAdminClient>,
+  actorId: string,
+  submissionId: string,
+  note?: string,
+): Promise<{ ok: true; credited: number; already: boolean } | { ok: false; reason: string }> {
+  const { data: submission, error } = await db
+    .from("submissions")
+    .select("id, status, ambassador_id, campaign_task_id, campaign_tasks(points, type)")
+    .eq("id", submissionId)
+    .single();
+  if (error) return { ok: false, reason: error.message };
+
+  if (submission.status === "approved" || submission.status === "auto_approved") {
+    return { ok: true, credited: 0, already: true };
+  }
+
+  const points = submission.campaign_tasks?.points ?? 0;
+
+  const { error: updateError } = await db
+    .from("submissions")
+    .update({
+      status: "approved",
+      reviewer_id: actorId,
+      review_note: note ?? null,
+      reviewed_at: new Date().toISOString(),
+      reject_reason: null,
+    })
+    .eq("id", submissionId);
+  if (updateError) return { ok: false, reason: updateError.message };
+
+  let credited = 0;
+
+  if (points > 0) {
+    // The (source_type, source_id, direction) unique index makes this safe to
+    // retry: a double-clicked Approve cannot pay twice.
+    const { error: ledgerError } = await db.from("point_ledger").insert({
+      ambassador_id: submission.ambassador_id,
+      delta: points,
+      reason: "instagram_task",
+      source_type: "submission",
+      source_id: submissionId,
+      note: note ?? "Screenshot approved",
+      created_by: actorId,
+    });
+    if (ledgerError && !ledgerError.message.includes("duplicate key")) {
+      return { ok: false, reason: ledgerError.message };
+    }
+
+    // A duplicate here is the interesting case rather than a no-op. See the
+    // doc comment above.
+    credited = ledgerError ? 0 : points;
+  }
+
+  await audit(actorId, "submission.approve", "submission", submissionId, { points });
+
+  // Checked after the points land, since the week only counts as active once
+  // something has been earned in it.
+  await awardStreakBonus(submission.ambassador_id, actorId).catch(() => {});
+  await evaluateBadges(submission.ambassador_id).catch(() => {});
+
+  await notify({
+    profileId: submission.ambassador_id,
+    type: "submission_approved",
+    title: credited ? `Approved — you earned ${credited} points` : "Approved",
+    body:
+      note ||
+      (credited
+        ? "Your screenshot passed review."
+        : "Your screenshot passed review. The points for it were already settled earlier."),
+    href: "/dashboard/campaigns",
+    meta: { submissionId, points: credited },
+  }).catch(() => {
+    // The points are already credited; a failed notification must not undo
+    // that or make the admin think the approval didn't happen.
+  });
+
+  return { ok: true, credited, already: false };
+}
+
 export async function approveSubmission(
   submissionId: string,
   note?: string,
 ): Promise<ActionResult> {
   try {
     const actorId = await assertAdmin();
-    const db = createAdminClient();
+    const result = await approveOne(createAdminClient(), actorId, submissionId, note);
 
-    const { data: submission, error } = await db
-      .from("submissions")
-      .select("id, status, ambassador_id, campaign_task_id, campaign_tasks(points, type)")
-      .eq("id", submissionId)
-      .single();
-    if (error) throw error;
-
-    if (submission.status === "approved" || submission.status === "auto_approved") {
-      return { ok: true, message: "Already approved" };
-    }
-
-    const points = submission.campaign_tasks?.points ?? 0;
-
-    const { error: updateError } = await db
-      .from("submissions")
-      .update({
-        status: "approved",
-        reviewer_id: actorId,
-        review_note: note ?? null,
-        reviewed_at: new Date().toISOString(),
-        reject_reason: null,
-      })
-      .eq("id", submissionId);
-    if (updateError) throw updateError;
-
-    let credited = 0;
-
-    if (points > 0) {
-      // The (source_type, source_id, direction) unique index makes this safe to
-      // retry: a double-clicked Approve cannot pay twice.
-      const { error: ledgerError } = await db.from("point_ledger").insert({
-        ambassador_id: submission.ambassador_id,
-        delta: points,
-        reason: "instagram_task",
-        source_type: "submission",
-        source_id: submissionId,
-        note: note ?? "Screenshot approved",
-        created_by: actorId,
-      });
-      if (ledgerError && !ledgerError.message.includes("duplicate key")) {
-        throw ledgerError;
-      }
-
-      // A duplicate here is the interesting case rather than a no-op. It means
-      // this submission was approved once already, so the +points row exists
-      // and the index refuses a second. If it was later revoked there is also
-      // a −points row, and the two cancel: re-approving restores the status
-      // but cannot re-credit, because the reversal is permanent by design.
-      // Saying "+10 points" then would be a lie told to both the admin and the
-      // student, which is how a balance stops matching its own history.
-      credited = ledgerError ? 0 : points;
-    }
-
-    await audit(actorId, "submission.approve", "submission", submissionId, {
-      points,
-    });
-
-    // Checked after the points land, since the week only counts as active
-    // once something has been earned in it.
-    await awardStreakBonus(submission.ambassador_id, actorId).catch(() => {});
-    await evaluateBadges(submission.ambassador_id).catch(() => {});
-
-    await notify({
-      profileId: submission.ambassador_id,
-      type: "submission_approved",
-      title: credited
-        ? `Approved — you earned ${credited} points`
-        : "Approved",
-      body:
-        note ||
-        (credited
-          ? "Your screenshot passed review."
-          : "Your screenshot passed review. The points for it were already settled earlier."),
-      href: "/dashboard/campaigns",
-      meta: { submissionId, points: credited },
-    }).catch(() => {
-      // The points are already credited; a failed notification must not undo
-      // that or make the admin think the approval didn't happen.
-    });
+    if (!result.ok) throw new Error(result.reason);
 
     revalidatePath("/admin/review");
     revalidatePath("/admin");
+
+    if (result.already) return { ok: true, message: "Already approved" };
+
     return {
       ok: true,
-      message: credited
-        ? `Approved · +${credited} points`
+      message: result.credited
+        ? `Approved · +${result.credited} points`
         : "Approved · no points (this one was already settled)",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Approve everything still waiting, in one press.
+ *
+ * A campaign that goes out to thirty ambassadors produces thirty near-identical
+ * screenshots, and clicking Approve thirty times is the kind of work that gets
+ * skipped — which is worse than doing it quickly, because an unreviewed queue
+ * silently withholds points people have earned.
+ *
+ * Scoped to whatever the queue is scoped to. An admin who arrived from one
+ * campaign is looking at that campaign, and a button that quietly approved the
+ * whole programme instead would be the single worst thing on this page.
+ *
+ * Sequential on purpose. Each approval writes points, a streak check, badges,
+ * an audit row and a notification; firing forty of those at once is how you
+ * exhaust the connection pool and end up with half a queue approved and no
+ * record of which half. Slower and completely ordered is the right trade for
+ * something that moves money.
+ */
+export async function approveAllSubmissions(
+  campaignId?: string | null,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const db = createAdminClient();
+
+    // Submissions point at a task, not a campaign, so the scope resolves
+    // through tasks — the same path the queue itself uses.
+    let taskIds: string[] | null = null;
+    if (campaignId) {
+      const { data } = await db
+        .from("campaign_tasks")
+        .select("id")
+        .eq("campaign_id", campaignId);
+      taskIds = (data ?? []).map((t) => t.id);
+      if (taskIds.length === 0) {
+        return { ok: false, message: "That campaign has no tasks yet." };
+      }
+    }
+
+    let query = db
+      .from("submissions")
+      .select("id")
+      .in("status", ["pending", "needs_review"])
+      .order("uploaded_at", { ascending: true });
+
+    if (taskIds) query = query.in("campaign_task_id", taskIds);
+
+    const { data: open, error } = await query;
+    if (error) throw error;
+    if (!open?.length) return { ok: false, message: "Nothing is waiting." };
+
+    let approved = 0;
+    let points = 0;
+    const failures: string[] = [];
+
+    for (const row of open) {
+      const result = await approveOne(db, actorId, row.id, undefined);
+      if (result.ok) {
+        approved += 1;
+        points += result.credited;
+      } else {
+        failures.push(result.reason);
+      }
+    }
+
+    revalidatePath("/admin/review");
+    revalidatePath("/admin");
+
+    // The failures are named in the count rather than thrown, so one bad row
+    // does not hide the thirty that went through.
+    const tail = failures.length ? ` · ${failures.length} failed` : "";
+
+    return {
+      ok: approved > 0,
+      message: approved
+        ? `Approved ${approved} · +${points} points${tail}`
+        : `Nothing approved${tail}`,
     };
   } catch (err) {
     return fail(err);

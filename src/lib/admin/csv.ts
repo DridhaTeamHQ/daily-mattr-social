@@ -42,14 +42,36 @@ const COLUMNS: Record<string, string[]> = {
   full_name: ["full name", "name", "student name", "fullname", "ambassador"],
   email: ["email", "email address", "e-mail", "mail"],
   phone: ["phone", "mobile", "contact", "phone number", "whatsapp"],
-  college: ["college", "institution", "university", "school"],
+  // "College/Office" is what the form and the profile dialog call this field
+  // now that ambassadors are not all students, so it is what an admin's own
+  // export is headed. Matching only "college" meant a roster exported from
+  // this very app imported with the column silently dropped.
+  college: [
+    "college",
+    "college/office",
+    "college / office",
+    "office",
+    "institution",
+    "university",
+    "school",
+    "organisation",
+    "organization",
+    "company",
+  ],
   city: ["city", "location", "town"],
   batch: ["batch", "cohort", "intake"],
   joined_as: ["type", "status", "student or professional", "joined as"],
 };
 
 function normalise(header: string): string {
-  return header.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return header
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    // A slash is a separator people space differently — "College/Office" and
+    // "College / Office" are the same header and must normalise the same way.
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ");
 }
 
 export function mapHeaders(header: string[]): Record<string, number> {
