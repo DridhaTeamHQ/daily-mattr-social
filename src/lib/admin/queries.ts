@@ -350,6 +350,12 @@ export async function getReviewQueue(
 export type AdminCampaignTask = Tables<"campaign_tasks"> & {
   label: string;
   platform: string | null;
+  /**
+   * Submissions made against this task, whatever their status. The edit form
+   * shows it beside the points box: repricing a task nobody has touched is a
+   * correction, repricing one with forty screenshots against it is a decision.
+   */
+  submitted: number;
 };
 
 export type AdminCampaign = Tables<"campaigns"> & {
@@ -424,6 +430,7 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
         ...t,
         label: taskLabel(t as never),
         platform: taskPlatform(t as never),
+        submitted: perTask.get(t.id) ?? 0,
       }));
 
     const required = tasks.filter((t) => t.required);
@@ -1279,6 +1286,14 @@ export type CampaignTaskStat = {
   id: string;
   type: Enums<"task_type"> | null;
   label: string;
+  /**
+   * The rename, if there is one, kept separate from `label` above. An edit
+   * form has to seed from this and not from the resolved label — writing the
+   * library's own wording back into the override severs the task from its
+   * library row without anyone asking for that.
+   */
+  label_override: string | null;
+  instructions: string | null;
   platform: string | null;
   points: number;
   required: boolean;
@@ -1395,6 +1410,8 @@ export async function getCampaignDetail(
     const mine = submissions.filter((s) => s.campaign_task_id === task.id);
     return {
       label: taskLabel(task as never),
+      label_override: task.label_override,
+      instructions: task.instructions,
       platform: taskPlatform(task as never),
       id: task.id,
       type: task.type,

@@ -130,6 +130,89 @@ export async function updateCampaignTask(
   }
 }
 
+/**
+ * Editing every task on a campaign in one save, published or not.
+ *
+ * Publishing is not a freeze. A live campaign is exactly the one you find the
+ * typo in, and "required" is the field most often wrong the moment real
+ * ambassadors start reading the ask — so the form stays open for the whole
+ * life of the campaign rather than only while it is a draft.
+ *
+ * Validation runs over every row BEFORE the first write. A half-applied save
+ * where the first three tasks changed and the fourth failed is worse than a
+ * refusal, because nothing on screen tells you which half landed.
+ */
+export async function updateCampaignTasks(
+  campaignId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+
+    // The id list is what says which tasks were on the form. It cannot be
+    // derived from the other fields: an unchecked checkbox submits nothing at
+    // all, so "required is absent" and "the task wasn't there" look identical
+    // without it — and guessing wrong silently un-requires a task.
+    const ids = formData
+      .getAll("task_id")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+
+    if (ids.length === 0) {
+      return { ok: true, message: "No tasks to update." };
+    }
+
+    const edits = [];
+
+    for (const id of ids) {
+      const points = Number(formData.get(`points:${id}`) ?? 0);
+      const label = String(formData.get(`label:${id}`) ?? "").trim();
+      const instructions = String(formData.get(`instructions:${id}`) ?? "").trim();
+      const required = formData.get(`required:${id}`) === "on";
+
+      if (!Number.isInteger(points) || points < 0 || points > 10_000) {
+        return {
+          ok: false,
+          message: "Points must be a whole number between 0 and 10,000.",
+        };
+      }
+
+      edits.push({ id, points, label, instructions, required });
+    }
+
+    const db = createAdminClient();
+
+    for (const edit of edits) {
+      const { error } = await db
+        .from("campaign_tasks")
+        .update({
+          points: edit.points,
+          // Empty clears the rename, which drops the task back to the label
+          // its library row carries. That is the only way to undo a rename.
+          label_override: edit.label || null,
+          instructions: edit.instructions || null,
+          required: edit.required,
+        })
+        .eq("id", edit.id)
+        // Scoped to the campaign being edited, so a task id from somewhere
+        // else cannot be smuggled in through the form.
+        .eq("campaign_id", campaignId);
+      if (error) throw error;
+    }
+
+    revalidatePath("/admin/campaigns");
+    revalidatePath(`/admin/campaigns/${campaignId}`);
+    revalidatePath("/dashboard/campaigns");
+
+    return {
+      ok: true,
+      message: `${edits.length} task${edits.length === 1 ? "" : "s"} updated. Points already paid are unchanged.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function removeCampaignTask(
   taskId: string,
   campaignId: string,

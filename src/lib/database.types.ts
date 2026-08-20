@@ -469,6 +469,8 @@ export type Database = {
           status: Enums<"campaign_status">;
           starts_at: string;
           ends_at: string | null;
+          /** First time this campaign left draft. Stamped by trigger. */
+          published_at: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -486,6 +488,7 @@ export type Database = {
           status?: Enums<"campaign_status">;
           starts_at?: string;
           ends_at?: string | null;
+          published_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -503,6 +506,7 @@ export type Database = {
           status?: Enums<"campaign_status">;
           starts_at?: string;
           ends_at?: string | null;
+          published_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -533,6 +537,8 @@ export type Database = {
           label_override: string | null;
           proof_type: Enums<"proof_type"> | null;
           platform: string | null;
+          /** When the admin added this task — the start of its turnaround clock. */
+          posted_at: string;
         };
         Insert: {
           id?: string;
@@ -546,6 +552,7 @@ export type Database = {
           label_override?: string | null;
           proof_type?: Enums<"proof_type"> | null;
           platform?: string | null;
+          posted_at?: string;
         };
         Update: {
           id?: string;
@@ -559,6 +566,7 @@ export type Database = {
           label_override?: string | null;
           proof_type?: Enums<"proof_type"> | null;
           platform?: string | null;
+          posted_at?: string;
         };
         Relationships: [
           {
