@@ -8,6 +8,7 @@ import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import { ReasonDialog } from "@/components/reason-dialog";
+import { ReviewSelection, SelectSubmission } from "@/components/review-selection";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -65,6 +66,16 @@ export default async function ReviewPage({
   const items = all.filter((item) =>
     matches(query, item.ambassador.full_name, item.ambassador.college, item.campaign.title),
   );
+
+  /**
+   * What the tick boxes may act on: the undecided submissions actually on
+   * screen. Unlike "Approve all" this one narrows with the search, because
+   * ticking is how you choose a set — the button says how many, and the many
+   * are the ones you can see.
+   */
+  const openIds = items
+    .filter((item) => item.status === "pending" || item.status === "needs_review")
+    .map((item) => item.id);
 
   return (
     <div className="stagger space-y-5">
@@ -163,166 +174,182 @@ export default async function ReviewPage({
           />
         </Card>
       ) : (
-        <ul className="space-y-4">
-          {items.map((item) => {
-            const open =
-              item.status === "pending" || item.status === "needs_review";
+        <ReviewSelection openIds={openIds}>
+          <ul className="space-y-4">
+            {items.map((item) => {
+              const open =
+                item.status === "pending" || item.status === "needs_review";
 
-            return (
-              <li key={item.id}>
-                <Card>
-                  <CardBody className="grid gap-5 md:grid-cols-[minmax(0,15rem)_1fr]">
-                    {/* ─── Evidence ─────────────────────────────────────── */}
-                    <div>
-                      {/* Not every task is evidenced by an image. A LinkedIn
-                          post is a URL and a quiz answer is prose, so the
-                          panel renders whichever one this submission carries
-                          rather than an empty 9:16 box. */}
-                      {item.signedUrl ? (
-                        <ProofImage
-                          src={item.signedUrl}
-                          alt={`Screenshot from ${item.ambassador.full_name}`}
-                          className="brut-sm aspect-[9/16] bg-canvas-sunk"
-                        />
-                      ) : item.proof_url ? (
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
-                            Link submitted
-                          </p>
-                          {/* noreferrer as well as noopener: the destination
-                              is a URL a student typed, and it does not need
-                              to know which admin screen sent the traffic. */}
-                          <a
-                            href={item.proof_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 flex items-start gap-1.5 text-[13px] font-bold break-all text-brand-strong hover:underline"
-                          >
-                            <ExternalLink className="mt-0.5 size-3.5 shrink-0" />
-                            {item.proof_url}
-                          </a>
-                        </div>
-                      ) : item.proof_text ? (
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
-                            Written answer
-                          </p>
-                          <p className="mt-2 text-[13.5px] leading-relaxed font-medium whitespace-pre-wrap text-ink">
-                            {item.proof_text}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="brut-sm grid aspect-[9/16] place-items-center rounded-sm bg-canvas-sunk px-4 text-center">
-                          <p className="text-[12.5px] text-ink-faint">
-                            No evidence attached
-                          </p>
-                        </div>
-                      )}
-
-                      <p className="mt-2 text-[11.5px] text-ink-faint">
-                        Uploaded {formatDate(item.uploaded_at, true)}
-                        {item.attempt > 1 && ` · attempt ${item.attempt}`}
-                      </p>
-                    </div>
-
-                    {/* ─── Detail ───────────────────────────────────────── */}
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          aria-hidden
-                          className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11.5px] font-extrabold text-ink"
-                        >
-                          {initials(item.ambassador.full_name)}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-[14px] font-semibold text-ink">
-                            {item.ambassador.full_name}
-                          </p>
-                          {item.ambassador.college && (
-                            <p className="truncate text-[12px] text-ink-soft">
-                              {item.ambassador.college}
+              return (
+                // Ringed while ticked, so a selection you made forty cards ago is
+                // still visible when you scroll back past it.
+                <li
+                  key={item.id}
+                  className="rounded-xl ring-brand has-[input:checked]:ring-2"
+                >
+                  <Card>
+                    <CardBody className="grid gap-5 md:grid-cols-[minmax(0,15rem)_1fr]">
+                      {/* ─── Evidence ─────────────────────────────────────── */}
+                      <div>
+                        {/* Not every task is evidenced by an image. A LinkedIn
+                            post is a URL and a quiz answer is prose, so the
+                            panel renders whichever one this submission carries
+                            rather than an empty 9:16 box. */}
+                        {item.signedUrl ? (
+                          <ProofImage
+                            src={item.signedUrl}
+                            alt={`Screenshot from ${item.ambassador.full_name}`}
+                            className="brut-sm aspect-[9/16] bg-canvas-sunk"
+                          />
+                        ) : item.proof_url ? (
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                              Link submitted
                             </p>
+                            {/* noreferrer as well as noopener: the destination
+                                is a URL a student typed, and it does not need
+                                to know which admin screen sent the traffic. */}
+                            <a
+                              href={item.proof_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 flex items-start gap-1.5 text-[13px] font-bold break-all text-brand-strong hover:underline"
+                            >
+                              <ExternalLink className="mt-0.5 size-3.5 shrink-0" />
+                              {item.proof_url}
+                            </a>
+                          </div>
+                        ) : item.proof_text ? (
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                              Written answer
+                            </p>
+                            <p className="mt-2 text-[13.5px] leading-relaxed font-medium whitespace-pre-wrap text-ink">
+                              {item.proof_text}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="brut-sm grid aspect-[9/16] place-items-center rounded-sm bg-canvas-sunk px-4 text-center">
+                            <p className="text-[12.5px] text-ink-faint">
+                              No evidence attached
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="mt-2 text-[11.5px] text-ink-faint">
+                          Uploaded {formatDate(item.uploaded_at, true)}
+                          {item.attempt > 1 && ` · attempt ${item.attempt}`}
+                        </p>
+                      </div>
+
+                      {/* ─── Detail ───────────────────────────────────────── */}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Only on the ones still waiting — a tick box beside a
+                              decided submission would offer a decision that has
+                              already been made. */}
+                          {open && (
+                            <SelectSubmission
+                              id={item.id}
+                              name={item.ambassador.full_name}
+                            />
+                          )}
+                          <span
+                            aria-hidden
+                            className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11.5px] font-extrabold text-ink"
+                          >
+                            {initials(item.ambassador.full_name)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[14px] font-semibold text-ink">
+                              {item.ambassador.full_name}
+                            </p>
+                            {item.ambassador.college && (
+                              <p className="truncate text-[12px] text-ink-soft">
+                                {item.ambassador.college}
+                              </p>
+                            )}
+                          </div>
+                          <span className="ml-auto">
+                            <StatusBadge status={item.status} />
+                          </span>
+                        </div>
+
+                        <dl className="mt-4 grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
+                          <Row label="Campaign" value={item.campaign.title} />
+                          <Row
+                            label="Task"
+                            value={item.task.label}
+                          />
+                          <Row
+                            label="Expected handle"
+                            value={`@${item.campaign.expected_handle}`}
+                          />
+                          <Row
+                            label="AI confidence"
+                            value={
+                              item.ai_confidence === null
+                                ? "Not scored"
+                                : `${Math.round(item.ai_confidence * 100)}%${item.ai_model ? ` · ${item.ai_model}` : ""}`
+                            }
+                          />
+                        </dl>
+
+                        <ChecksPanel checks={item.checks} />
+
+                        {/* ─── Decision ───────────────────────────────────── */}
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          {open ? (
+                            <>
+                              <ActionButton
+                                action={approveSubmission.bind(null, item.id, undefined)}
+                                confirmMessage={`Approve this task for ${item.ambassador.full_name}?`}
+                              >
+                                Approve task
+                              </ActionButton>
+
+                              <ReasonDialog
+                                action={rejectSubmission.bind(null, item.id)}
+                                title="Reject this screenshot"
+                                description={`${item.ambassador.full_name} will see this reason, so make it something they can act on.`}
+                                label="Reason"
+                                placeholder="The handle in the screenshot doesn't match @dailymattr."
+                                confirmLabel="Reject"
+                                trigger={<Button variant="secondary">Reject</Button>}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <Badge tone="neutral">
+                                Reviewed {item.status.replace("_", " ")}
+                              </Badge>
+                              {(item.status === "approved" ||
+                                item.status === "auto_approved") && (
+                                <ReasonDialog
+                                  action={revokeSubmission.bind(null, item.id)}
+                                  title="Revoke this approval"
+                                  description="This writes a compensating row to the ledger — the original credit stays in their history, with a matching reversal beside it."
+                                  label="Reason"
+                                  placeholder="Same screenshot submitted by two ambassadors."
+                                  confirmLabel="Revoke"
+                                  trigger={
+                                    <Button variant="secondary" size="sm">
+                                      Revoke
+                                    </Button>
+                                  }
+                                />
+                              )}
+                            </>
                           )}
                         </div>
-                        <span className="ml-auto">
-                          <StatusBadge status={item.status} />
-                        </span>
                       </div>
-
-                      <dl className="mt-4 grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
-                        <Row label="Campaign" value={item.campaign.title} />
-                        <Row
-                          label="Task"
-                          value={item.task.label}
-                        />
-                        <Row
-                          label="Expected handle"
-                          value={`@${item.campaign.expected_handle}`}
-                        />
-                        <Row
-                          label="AI confidence"
-                          value={
-                            item.ai_confidence === null
-                              ? "Not scored"
-                              : `${Math.round(item.ai_confidence * 100)}%${item.ai_model ? ` · ${item.ai_model}` : ""}`
-                          }
-                        />
-                      </dl>
-
-                      <ChecksPanel checks={item.checks} />
-
-                      {/* ─── Decision ───────────────────────────────────── */}
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {open ? (
-                          <>
-                            <ActionButton
-                              action={approveSubmission.bind(null, item.id, undefined)}
-                              confirmMessage={`Approve this task for ${item.ambassador.full_name}?`}
-                            >
-                              Approve task
-                            </ActionButton>
-
-                            <ReasonDialog
-                              action={rejectSubmission.bind(null, item.id)}
-                              title="Reject this screenshot"
-                              description={`${item.ambassador.full_name} will see this reason, so make it something they can act on.`}
-                              label="Reason"
-                              placeholder="The handle in the screenshot doesn't match @dailymattr."
-                              confirmLabel="Reject"
-                              trigger={<Button variant="secondary">Reject</Button>}
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <Badge tone="neutral">
-                              Reviewed {item.status.replace("_", " ")}
-                            </Badge>
-                            {(item.status === "approved" ||
-                              item.status === "auto_approved") && (
-                              <ReasonDialog
-                                action={revokeSubmission.bind(null, item.id)}
-                                title="Revoke this approval"
-                                description="This writes a compensating row to the ledger — the original credit stays in their history, with a matching reversal beside it."
-                                label="Reason"
-                                placeholder="Same screenshot submitted by two ambassadors."
-                                confirmLabel="Revoke"
-                                trigger={
-                                  <Button variant="secondary" size="sm">
-                                    Revoke
-                                  </Button>
-                                }
-                              />
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardBody>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
+                    </CardBody>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        </ReviewSelection>
       )}
     </div>
   );

@@ -18,6 +18,7 @@ export function ActionButton({
   children,
   confirmMessage,
   successMessage,
+  onSuccess,
   ...props
 }: {
   action: () => Promise<ActionResult>;
@@ -25,6 +26,8 @@ export function ActionButton({
   /** When set, the click asks for confirmation before changing programme data. */
   confirmMessage?: string;
   successMessage?: string;
+  /** Runs after the action reports success — for clearing whatever it acted on. */
+  onSuccess?: () => void;
 } & Omit<ButtonProps, "onClick" | "children">) {
   const [pending, startTransition] = React.useTransition();
 
@@ -36,6 +39,7 @@ export function ActionButton({
         const result = await action();
         if (result.ok) {
           toast.success(successMessage ?? result.message);
+          onSuccess?.();
         } else {
           toast.error(result.message);
         }

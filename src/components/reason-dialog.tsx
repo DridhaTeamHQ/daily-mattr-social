@@ -23,6 +23,7 @@ export function ReasonDialog({
   placeholder,
   confirmLabel,
   trigger,
+  onSuccess,
 }: {
   action: (reason: string) => Promise<ActionResult>;
   title: string;
@@ -31,6 +32,8 @@ export function ReasonDialog({
   placeholder?: string;
   confirmLabel: string;
   trigger: React.ReactElement<ButtonProps>;
+  /** Runs after the action reports success — for clearing whatever it acted on. */
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
@@ -46,6 +49,7 @@ export function ReasonDialog({
           toast.success(result.message);
           setOpen(false);
           setReason("");
+          onSuccess?.();
         } else {
           toast.error(result.message);
         }

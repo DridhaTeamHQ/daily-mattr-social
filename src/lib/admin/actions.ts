@@ -257,52 +257,222 @@ export async function approveAllSubmissions(
   }
 }
 
+/**
+ * The ids a bulk action may actually touch.
+ *
+ * Selections are made in a browser and posted back minutes later, by which
+ * time another admin may have decided half of them. Re-reading the statuses
+ * here is what stops a stale tick from re-approving something that was
+ * rejected in the meantime — the tick says "I looked at this one", not "this
+ * one is still waiting".
+ */
+async function openSubset(
+  db: ReturnType<typeof createAdminClient>,
+  submissionIds: string[],
+): Promise<{ ids: string[]; skipped: number }> {
+  const wanted = [...new Set(submissionIds)].filter(Boolean);
+  if (wanted.length === 0) return { ids: [], skipped: 0 };
+
+  const { data, error } = await db
+    .from("submissions")
+    .select("id")
+    .in("id", wanted)
+    .in("status", ["pending", "needs_review"])
+    .order("uploaded_at", { ascending: true });
+  if (error) throw error;
+
+  const ids = (data ?? []).map((row) => row.id);
+  return { ids, skipped: wanted.length - ids.length };
+}
+
+/** "3 failed · 1 already decided", or "" when neither happened. */
+function bulkTail(failed: number, skipped: number): string {
+  const parts = [
+    failed ? `${failed} failed` : "",
+    skipped ? `${skipped} already decided` : "",
+  ].filter(Boolean);
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
+/**
+ * Approve a hand-picked set.
+ *
+ * "Approve all" clears the queue; this clears the part of it an admin has
+ * actually looked at, which is the honest version of the same shortcut when
+ * one screenshot in the twenty needs a closer look. Sequential and through
+ * `approveOne` for the same reasons as the bulk button above it.
+ */
+export async function approveSubmissions(
+  submissionIds: string[],
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const db = createAdminClient();
+    const { ids, skipped } = await openSubset(db, submissionIds);
+
+    if (ids.length === 0) {
+      return {
+        ok: false,
+        message: skipped
+          ? "Those have all been decided already."
+          : "Nothing selected.",
+      };
+    }
+
+    let approved = 0;
+    let points = 0;
+    const failures: string[] = [];
+
+    for (const id of ids) {
+      const result = await approveOne(db, actorId, id, undefined);
+      if (result.ok) {
+        approved += 1;
+        points += result.credited;
+      } else {
+        failures.push(result.reason);
+      }
+    }
+
+    revalidatePath("/admin/review");
+    revalidatePath("/admin");
+
+    const tail = bulkTail(failures.length, skipped);
+
+    return {
+      ok: approved > 0,
+      message: approved
+        ? `Approved ${approved} · +${points} points${tail}`
+        : `Nothing approved${tail}`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Reject one submission. Everything but the session check, so that rejecting
+ * one screenshot and rejecting a selected twenty stay the same code path —
+ * the status, the audit row and the notification that tells a student why.
+ */
+async function rejectOne(
+  db: ReturnType<typeof createAdminClient>,
+  actorId: string,
+  submissionId: string,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { error } = await db
+    .from("submissions")
+    .update({
+      status: "rejected",
+      reject_reason: reason,
+      reviewer_id: actorId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", submissionId);
+  if (error) return { ok: false, reason: error.message };
+
+  await audit(actorId, "submission.reject", "submission", submissionId, {
+    reason,
+  });
+
+  const { data: rejected } = await db
+    .from("submissions")
+    .select("ambassador_id")
+    .eq("id", submissionId)
+    .single();
+
+  if (rejected) {
+    await notify({
+      profileId: rejected.ambassador_id,
+      type: "submission_rejected",
+      title: "Screenshot not approved",
+      body: reason,
+      href: "/dashboard/campaigns",
+      meta: { submissionId },
+    }).catch(() => {});
+  }
+
+  return { ok: true };
+}
+
 export async function rejectSubmission(
   submissionId: string,
   reason: string,
 ): Promise<ActionResult> {
   try {
     const actorId = await assertAdmin();
-    if (!reason.trim()) {
+    const trimmed = reason.trim();
+    if (!trimmed) {
       return { ok: false, message: "Give a reason — the student sees it." };
     }
 
-    const db = createAdminClient();
-    const { error } = await db
-      .from("submissions")
-      .update({
-        status: "rejected",
-        reject_reason: reason.trim(),
-        reviewer_id: actorId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", submissionId);
-    if (error) throw error;
-
-    await audit(actorId, "submission.reject", "submission", submissionId, {
-      reason,
-    });
-
-    const { data: rejected } = await db
-      .from("submissions")
-      .select("ambassador_id")
-      .eq("id", submissionId)
-      .single();
-
-    if (rejected) {
-      await notify({
-        profileId: rejected.ambassador_id,
-        type: "submission_rejected",
-        title: "Screenshot not approved",
-        body: reason.trim(),
-        href: "/dashboard/campaigns",
-        meta: { submissionId },
-      }).catch(() => {});
-    }
+    const result = await rejectOne(
+      createAdminClient(),
+      actorId,
+      submissionId,
+      trimmed,
+    );
+    if (!result.ok) throw new Error(result.reason);
 
     revalidatePath("/admin/review");
     revalidatePath("/admin");
     return { ok: true, message: "Rejected" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Reject a hand-picked set, with one reason between them.
+ *
+ * Every student in the selection reads that sentence as the explanation for
+ * their own screenshot, which is the constraint the dialog wording leans on:
+ * a shared reason is right for "the wrong reel" and wrong for anything that
+ * only applies to some of them.
+ */
+export async function rejectSubmissions(
+  submissionIds: string[],
+  reason: string,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      return { ok: false, message: "Give a reason — the students see it." };
+    }
+
+    const db = createAdminClient();
+    const { ids, skipped } = await openSubset(db, submissionIds);
+
+    if (ids.length === 0) {
+      return {
+        ok: false,
+        message: skipped
+          ? "Those have all been decided already."
+          : "Nothing selected.",
+      };
+    }
+
+    let rejected = 0;
+    const failures: string[] = [];
+
+    for (const id of ids) {
+      const result = await rejectOne(db, actorId, id, trimmed);
+      if (result.ok) rejected += 1;
+      else failures.push(result.reason);
+    }
+
+    revalidatePath("/admin/review");
+    revalidatePath("/admin");
+
+    const tail = bulkTail(failures.length, skipped);
+
+    return {
+      ok: rejected > 0,
+      message: rejected
+        ? `Rejected ${rejected}${tail}`
+        : `Nothing rejected${tail}`,
+    };
   } catch (err) {
     return fail(err);
   }
