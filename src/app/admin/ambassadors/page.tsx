@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Upload, Users } from "lucide-react";
+import { MailCheck, Upload, UserCheck, UserMinus, Users } from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
 import { formatDate, initials } from "@/lib/utils";
@@ -78,6 +79,18 @@ export default async function AmbassadorsPage({
           });
         })();
 
+  /**
+   * Counted from `all`, never from the filtered rows.
+   *
+   * These describe the programme, not the current search — "12 invited" has to
+   * mean twelve people waiting to sign in, not twelve people whose name
+   * happens to contain the letters someone typed. The heading line above
+   * already says how many rows the filter matched.
+   */
+  const active = all.filter((r) => r.status === "active").length;
+  const invited = all.filter((r) => r.status === "invited").length;
+  const suspended = all.filter((r) => r.status === "suspended").length;
+
   return (
     <div className="stagger space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -110,6 +123,43 @@ export default async function AmbassadorsPage({
           </Button>
           <AddAmbassadorDialog />
         </div>
+      </div>
+
+      {/* Invited is the one that needs watching: it is the number of people
+          who were emailed a password and have not used it yet, which is a
+          follow-up list rather than a statistic. Suspended appears only when
+          there is one — a permanent "0 suspended" is furniture. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
+          label="Total"
+          value={all.length}
+          sub="On the programme"
+          icon={Users}
+          tone="brand"
+        />
+        <Stat
+          label="Active"
+          value={active}
+          sub="Signed in and earning"
+          icon={UserCheck}
+          tone="poll"
+        />
+        <Stat
+          label="Invited"
+          value={invited}
+          sub={invited ? "Yet to set a password" : "Everyone is set up"}
+          icon={MailCheck}
+          tone="invite"
+        />
+        {suspended > 0 && (
+          <Stat
+            label="Suspended"
+            value={suspended}
+            sub="Not earning"
+            icon={UserMinus}
+            tone="reel"
+          />
+        )}
       </div>
 
       <SearchBox
