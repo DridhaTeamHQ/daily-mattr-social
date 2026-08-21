@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Clapperboard, ClipboardList, Flame, Gift, Trophy } from "lucide-react";
 
 import { AchievementForm } from "@/components/achievement-form";
+import { MilestoneProgress } from "@/components/milestone-runner";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
@@ -15,6 +16,7 @@ import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { deleteAchievement } from "@/lib/admin/edit-actions";
 import { getAmbassadorDetail, requireAdmin } from "@/lib/admin/queries";
+import { createClient } from "@/lib/supabase/server";
 import { formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassador" };
@@ -30,6 +32,36 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
   const { profile, streak, referrals } = data;
   const name = profile.full_name || profile.email;
   const approved = data.submissions.filter((submission) => submission.status === "approved" || submission.status === "auto_approved").length;
+
+  /**
+   * The same figure the ambassador sees on their own dashboard.
+   *
+   * Read from `ambassador_completion` rather than recomputed from the
+   * submissions above, because those two would drift: the list here is every
+   * submission ever made, while completion is about this month's task pool and
+   * counts a task once however many attempts it took. An admin quoting a
+   * number back to a student needs it to be the student's number.
+   *
+   * Not read off `completion_leaderboard` either, though that is where the
+   * student's copy comes from. The board stops at its row limit and only
+   * includes active profiles, so picking a row out of it would report a
+   * confident 0% for a suspended ambassador and for anyone past the cut —
+   * and this page is exactly where a suspended person gets opened. The RPC
+   * is the same arithmetic addressed by id. Migration 0033 has the detail.
+   *
+   * Rank still comes from the board, because a rank only means anything
+   * relative to the people being ranked; when they are not on it, the line
+   * simply omits the rank instead of inventing one.
+   */
+  const supabase = await createClient();
+  const [{ data: completion }, { data: board }] = await Promise.all([
+    supabase.rpc("ambassador_completion", { target: id }),
+    supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
+  ]);
+
+  const progress = completion?.[0] ?? null;
+  const completionPct = progress?.completion_pct ?? 0;
+  const rank = (board ?? []).find((row) => row.ambassador_id === id)?.position ?? null;
 
   return (
     <div className="stagger space-y-5">
@@ -56,6 +88,25 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
         <Stat label="Survey responses" value={data.surveys.reduce((total, survey) => total + survey.responses, 0)} sub={`${data.surveys.length} link${data.surveys.length === 1 ? "" : "s"} issued`} icon={ClipboardList} tone="poll" />
         <Stat label="Installs" value={referrals.counted} sub={referrals.last ? `Last ${formatDate(referrals.last)}` : "None confirmed"} icon={Gift} tone="invite" />
       </div>
+
+      {/* The same track the ambassador sees, so a conversation about "where am
+          I" is had over one picture rather than two different ones. */}
+      <Card>
+        <CardBody>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="display text-[16px] text-ink">Task completion</h2>
+            <p className="text-[12.5px] font-semibold text-ink-soft">
+              {progress && progress.total_tasks > 0
+                ? `${progress.approved_tasks} of ${progress.total_tasks} tasks approved this month${rank ? ` · rank #${rank}` : ""}`
+                : "No tasks running this month"}
+            </p>
+          </div>
+          <p className="mt-1 text-[28px] leading-none font-extrabold text-ink">
+            {completionPct}%
+          </p>
+          <MilestoneProgress pct={completionPct} className="relative mt-4" />
+        </CardBody>
+      </Card>
 
       <Card><CardBody><h2 className="display text-[16px] text-ink">Task submissions</h2>{data.submissions.length === 0 ? <EmptyState icon={Clapperboard} title="Nothing submitted" description="They have not uploaded proof for any campaign task yet." /> : <ul className="mt-3 divide-y divide-gray-100">{data.submissions.map((submission) => <li key={submission.id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-[13.5px] font-extrabold text-ink">{submission.campaign}</p><p className="text-[12px] font-semibold text-ink-soft">{submission.taskLabel} - {formatDate(submission.uploadedAt)}</p></div><StatusBadge status={submission.status} /></li>)}</ul>}</CardBody></Card>
 
