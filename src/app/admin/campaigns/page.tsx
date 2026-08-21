@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
+import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { SearchBox } from "@/components/search-box";
 import { InfiniteList } from "@/components/infinite-scroll";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -217,6 +218,23 @@ export default async function AdminCampaignsPage({
                   <Button size="sm" variant="secondary" asChild>
                     <Link href={`/admin/campaigns/${c.id}`}>Analytics</Link>
                   </Button>
+
+                  {/* Offered at every status, live included. Publishing is not
+                      a freeze: the live campaign is precisely the one you find
+                      the typo in, and "required" is the field most often wrong
+                      the moment real ambassadors start reading the ask. */}
+                  <CampaignEditDialog
+                    campaign={c}
+                    tasks={c.tasks.map((t) => ({
+                      id: t.id,
+                      label: t.label,
+                      label_override: t.label_override,
+                      points: t.points,
+                      required: t.required,
+                      instructions: t.instructions,
+                      submitted: t.submitted,
+                    }))}
+                  />
 
                   {c.status === "draft" && (
                     <ActionButton

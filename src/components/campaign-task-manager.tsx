@@ -80,7 +80,10 @@ export function CampaignTaskManager({ campaignId, tasks, library, campaignPlatfo
           <input type="hidden" name="proof_type" value={selected?.proof_type ?? "screenshot"} />
           <input type="hidden" name="points" value={selected?.default_points ?? 0} />
           <label className="mt-3 block"><span className="text-[11.5px] font-bold uppercase tracking-wide text-ink-faint">Rename it (optional)</span><input name="label" placeholder={selected?.label ?? ""} className={cn(SELECT, "mt-1.5")} /></label>
-          <div className="mt-3 flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[13px] font-semibold text-ink"><input type="checkbox" name="required" className="size-4" />Required</label><div className="ml-auto flex gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" size="sm" loading={pending}>Add task</Button></div></div>
+          {/* Ticked to start with, matching the column default. An unticked box
+              submits nothing, so the old default silently added optional tasks
+              that never counted towards finishing the campaign. */}
+          <div className="mt-3 flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-[13px] font-semibold text-ink"><input type="checkbox" name="required" defaultChecked className="size-4" />Required</label><div className="ml-auto flex gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" size="sm" loading={pending}>Add task</Button></div></div>
         </form>
       ) : (
         <Button size="sm" variant="secondary" onClick={() => setAdding(true)} disabled={library.length === 0}><Plus aria-hidden />Add a task</Button>

@@ -133,7 +133,18 @@ export default async function CampaignDetailPage({
                 End
               </ActionButton>
             )}
-            <CampaignEditDialog campaign={campaign} />
+            <CampaignEditDialog
+              campaign={campaign}
+              tasks={data.tasks.map((t) => ({
+                id: t.id,
+                label: t.label,
+                label_override: t.label_override,
+                points: t.points,
+                required: t.required,
+                instructions: t.instructions,
+                submitted: t.submitted,
+              }))}
+            />
 
             {campaign.status !== "draft" && (
               <ActionButton
@@ -226,7 +237,7 @@ export default async function CampaignDetailPage({
               platform: t.platform,
               points: t.points,
               required: t.required,
-              instructions: null,
+              instructions: t.instructions,
               submitted: t.submitted,
             }))}
           />
