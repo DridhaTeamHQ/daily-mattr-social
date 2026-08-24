@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { CircleAlert, CircleCheck, Star } from "lucide-react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import * as React from "react";
 
 import { submitSurvey, type SubmitState } from "./actions";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
+import { ratingLabels } from "@/lib/question-types";
 import { isOtherOption } from "@/lib/survey-other";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +28,16 @@ export type PublicQuestion = {
 
 const initial: SubmitState = { status: "idle", message: "" };
 
-function SubmitButton() {
+function SubmitButton({ preview }: { preview: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full" loading={pending}>
+    <Button
+      type="submit"
+      size="lg"
+      className="w-full"
+      loading={pending}
+      disabled={preview}
+    >
       Submit answers
     </Button>
   );
@@ -42,6 +49,7 @@ export function SurveyForm({
   requireEmail,
   requirePhone,
   askWhoYouAre = true,
+  preview = false,
 }: {
   slug: string;
   questions: PublicQuestion[];
@@ -53,8 +61,21 @@ export function SurveyForm({
    * question it can answer itself.
    */
   askWhoYouAre?: boolean;
+  /**
+   * Admin preview. Every input still works — the point is to see what it feels
+   * like to answer — but there is no link behind it, so nothing is submitted
+   * and the button says so instead of failing.
+   */
+  preview?: boolean;
 }) {
-  const action = submitSurvey.bind(null, slug);
+  /**
+   * A preview has no action at all rather than a bound one that would be
+   * refused: `slug` is empty here, so calling the real action would write
+   * nothing and return an error the admin has to read past.
+   */
+  const action = preview
+    ? async () => initial
+    : submitSurvey.bind(null, slug);
   const [state, formAction] = useActionState(action, initial);
 
   if (state.status === "done" || state.status === "already") {
@@ -167,11 +188,12 @@ export function SurveyForm({
 
       {state.status === "error" && <Note tone="bad">{state.message}</Note>}
 
-      <SubmitButton />
+      <SubmitButton preview={preview} />
 
       <p className="pb-4 text-center text-[12px] leading-relaxed text-ink-faint">
-        Your answers go to the DailyMattr team. We don&apos;t store your IP
-        address, only a scrambled version of it to stop duplicate entries.
+        {preview
+          ? "Preview — the button is off and nothing you type here is recorded."
+          : "Your answers go to the DailyMattr team. We don't store your IP address, only a scrambled version of it to stop duplicate entries."}
       </p>
     </form>
   );
@@ -191,7 +213,13 @@ function QuestionInput({ question }: { question: PublicQuestion }) {
       return <MultiChoice question={question} name={name} />;
 
     case "rating":
-      return <RatingInput name={name} required={question.required} />;
+      return (
+        <RatingInput
+          name={name}
+          required={question.required}
+          labels={ratingLabels(question.options)}
+        />
+      );
 
     case "number":
       return (
@@ -212,44 +240,93 @@ function QuestionInput({ question }: { question: PublicQuestion }) {
 }
 
 /**
- * Five stars, as radio inputs.
+ * A 1-to-5 scale, as radio inputs.
+ *
+ * This was five stars, which is a rating everyone recognises and nobody agrees
+ * on: three stars means "fine" to one person and "disappointing" to the next,
+ * and the survey then averages the two as if they had said the same thing. The
+ * number is on the button and the admin's own words for it sit underneath, so
+ * a 4 means what the survey says a 4 means.
  *
  * Native radios keep it keyboard accessible and make the value land in
- * FormData without any JavaScript — the star styling is decoration on top.
+ * FormData without any JavaScript — the styling is decoration on top. Only the
+ * picked number highlights, not everything below it: on a labelled scale the
+ * points are named positions, not a quantity being filled up.
  */
-function RatingInput({ name, required }: { name: string; required: boolean }) {
+function RatingInput({
+  name,
+  required,
+  labels,
+}: {
+  name: string;
+  required: boolean;
+  /** Five entries, index 0 being 1. Blank where the admin left it blank. */
+  labels: string[];
+}) {
   const [value, setValue] = React.useState(0);
+  const named = labels.some(Boolean);
 
   return (
-    <div className="flex gap-1.5">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <label
-          key={n}
-          title={`${n} out of 5`}
-          className={cn(
-            "cursor-pointer rounded-sm border-[3px] border-ink p-2 transition-transform",
-            value >= n
-              ? "bg-brand text-ink shadow-[3px_3px_0_var(--color-ink)] -translate-x-px -translate-y-px"
-              : "bg-surface text-ink-faint hover:bg-canvas-sunk",
-          )}
-        >
-          <input
-            type="radio"
-            name={name}
-            value={n}
-            required={required}
-            checked={value === n}
-            onChange={() => setValue(n)}
-            className="sr-only"
-          />
-          <Star
-            className="size-6"
-            fill={value >= n ? "currentColor" : "none"}
-            aria-hidden
-          />
-          <span className="sr-only">{n} out of 5</span>
-        </label>
-      ))}
+    <div>
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+        {[1, 2, 3, 4, 5].map((n) => {
+          const label = labels[n - 1];
+          const picked = value === n;
+
+          return (
+            <label
+              key={n}
+              className={cn(
+                "flex cursor-pointer flex-col items-center rounded-sm border-[3px] border-ink px-1 py-2.5 text-center transition-transform",
+                picked
+                  ? "-translate-x-px -translate-y-px bg-brand text-white shadow-[3px_3px_0_var(--color-ink)]"
+                  : "bg-surface text-ink hover:bg-canvas-sunk",
+              )}
+            >
+              <input
+                type="radio"
+                name={name}
+                value={n}
+                required={required}
+                checked={picked}
+                onChange={() => setValue(n)}
+                className="sr-only"
+              />
+              <span aria-hidden className="text-[19px] leading-none font-extrabold">
+                {n}
+              </span>
+
+              {label && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-1.5 text-[11.5px] leading-tight font-bold",
+                    picked ? "text-white" : "text-ink-soft",
+                  )}
+                >
+                  {label}
+                </span>
+              )}
+
+              {/* The visible number and label are decoration to a screen
+                  reader; this is the whole answer in one string. */}
+              <span className="sr-only">
+                {label ? `${n} — ${label}` : `${n} out of 5`}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {/* Only when nothing is named. An unlabelled scale still has a direction,
+          and leaving the respondent to guess which end is which is how you get
+          answers pointing the wrong way. */}
+      {!named && (
+        <p className="mt-2 flex justify-between text-[11.5px] font-bold text-ink-faint">
+          <span>1 — lowest</span>
+          <span>5 — highest</span>
+        </p>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeRatingLabels } from "@/lib/question-types";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -621,10 +622,20 @@ export async function updateSurveyQuestions(
         .update({
           prompt,
           help_text: edit.help_text.trim() || null,
-          // Type and options both freeze once anybody has answered. Switching
-          // away from a choice type clears the options, or the row keeps a
-          // list nothing renders.
-          ...(answered ? {} : { type, options: choice ? options : [] }),
+          // Type and options both freeze once anybody has answered — a rating
+          // scale included: renaming what 3 meant re-reads every 3 already
+          // given. Switching away from a choice type clears the options, or
+          // the row keeps a list nothing renders.
+          ...(answered
+            ? {}
+            : {
+                type,
+                options: choice
+                  ? options
+                  : type === "rating"
+                    ? normalizeRatingLabels(edit.options)
+                    : [],
+              }),
         })
         .eq("id", edit.id);
       if (error) throw error;

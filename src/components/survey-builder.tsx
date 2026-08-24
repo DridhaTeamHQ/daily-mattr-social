@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { RatingScaleFields } from "@/components/rating-scale-fields";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
@@ -319,6 +320,7 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
         {questions.map((question, index) => {
           const type = TYPES.find((t) => t.value === question.type);
           const needsOptions = Boolean(type?.hasOptions);
+          const isRating = question.type === "rating";
 
           return (
             <Card key={question.key}>
@@ -391,8 +393,11 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                         onClick={() =>
                           update(question.key, {
                             type: t.value,
+                            // Rating labels are not choices. Carrying them
+                            // across would turn "Never / Rarely / …" into five
+                            // tick boxes the admin never wrote.
                             options: t.hasOptions
-                              ? question.options?.length
+                              ? question.options?.length && !isRating
                                 ? question.options
                                 : ["", ""]
                               : [],
@@ -496,6 +501,15 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                       </label>
                     )}
                   </div>
+                )}
+
+                {isRating && (
+                  <RatingScaleFields
+                    options={question.options}
+                    onChange={(labels) =>
+                      update(question.key, { options: labels })
+                    }
+                  />
                 )}
 
                 <div className="flex flex-wrap items-center gap-4">

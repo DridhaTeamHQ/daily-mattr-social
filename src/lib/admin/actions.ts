@@ -11,6 +11,7 @@ import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
 import { canonicalBatch, canonicalCity } from "@/lib/batches";
+import { normalizeRatingLabels } from "@/lib/question-types";
 import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
@@ -1405,10 +1406,15 @@ export async function createSurvey(input: {
         type: q.type,
         prompt: q.prompt,
         help_text: q.help_text?.trim() || null,
+        // Choices for a choice question, and for a rating what each of its
+        // five numbers means — same column, and blanks are kept there because
+        // position is the number.
         options:
           q.type === "single_choice" || q.type === "multi_choice"
             ? ((q.options ?? []).map((o) => o.trim()).filter(Boolean) as never)
-            : ([] as never),
+            : q.type === "rating"
+              ? (normalizeRatingLabels(q.options) as never)
+              : ([] as never),
         required: q.required,
         // Only multi-choice can carry a cap; anything else stores null so a
         // stray value on a text question can never limit anything.

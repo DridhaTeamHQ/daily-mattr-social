@@ -5,6 +5,7 @@ import { Pencil, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { RatingScaleFields } from "@/components/rating-scale-fields";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
@@ -13,7 +14,11 @@ import {
   type QuestionEdit,
 } from "@/lib/admin/edit-actions";
 import { polishSurveyQuestion } from "@/lib/admin/ai-actions";
-import { QUESTION_TYPES, typeHasOptions } from "@/lib/question-types";
+import {
+  QUESTION_TYPES,
+  optionFamily,
+  typeHasOptions,
+} from "@/lib/question-types";
 import { cn } from "@/lib/utils";
 import type { Enums } from "@/lib/database.types";
 
@@ -83,6 +88,11 @@ export function SurveyQuestionsEditor({
       current.map((d) => {
         if (d.id !== id) return d;
         const needsOptions = typeHasOptions(type);
+        // Choices and rating labels share the one column but mean different
+        // things, so a list only survives a type change within its own family.
+        // Otherwise "Never / Rarely / Sometimes" would arrive as three tick
+        // boxes nobody wrote.
+        const carried = optionFamily(d.type) === optionFamily(type) ? d.options : [];
         return {
           ...d,
           type,
@@ -90,9 +100,9 @@ export function SurveyQuestionsEditor({
           // form, so seed two empty boxes. Moving out keeps the old list in
           // state — switch back and it is still there, unsaved.
           options:
-            needsOptions && d.options.length < 2
-              ? [...d.options, "", ""].slice(0, 2)
-              : d.options,
+            needsOptions && carried.length < 2
+              ? [...carried, "", ""].slice(0, 2)
+              : carried,
         };
       }),
     );
@@ -321,6 +331,14 @@ export function SurveyQuestionsEditor({
                     </Button>
                   )}
                 </div>
+              )}
+
+              {draft.type === "rating" && (
+                <RatingScaleFields
+                  options={draft.options}
+                  disabled={answered}
+                  onChange={(labels) => update(draft.id, { options: labels })}
+                />
               )}
             </div>
           );

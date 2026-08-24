@@ -2,6 +2,7 @@ import { MessageSquareText } from "lucide-react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import type { SurveyWithResponses } from "@/lib/admin/queries";
+import { ratingLabels } from "@/lib/question-types";
 import { formatNumber } from "@/lib/utils";
 
 /**
@@ -128,7 +129,11 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
                   Nobody has answered this one yet.
                 </p>
               ) : question.type === "rating" ? (
-                <RatingChart buckets={buckets} answered={answered} />
+                <RatingChart
+                  buckets={buckets}
+                  answered={answered}
+                  labels={ratingLabels(question.options)}
+                />
               ) : question.type === "single_choice" ? (
                 <DonutChart buckets={buckets} total={votes} />
               ) : question.type === "multi_choice" ||
@@ -272,9 +277,12 @@ function BarChart({
 function RatingChart({
   buckets,
   answered,
+  labels,
 }: {
   buckets: Bucket[];
   answered: number;
+  /** What the survey told respondents each number meant. Blank where it didn't. */
+  labels: string[];
 }) {
   const byValue = new Map(buckets.map((b) => [b.label.trim(), b.count]));
   const points = [1, 2, 3, 4, 5].map((n) => ({
@@ -292,7 +300,9 @@ function RatingChart({
 
   return (
     <div className="mt-4">
-      <div className="flex items-end gap-2" style={{ height: 96 }}>
+      {/* A minimum, not a height: the columns carry the scale's wording under
+          the number when the survey named it, and a fixed box clipped it. */}
+      <div className="flex items-end gap-2" style={{ minHeight: 96 }}>
         {points.map((point) => (
           <div key={point.n} className="flex flex-1 flex-col items-center gap-1">
             <span className="tabular text-[11.5px] font-extrabold text-ink">
@@ -308,6 +318,17 @@ function RatingChart({
             <span className="text-[11.5px] font-bold text-ink-soft">
               {point.n}
             </span>
+
+            {/* The wording respondents saw, so an average of 3.8 can be read
+                without opening the survey to remember what 4 was called. */}
+            {labels[point.n - 1] && (
+              <span
+                title={labels[point.n - 1]}
+                className="line-clamp-2 text-center text-[10.5px] leading-tight font-semibold text-ink-faint"
+              >
+                {labels[point.n - 1]}
+              </span>
+            )}
           </div>
         ))}
       </div>

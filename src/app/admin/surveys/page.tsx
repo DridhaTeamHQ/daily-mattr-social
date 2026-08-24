@@ -116,6 +116,16 @@ export default async function AdminSurveysPage() {
 
                   <SurveyEditDialog survey={s} responseCount={s.responseCount} />
 
+                  {/* On every survey, not just drafts. "What does this look
+                      like to the person who opens the link" is a question you
+                      ask before publishing and again every time you edit a
+                      question afterwards. */}
+                  <Button size="sm" variant="secondary" asChild>
+                    <Link href={`/admin/surveys/${s.id}/preview`}>
+                      Ambassador view
+                    </Link>
+                  </Button>
+
                   {s.status === "draft" && (
                     <ActionButton
                       size="sm"
