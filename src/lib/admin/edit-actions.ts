@@ -642,6 +642,9 @@ export async function updateSurveyQuestions(
     }
 
     revalidatePath(`/admin/surveys/${surveyId}/responses`);
+    // The ambassador view renders these same rows, and the rating scale is
+    // edited from that page.
+    revalidatePath(`/admin/surveys/${surveyId}/preview`);
     revalidatePath("/admin/surveys");
 
     return {

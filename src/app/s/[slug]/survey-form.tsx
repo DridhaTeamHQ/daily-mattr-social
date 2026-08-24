@@ -260,73 +260,60 @@ function RatingInput({
 }: {
   name: string;
   required: boolean;
-  /** Five entries, index 0 being 1. Blank where the admin left it blank. */
+  /** Five entries, index 0 being 1. Blank only where the admin cleared one. */
   labels: string[];
 }) {
   const [value, setValue] = React.useState(0);
-  const named = labels.some(Boolean);
 
   return (
-    <div>
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-        {[1, 2, 3, 4, 5].map((n) => {
-          const label = labels[n - 1];
-          const picked = value === n;
+    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const label = labels[n - 1];
+        const picked = value === n;
 
-          return (
-            <label
-              key={n}
-              className={cn(
-                "flex cursor-pointer flex-col items-center rounded-sm border-[3px] border-ink px-1 py-2.5 text-center transition-transform",
-                picked
-                  ? "-translate-x-px -translate-y-px bg-brand text-white shadow-[3px_3px_0_var(--color-ink)]"
-                  : "bg-surface text-ink hover:bg-canvas-sunk",
-              )}
-            >
-              <input
-                type="radio"
-                name={name}
-                value={n}
-                required={required}
-                checked={picked}
-                onChange={() => setValue(n)}
-                className="sr-only"
-              />
-              <span aria-hidden className="text-[19px] leading-none font-extrabold">
-                {n}
+        return (
+          <label
+            key={n}
+            className={cn(
+              "flex cursor-pointer flex-col items-center rounded-sm border-[3px] border-ink px-1 py-2.5 text-center transition-transform",
+              picked
+                ? "-translate-x-px -translate-y-px bg-brand text-white shadow-[3px_3px_0_var(--color-ink)]"
+                : "bg-surface text-ink hover:bg-canvas-sunk",
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={n}
+              required={required}
+              checked={picked}
+              onChange={() => setValue(n)}
+              className="sr-only"
+            />
+            <span aria-hidden className="text-[19px] leading-none font-extrabold">
+              {n}
+            </span>
+
+            {label && (
+              <span
+                aria-hidden
+                className={cn(
+                  "mt-1.5 text-[11.5px] leading-tight font-bold",
+                  picked ? "text-white" : "text-ink-soft",
+                )}
+              >
+                {label}
               </span>
+            )}
 
-              {label && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mt-1.5 text-[11.5px] leading-tight font-bold",
-                    picked ? "text-white" : "text-ink-soft",
-                  )}
-                >
-                  {label}
-                </span>
-              )}
-
-              {/* The visible number and label are decoration to a screen
-                  reader; this is the whole answer in one string. */}
-              <span className="sr-only">
-                {label ? `${n} — ${label}` : `${n} out of 5`}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-
-      {/* Only when nothing is named. An unlabelled scale still has a direction,
-          and leaving the respondent to guess which end is which is how you get
-          answers pointing the wrong way. */}
-      {!named && (
-        <p className="mt-2 flex justify-between text-[11.5px] font-bold text-ink-faint">
-          <span>1 — lowest</span>
-          <span>5 — highest</span>
-        </p>
-      )}
+            {/* The visible number and label are decoration to a screen
+                reader; this is the whole answer in one string. */}
+            <span className="sr-only">
+              {label ? `${n} — ${label}` : `${n} out of 5`}
+            </span>
+          </label>
+        );
+      })}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { type PublicQuestion } from "@/app/s/[slug]/survey-form";
 import { SurveyView } from "@/app/s/[slug]/survey-view";
+import { RatingScaleEditor } from "@/components/rating-scale-editor";
 import { Note } from "@/components/ui/feedback";
 import { requireAdmin } from "@/lib/admin/queries";
 import { createClient } from "@/lib/supabase/server";
@@ -43,21 +44,40 @@ export default async function SurveyPreviewPage({
   }
   if (!survey) notFound();
 
-  const [{ data: questions }, { data: link }] = await Promise.all([
-    supabase
-      .from("survey_questions")
-      .select("id, type, prompt, help_text, options, required, max_select")
-      .eq("survey_id", id)
-      .order("order_index", { ascending: true }),
-    // A real name in the "Shared by" sticker where one exists, so the preview
-    // shows the sticker at its real width rather than a placeholder's.
-    supabase
-      .from("survey_links")
-      .select("profiles(full_name)")
-      .eq("survey_id", id)
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ data: questions }, { data: link }, { count: responses }] =
+    await Promise.all([
+      supabase
+        .from("survey_questions")
+        .select("id, type, prompt, help_text, options, required, max_select")
+        .eq("survey_id", id)
+        .order("order_index", { ascending: true }),
+      // A real name in the "Shared by" sticker where one exists, so the
+      // preview shows it at its real width rather than a placeholder's.
+      supabase
+        .from("survey_links")
+        .select("profiles(full_name)")
+        .eq("survey_id", id)
+        .limit(1)
+        .maybeSingle(),
+      // Only to decide whether the scale below is still editable. One answer
+      // on the old wording is enough to freeze it.
+      supabase
+        .from("survey_responses")
+        .select("id", { count: "exact", head: true })
+        .eq("survey_id", id),
+    ]);
+
+  const rows = questions ?? [];
+  const ratingQuestions = rows
+    .map((q, index) => ({ ...q, number: index + 1 }))
+    .filter((q) => q.type === "rating")
+    .map((q) => ({
+      id: q.id,
+      number: q.number,
+      prompt: q.prompt,
+      help_text: q.help_text,
+      options: Array.isArray(q.options) ? (q.options as string[]) : [],
+    }));
 
   return (
     <div className="stagger space-y-5">
@@ -102,12 +122,20 @@ export default async function SurveyPreviewPage({
           requireEmail={survey.require_email}
           requirePhone={survey.require_phone}
           askWhoYouAre={survey.audience !== "participant"}
-          questions={((questions ?? []) as PublicQuestion[]).map((q) => ({
+          questions={(rows as PublicQuestion[]).map((q) => ({
             ...q,
             options: Array.isArray(q.options) ? (q.options as string[]) : [],
           }))}
         />
       </div>
+
+      {/* Under the preview rather than over it: you read the scale as a
+          respondent first, then change the word that read wrong. */}
+      <RatingScaleEditor
+        surveyId={id}
+        questions={ratingQuestions}
+        answered={(responses ?? 0) > 0}
+      />
     </div>
   );
 }

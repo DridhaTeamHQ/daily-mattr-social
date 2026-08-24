@@ -42,6 +42,21 @@ export function optionFamily(type: string): "choice" | "rating" | "none" {
 export const RATING_SCALE = 5;
 
 /**
+ * What the five numbers mean unless the admin says otherwise.
+ *
+ * A bare 1-to-5 is not a scale, it is a guess: one person's 3 is "fine" and
+ * the next person's 3 is "disappointing", and the average treats them as the
+ * same answer. Every rating starts named, and every name is editable.
+ */
+export const DEFAULT_RATING_LABELS = [
+  "Bad",
+  "Fair",
+  "Good",
+  "Very good",
+  "Excellent",
+];
+
+/**
  * What each point on a rating scale means, in the admin's own words.
  *
  * Kept in the question's `options` column, one entry per point, index 0 being
@@ -52,14 +67,17 @@ export const RATING_SCALE = 5;
  * "Always" from 5 down to 2.
  *
  * Always returns exactly RATING_SCALE entries, so a question saved before
- * labels existed renders as a plain 1-to-5 scale instead of crashing on
- * `labels[3]`.
+ * labels existed still fills five boxes instead of crashing on `labels[3]`.
  */
 export function ratingLabelSlots(options: unknown): string[] {
   const stored = Array.isArray(options) ? options : [];
-  return Array.from({ length: RATING_SCALE }, (_, i) =>
+  const slots = Array.from({ length: RATING_SCALE }, (_, i) =>
     typeof stored[i] === "string" ? (stored[i] as string) : "",
   );
+
+  // Nothing stored at all — every rating written before labels existed, and
+  // every new one until the admin types over them — reads as the defaults.
+  return slots.some((slot) => slot.trim()) ? slots : [...DEFAULT_RATING_LABELS];
 }
 
 /**
@@ -72,7 +90,14 @@ export function ratingLabels(options: unknown): string[] {
   return ratingLabelSlots(options).map((label) => label.trim());
 }
 
-/** The same five slots, ready to store — or nothing at all if none are used. */
+/**
+ * The same five, ready to store.
+ *
+ * Empties out only if every slot was blank, which cannot happen through the
+ * form — clearing all five is read as "use the defaults" and writes them in.
+ * Clearing one box still leaves that one point unnamed, since the other four
+ * prove the blank was meant.
+ */
 export function normalizeRatingLabels(options: unknown): string[] {
   const labels = ratingLabels(options);
   return labels.some(Boolean) ? labels : [];

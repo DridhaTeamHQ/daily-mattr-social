@@ -1,7 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { ratingLabelSlots } from "@/lib/question-types";
+import { DEFAULT_RATING_LABELS, ratingLabelSlots } from "@/lib/question-types";
 
 /**
  * What 1 to 5 mean, in the admin's own words.
@@ -10,13 +10,12 @@ import { ratingLabelSlots } from "@/lib/question-types";
  * described one way while it is being written and another way while it is
  * being corrected.
  *
- * Every label is optional. Naming only the two ends is the usual shape of a
- * scale, and the form renders whatever is filled in — so the boxes are laid
- * out as the scale itself, five across, rather than a list that hides which
- * number each one belongs to.
+ * The boxes arrive filled in with Bad / Fair / Good / Very good / Excellent
+ * and are all editable — a rating that ships named is right more often than
+ * one that ships blank, and typing over five words is quicker than inventing
+ * them. They are laid out as the scale itself, five across, rather than as a
+ * list that hides which number each one belongs to.
  */
-const PLACEHOLDERS = ["Never", "Rarely", "Sometimes", "Often", "Always"];
-
 export function RatingScaleFields({
   options,
   disabled = false,
@@ -34,7 +33,7 @@ export function RatingScaleFields({
       <p className="mb-1.5 text-[13px] font-medium text-ink">
         What each number means
         <span className="ml-1 font-normal text-ink-soft">
-          (optional — labelling just 1 and 5 is usually enough)
+          (shown under the number on the survey — change any of them)
         </span>
       </p>
 
@@ -51,7 +50,7 @@ export function RatingScaleFields({
               className="min-w-0 flex-1"
               value={label}
               disabled={disabled}
-              placeholder={PLACEHOLDERS[index]}
+              placeholder={DEFAULT_RATING_LABELS[index]}
               aria-label={`What ${index + 1} means`}
               onChange={(event) =>
                 onChange(
@@ -68,7 +67,7 @@ export function RatingScaleFields({
       <p className="mt-1.5 text-[12.5px] text-ink-soft">
         {disabled
           ? "Locked — people have already answered on this scale."
-          : "Leave them all blank and the scale reads 1 (lowest) to 5 (highest)."}
+          : "Clear one to leave that number unnamed. Clear all five and the defaults come back."}
       </p>
     </div>
   );
