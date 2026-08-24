@@ -74,63 +74,54 @@ async function approveOne(
   submissionId: string,
   note?: string,
 ): Promise<{ ok: true; credited: number; already: boolean } | { ok: false; reason: string }> {
-  const { data: submission, error } = await db
-    .from("submissions")
-    .select("id, status, ambassador_id, campaign_task_id, campaign_tasks(points, type)")
-    .eq("id", submissionId)
+  const { data: settlement, error } = await db
+    .rpc("approve_submission_atomic", {
+      p_submission_id: submissionId,
+      p_actor_id: actorId,
+      p_note: note ?? null,
+    })
     .single();
   if (error) return { ok: false, reason: error.message };
+  if (!settlement) return { ok: false, reason: "Approval returned no result." };
 
-  if (submission.status === "approved" || submission.status === "auto_approved") {
+  if (settlement.outcome === "not_found") {
+    return { ok: false, reason: "Submission not found." };
+  }
+
+  if (settlement.outcome === "already") {
     return { ok: true, credited: 0, already: true };
   }
 
-  const points = submission.campaign_tasks?.points ?? 0;
-
-  const { error: updateError } = await db
-    .from("submissions")
-    .update({
-      status: "approved",
-      reviewer_id: actorId,
-      review_note: note ?? null,
-      reviewed_at: new Date().toISOString(),
-      reject_reason: null,
-    })
-    .eq("id", submissionId);
-  if (updateError) return { ok: false, reason: updateError.message };
-
-  let credited = 0;
-
-  if (points > 0) {
-    // The (source_type, source_id, direction) unique index makes this safe to
-    // retry: a double-clicked Approve cannot pay twice.
-    const { error: ledgerError } = await db.from("point_ledger").insert({
-      ambassador_id: submission.ambassador_id,
-      delta: points,
-      reason: "instagram_task",
-      source_type: "submission",
-      source_id: submissionId,
-      note: note ?? "Screenshot approved",
-      created_by: actorId,
-    });
-    if (ledgerError && !ledgerError.message.includes("duplicate key")) {
-      return { ok: false, reason: ledgerError.message };
-    }
-
-    // A duplicate here is the interesting case rather than a no-op. See the
-    // doc comment above.
-    credited = ledgerError ? 0 : points;
+  if (
+    settlement.outcome !== "approved" &&
+    settlement.outcome !== "repaired"
+  ) {
+    return {
+      ok: false,
+      reason: `Unexpected approval result: ${settlement.outcome}`,
+    };
   }
 
-  await audit(actorId, "submission.approve", "submission", submissionId, { points });
+  if (!settlement.ambassador_id) {
+    return { ok: false, reason: "Approval returned no ambassador." };
+  }
+
+  const points = settlement.points;
+  const credited = settlement.credited;
+  const ambassadorId = settlement.ambassador_id;
+
+  await audit(actorId, "submission.approve", "submission", submissionId, {
+    points,
+    repaired: settlement.outcome === "repaired",
+  });
 
   // Checked after the points land, since the week only counts as active once
   // something has been earned in it.
-  await awardStreakBonus(submission.ambassador_id, actorId).catch(() => {});
-  await evaluateBadges(submission.ambassador_id).catch(() => {});
+  await awardStreakBonus(ambassadorId, actorId).catch(() => {});
+  await evaluateBadges(ambassadorId).catch(() => {});
 
   await notify({
-    profileId: submission.ambassador_id,
+    profileId: ambassadorId,
     type: "submission_approved",
     title: credited ? `Approved — you earned ${credited} points` : "Approved",
     body:

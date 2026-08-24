@@ -1386,6 +1386,20 @@ export type Database = {
           response_status: string | null;
         }[];
       };
+      /** Atomically approves one submission and settles its point credit. */
+      approve_submission_atomic: {
+        Args: {
+          p_submission_id: string;
+          p_actor_id: string;
+          p_note: string | null;
+        };
+        Returns: {
+          outcome: string;
+          ambassador_id: string | null;
+          points: number;
+          credited: number;
+        }[];
+      };
     };
 
     Enums: {
