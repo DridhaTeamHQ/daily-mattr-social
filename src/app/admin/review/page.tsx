@@ -313,6 +313,8 @@ export default async function ReviewPage({
                                 title="Reject this screenshot"
                                 description={`${item.ambassador.full_name} will see this reason, so make it something they can act on.`}
                                 label="Reason"
+                                optional
+                                hint="Optional. Leave it empty and they're told the upload wasn't approved, without a specific reason."
                                 placeholder="The handle in the screenshot doesn't match @dailymattr."
                                 confirmLabel="Reject"
                                 trigger={<Button variant="secondary">Reject</Button>}
@@ -323,6 +325,19 @@ export default async function ReviewPage({
                               <Badge tone="neutral">
                                 Reviewed {item.status.replace("_", " ")}
                               </Badge>
+
+                              {/* What the ambassador was told. Without it a
+                                  decided card cannot answer "why did we turn
+                                  this one down", which is the question a
+                                  student's follow-up message asks. */}
+                              {item.reject_reason && (
+                                <p className="w-full text-[12.5px] leading-relaxed text-ink-soft">
+                                  <span className="font-extrabold text-ink">
+                                    Reason:{" "}
+                                  </span>
+                                  {item.reject_reason}
+                                </p>
+                              )}
                               {(item.status === "approved" ||
                                 item.status === "auto_approved") && (
                                 <ReasonDialog

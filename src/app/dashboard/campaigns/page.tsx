@@ -226,6 +226,13 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
               ? SUBMISSION_STATUS[t.submission_status]?.help
               : null;
 
+            // The reviewer's own words, where they wrote any. This is the only
+            // place a student learns what to fix — the notification that
+            // carried it scrolls away, the badge just says "Rejected".
+            const turnedDown =
+              t.submission_status === "rejected" ||
+              t.submission_status === "revoked";
+
             return (
               <li key={t.id} className="flex items-center gap-4 p-4">
                 <div
@@ -260,6 +267,13 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
                   {help && (
                     <p className="mt-1.5 text-[12px] font-medium text-ink-soft">
                       {help}
+                    </p>
+                  )}
+
+                  {turnedDown && t.submission_reason && (
+                    <p className="mt-2 rounded-lg border border-bad-line bg-bad-tint px-3 py-2 text-[12.5px] leading-relaxed font-semibold text-bad">
+                      <span className="mr-1 font-extrabold">Reviewer:</span>
+                      {t.submission_reason}
                     </p>
                   )}
                 </div>

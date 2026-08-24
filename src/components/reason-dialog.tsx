@@ -9,11 +9,13 @@ import { Field, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/admin/guards";
 
 /**
- * A destructive action that requires a written reason.
+ * A destructive action with a written reason attached.
  *
- * Rejecting and revoking both surface their reason to the student, so the
- * reason is mandatory rather than a nicety — "rejected, no explanation" is how
- * an ambassador programme loses ambassadors.
+ * The reason reaches the student, so it is asked for every time. It is
+ * required by default — "rejected, no explanation" is how an ambassador
+ * programme loses ambassadors — but `optional` lets a caller take the answer
+ * as a courtesy instead of a gate, for the decisions an admin makes twenty of
+ * in a row where the alternative is twenty copies of the same sentence.
  */
 export function ReasonDialog({
   action,
@@ -24,6 +26,8 @@ export function ReasonDialog({
   confirmLabel,
   trigger,
   onSuccess,
+  optional = false,
+  hint,
 }: {
   action: (reason: string) => Promise<ActionResult>;
   title: string;
@@ -34,6 +38,10 @@ export function ReasonDialog({
   trigger: React.ReactElement<ButtonProps>;
   /** Runs after the action reports success — for clearing whatever it acted on. */
   onSuccess?: () => void;
+  /** Lets the action go through with the box empty. */
+  optional?: boolean;
+  /** A line under the box. Say what happens when it is left empty. */
+  hint?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
@@ -84,13 +92,18 @@ export function ReasonDialog({
           )}
 
           <form onSubmit={submit} className="mt-4 space-y-4">
-            <Field label={label} htmlFor="reason" required>
+            <Field
+              label={label}
+              htmlFor="reason"
+              required={!optional}
+              hint={hint}
+            >
               <Textarea
                 id="reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={placeholder}
-                required
+                required={!optional}
                 autoFocus
               />
             </Field>
@@ -105,7 +118,7 @@ export function ReasonDialog({
                 type="submit"
                 variant="danger"
                 loading={pending}
-                disabled={!reason.trim()}
+                disabled={!optional && !reason.trim()}
               >
                 {confirmLabel}
               </Button>

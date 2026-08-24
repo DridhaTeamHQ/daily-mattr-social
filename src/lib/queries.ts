@@ -65,6 +65,12 @@ export type TaskCard = {
   platform: string | null;
   /** The caller's own submission for this task, if any. */
   submission_status: Enums<"submission_status"> | null;
+  /**
+   * Why it was turned down, in the reviewer's words. Null when it was not
+   * rejected, or when the reviewer rejected it without writing anything —
+   * the reason is optional on their side.
+   */
+  submission_reason: string | null;
 };
 
 export type CampaignCard = {
@@ -429,15 +435,21 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   const subjectId = (await getViewer())?.id ?? user.id;
   const { data: mine } = await supabase
     .from("submissions")
-    .select("campaign_task_id, status, attempt")
+    .select("campaign_task_id, status, attempt, reject_reason")
     .eq("ambassador_id", subjectId)
     .order("attempt", { ascending: false });
 
   // Highest attempt wins — that's the one the student is looking at.
-  const latest = new Map<string, Enums<"submission_status">>();
+  const latest = new Map<
+    string,
+    { status: Enums<"submission_status">; reason: string | null }
+  >();
   for (const row of mine ?? []) {
     if (!latest.has(row.campaign_task_id)) {
-      latest.set(row.campaign_task_id, row.status);
+      latest.set(row.campaign_task_id, {
+        status: row.status,
+        reason: row.reject_reason,
+      });
     }
   }
 
@@ -473,7 +485,8 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
         platform:
           (t.task_library as unknown as { platform: string | null } | null)
             ?.platform ?? (t.type ? "Instagram" : null),
-        submission_status: latest.get(t.id) ?? null,
+        submission_status: latest.get(t.id)?.status ?? null,
+        submission_reason: latest.get(t.id)?.reason ?? null,
       })),
   }));
 });

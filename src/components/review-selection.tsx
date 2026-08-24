@@ -164,6 +164,8 @@ function SelectionBar({
             title={`Reject ${count} ${count === 1 ? "submission" : "submissions"}`}
             description={`All ${count} ambassadors see this same reason, so write one that is true of every screenshot you have ticked.`}
             label="Reason"
+            optional
+            hint="Optional. Left empty, each of them is told their upload wasn't approved, without a specific reason."
             placeholder="The handle in the screenshot doesn't match @dailymattr."
             confirmLabel={`Reject ${count}`}
             trigger={

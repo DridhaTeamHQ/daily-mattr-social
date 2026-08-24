@@ -88,6 +88,7 @@ export const demoDashboard: DashboardData = {
           instructions: "Like the reel from your own account.",
           required: true,
           submission_status: "approved",
+          submission_reason: null,
         },
         {
           id: "t2",
@@ -99,6 +100,7 @@ export const demoDashboard: DashboardData = {
           instructions: "Leave a comment that isn't just an emoji.",
           required: true,
           submission_status: "needs_review",
+          submission_reason: null,
         },
         {
           id: "t3",
@@ -110,6 +112,7 @@ export const demoDashboard: DashboardData = {
           instructions: "Share to your story and tag @dailymattr.",
           required: false,
           submission_status: null,
+          submission_reason: null,
         },
       ],
     },
@@ -134,6 +137,8 @@ export const demoDashboard: DashboardData = {
           instructions: null,
           required: true,
           submission_status: "rejected",
+          submission_reason:
+            "The screenshot shows a different account's profile, not @dailymattr.",
         },
         {
           id: "t5",
@@ -145,6 +150,7 @@ export const demoDashboard: DashboardData = {
           instructions: "Send it to at least three friends.",
           required: false,
           submission_status: null,
+          submission_reason: null,
         },
       ],
     },

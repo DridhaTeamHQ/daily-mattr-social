@@ -342,9 +342,22 @@ export async function approveSubmissions(
 }
 
 /**
+ * What a student is told when the admin rejected without writing anything.
+ *
+ * The reason is optional, silence is not: a status that flipped to "rejected"
+ * with no sentence attached reads as the app having lost the upload.
+ */
+const REJECTED_WITHOUT_REASON =
+  "This one wasn't approved. Check the task instructions and upload again.";
+
+/**
  * Reject one submission. Everything but the session check, so that rejecting
  * one screenshot and rejecting a selected twenty stay the same code path —
  * the status, the audit row and the notification that tells a student why.
+ *
+ * An empty reason is stored as null rather than as an empty string, so the
+ * dashboard can tell "no reason given" from "" and show the general line
+ * instead of a blank quote.
  */
 async function rejectOne(
   db: ReturnType<typeof createAdminClient>,
@@ -356,7 +369,7 @@ async function rejectOne(
     .from("submissions")
     .update({
       status: "rejected",
-      reject_reason: reason,
+      reject_reason: reason || null,
       reviewer_id: actorId,
       reviewed_at: new Date().toISOString(),
     })
@@ -364,7 +377,7 @@ async function rejectOne(
   if (error) return { ok: false, reason: error.message };
 
   await audit(actorId, "submission.reject", "submission", submissionId, {
-    reason,
+    reason: reason || null,
   });
 
   const { data: rejected } = await db
@@ -378,7 +391,7 @@ async function rejectOne(
       profileId: rejected.ambassador_id,
       type: "submission_rejected",
       title: "Screenshot not approved",
-      body: reason,
+      body: reason || REJECTED_WITHOUT_REASON,
       href: "/dashboard/campaigns",
       meta: { submissionId },
     }).catch(() => {});
@@ -387,6 +400,15 @@ async function rejectOne(
   return { ok: true };
 }
 
+/**
+ * The reason is optional here.
+ *
+ * It was required, which is right for the rejection worth explaining and wrong
+ * for the twenty in a row that are the same obvious miss — an admin facing a
+ * mandatory box types "wrong screenshot" twenty times, which tells a student
+ * no more than the status already did. Left empty, the student gets the
+ * general line instead.
+ */
 export async function rejectSubmission(
   submissionId: string,
   reason: string,
@@ -394,9 +416,6 @@ export async function rejectSubmission(
   try {
     const actorId = await assertAdmin();
     const trimmed = reason.trim();
-    if (!trimmed) {
-      return { ok: false, message: "Give a reason — the student sees it." };
-    }
 
     const result = await rejectOne(
       createAdminClient(),
@@ -420,7 +439,8 @@ export async function rejectSubmission(
  * Every student in the selection reads that sentence as the explanation for
  * their own screenshot, which is the constraint the dialog wording leans on:
  * a shared reason is right for "the wrong reel" and wrong for anything that
- * only applies to some of them.
+ * only applies to some of them. Optional, like the single version — and more
+ * obviously so here, where one sentence has to fit twenty screenshots.
  */
 export async function rejectSubmissions(
   submissionIds: string[],
@@ -429,9 +449,6 @@ export async function rejectSubmissions(
   try {
     const actorId = await assertAdmin();
     const trimmed = reason.trim();
-    if (!trimmed) {
-      return { ok: false, message: "Give a reason — the students see it." };
-    }
 
     const db = createAdminClient();
     const { ids, skipped } = await openSubset(db, submissionIds);

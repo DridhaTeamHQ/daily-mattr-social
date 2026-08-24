@@ -228,6 +228,12 @@ export type ReviewItem = {
   checks: unknown;
   ai_confidence: number | null;
   ai_model: string | null;
+  /**
+   * What the reviewer wrote when they turned it down, and what the ambassador
+   * reads on their own page. Null when nothing was written — the reason is
+   * optional — or when it was never rejected.
+   */
+  reject_reason: string | null;
   ambassador: { id: string; full_name: string; college: string | null };
   task: {
     id: string;
@@ -273,7 +279,7 @@ export async function getReviewQueue(
   let query = supabase
     .from("submissions")
     .select(
-      "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, label_override, platform, task_library(label, platform), campaigns(id, title, expected_handle))",
+      "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, reject_reason, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, label_override, platform, task_library(label, platform), campaigns(id, title, expected_handle))",
     )
     .order("uploaded_at", { ascending: true });
 
@@ -323,6 +329,7 @@ export async function getReviewQueue(
         checks: row.checks,
         ai_confidence: row.ai_confidence,
         ai_model: row.ai_model,
+        reject_reason: row.reject_reason,
         ambassador: {
           id: person.id,
           full_name: person.full_name,
