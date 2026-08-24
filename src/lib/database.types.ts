@@ -1368,6 +1368,24 @@ export type Database = {
         Args: { link_id: string; amount?: number };
         Returns: undefined;
       };
+      /** Atomically admits or rejects one survey response under a per-survey lock. */
+      submit_survey_response_atomic: {
+        Args: {
+          p_survey_link_id: string;
+          p_participant_user_id: string | null;
+          p_respondent_name: string | null;
+          p_respondent_email: string | null;
+          p_respondent_phone: string | null;
+          p_ip_hash: string | null;
+          p_user_agent: string | null;
+          p_ip_window_minutes: number;
+        };
+        Returns: {
+          outcome: string;
+          response_id: string | null;
+          response_status: string | null;
+        }[];
+      };
     };
 
     Enums: {

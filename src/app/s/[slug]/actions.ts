@@ -55,15 +55,6 @@ async function hashIp(): Promise<string | null> {
     .digest("hex");
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
-}
-
 export async function submitSurvey(
   slug: string,
   _prev: SubmitState,
@@ -93,6 +84,8 @@ export async function submitSurvey(
    * link that has been forwarded, screenshotted or guessed still cannot be
    * answered by whoever holds it, which is the whole point of the setting.
    */
+  let participantUserId: string | null = null;
+
   if (survey.audience === "participant") {
     const sessionClient = await createSessionClient();
     const {
@@ -112,45 +105,7 @@ export async function submitSurvey(
       };
     }
 
-    // One each. The link is per-ambassador, so its own response count is the
-    // whole story — no need to look at who else has answered.
-    const { count } = await db
-      .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_link_id", link.id);
-
-    if ((count ?? 0) > 0) {
-      return {
-        status: "error",
-        message: "You've already answered this one. Thanks!",
-      };
-    }
-  }
-
-  /**
-   * The cap an admin set is now actually a cap.
-   *
-   * `surveys.response_cap` was collected in the builder and shown as a limit
-   * and never read by anything. An admin who capped a survey at 200 got as
-   * many as arrived.
-   *
-   * Participant surveys skip it: their limit is one per ambassador, and a
-   * survey-wide ceiling would let the first few responders use up everyone
-   * else's turn.
-   */
-  if (survey.audience === "public" && survey.response_cap && survey.response_cap > 0) {
-    const { count } = await db
-      .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_id", survey.id)
-      .eq("status", "valid");
-
-    if ((count ?? 0) >= survey.response_cap) {
-      return {
-        status: "error",
-        message: "This survey has all the responses it needs. Thanks anyway!",
-      };
-    }
+    participantUserId = user.id;
   }
 
   const { data: questions } = await db
@@ -176,34 +131,6 @@ export async function submitSurvey(
   }
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { status: "error", message: "That email doesn't look right." };
-  }
-
-  /**
-   * Someone coming back a second time is told so, and nothing is written.
-   *
-   * This used to record a `duplicate` row and thank them as if it had landed.
-   * That row is what surfaces on the ambassador's dashboard as "flagged for
-   * review", so an honest second visit read as something an admin had to go and
-   * clear. A repeat submission is not a moderation problem — it is a person who
-   * already filled the form in — so it is now refused at the door and leaves no
-   * trace to clear.
-   *
-   * The unique-violation branch further down stays as the real guarantee: this
-   * SELECT loses a race between two simultaneous submits, the index does not.
-   */
-  const identities: [column: "respondent_email" | "respondent_phone", value: string][] = [];
-  if (email) identities.push(["respondent_email", email]);
-  if (phone) identities.push(["respondent_phone", phone]);
-
-  for (const [column, value] of identities) {
-    const { count } = await db
-      .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_id", survey.id)
-      .eq(column, value)
-      .eq("status", "valid");
-
-    if ((count ?? 0) > 0) return ALREADY_SUBMITTED;
   }
 
   // ─── Answers ──────────────────────────────────────────────────────────────
@@ -265,9 +192,6 @@ export async function submitSurvey(
 
   // ─── Write the response ───────────────────────────────────────────────────
   const base = {
-    survey_link_id: link.id,
-    survey_id: survey.id,
-    ambassador_id: link.ambassador_id,
     respondent_name: name || null,
     respondent_email: email || null,
     respondent_phone: phone || null,
@@ -276,100 +200,79 @@ export async function submitSurvey(
   };
 
   /**
-   * A duplicate check that does not depend on the respondent volunteering PII.
+   * Admission and insertion are deliberately one database operation.
    *
-   * The two partial unique indexes only bite when an email or a phone is
-   * present — `where status = 'valid' and respondent_email is not null`. Both
-   * fields are per-survey optional, and on a survey with both switched off
-   * nothing was unique about a second submission: every reload wrote a fresh
-   * valid row and credited the ambassador again. One public URL, no account, a
-   * loop, unlimited points — and points become stipend, which becomes cash.
-   *
-   * `ip_hash` was already being computed, stored and indexed. It was simply
-   * never read. It is a coarse signal — a lecture hall behind one NAT shares an
-   * address — so it is a window rather than a hard unique constraint: a second
-   * submission from the same address to the same survey inside the window is
-   * recorded but not paid for. That is the same treatment a duplicate email
-   * gets, and it keeps an honest second respondent's answers while refusing to
-   * mint a second point for them.
+   * A check followed by a later INSERT is unsafe in production: two Server
+   * Action instances can both observe the old count. The RPC holds the survey
+   * row lock while it checks participant uniqueness, the public cap and the IP
+   * window, inserts the response, and closes a newly-full survey.
    */
   const IP_WINDOW_MINUTES = 30;
-  let ipRepeat = false;
-
-  if (base.ip_hash) {
-    const since = new Date(
-      Date.now() - IP_WINDOW_MINUTES * 60_000,
-    ).toISOString();
-
-    const { count } = await db
-      .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_id", survey.id)
-      .eq("ip_hash", base.ip_hash)
-      .eq("status", "valid")
-      .gte("submitted_at", since);
-
-    ipRepeat = (count ?? 0) > 0;
-  }
-
-  let responseId: string | null = null;
-  let counted = false;
-
-  if (ipRepeat) {
-    // Kept, flagged, and not paid for.
-    const { data: repeat } = await db
-      .from("survey_responses")
-      .insert({
-        ...base,
-        status: "duplicate",
-        flag_reason: `Another response came from the same network within ${IP_WINDOW_MINUTES} minutes`,
-      })
-      .select("id")
-      .single();
-
-    // Returned whether or not the row landed. It used to fall through to the
-    // `valid` insert when the flagged one failed, which turned a refused
-    // submission into a paid one — the single case this branch exists to
-    // prevent. Losing the flagged row is a gap in the audit trail; crediting it
-    // is a gap in the money.
-    //
-    // The respondent is told the same thing either way. Whether their answer
-    // earned the ambassador a point is not their business, and saying so would
-    // teach anyone farming the link exactly where the line is.
-    if (!repeat) {
-      console.error("survey duplicate row failed to record", {
-        surveyId: survey.id,
-      });
-    }
-
-    return {
-      status: "done",
-      message: "Thanks — your answers were recorded.",
-    };
-  }
-
-  const { data: inserted, error: insertError } = await db
-    .from("survey_responses")
-    .insert({ ...base, status: "valid" })
-    .select("id")
+  const { data: admission, error: admissionError } = await db
+    .rpc("submit_survey_response_atomic", {
+      p_survey_link_id: link.id,
+      p_participant_user_id: participantUserId,
+      p_respondent_name: base.respondent_name,
+      p_respondent_email: base.respondent_email,
+      p_respondent_phone: base.respondent_phone,
+      p_ip_hash: base.ip_hash,
+      p_user_agent: base.user_agent,
+      p_ip_window_minutes: IP_WINDOW_MINUTES,
+    })
     .single();
 
-  if (inserted) {
-    responseId = inserted.id;
-    counted = true;
-  } else if (isUniqueViolation(insertError)) {
-    // The partial unique indexes on (survey_id, email) and (survey_id, phone)
-    // are the real duplicate check — the SELECT above can be lost by two
-    // simultaneous submits, this cannot. Same answer either way: refused, and
-    // nothing recorded for an admin to clear.
-    return ALREADY_SUBMITTED;
-  } else if (insertError) {
+  if (admissionError || !admission) {
+    console.error("atomic survey admission failed", {
+      surveyId: survey.id,
+      code: admissionError?.code,
+    });
     return {
       status: "error",
       message: "Something went wrong saving your answers. Try again.",
     };
   }
 
+  switch (admission.outcome) {
+    case "not_found":
+      return { status: "error", message: "This link doesn't exist any more." };
+    case "closed":
+      return { status: "error", message: "This survey has closed." };
+    case "participant_forbidden":
+      return {
+        status: "error",
+        message: "This survey is only for the ambassador it was issued to.",
+      };
+    case "participant_duplicate":
+      return {
+        status: "error",
+        message: "You've already answered this one. Thanks!",
+      };
+    case "cap_reached":
+      return {
+        status: "error",
+        message: "This survey has all the responses it needs. Thanks anyway!",
+      };
+    case "identity_duplicate":
+      return ALREADY_SUBMITTED;
+    case "ip_duplicate":
+      return {
+        status: "done",
+        message: "Thanks — your answers were recorded.",
+      };
+    case "accepted":
+      break;
+    default:
+      console.error("unexpected atomic survey admission outcome", {
+        surveyId: survey.id,
+        outcome: admission.outcome,
+      });
+      return {
+        status: "error",
+        message: "Something went wrong saving your answers. Try again.",
+      };
+  }
+
+  const responseId = admission.response_id;
   if (!responseId) {
     return { status: "error", message: "Couldn't save your answers. Try again." };
   }
@@ -402,7 +305,7 @@ export async function submitSurvey(
   }
 
   // ─── Credit the ambassador ────────────────────────────────────────────────
-  if (counted && survey.points_per_response > 0) {
+  if (survey.points_per_response > 0) {
     const { error: ledgerError } = await db.from("point_ledger").insert({
       ambassador_id: link.ambassador_id,
       delta: survey.points_per_response,
@@ -426,42 +329,7 @@ export async function submitSurvey(
   }
 
   /**
-   * Close the survey the moment it has what it asked for.
-   *
-   * The cap already refuses response 201 on a survey of 200, but until now the
-   * survey sat there saying "live" with a queue of ambassadors still sharing
-   * links that could only turn people away. Flipping the status is what makes
-   * it read as finished — on the admin list, and on the ambassador's card.
-   *
-   * Only counts valid responses, so a batch of flagged duplicates cannot close
-   * a survey that has not really been answered. Failure here is deliberately
-   * swallowed: the response is saved and credited, and a survey that stays
-   * open one response too long is a smaller problem than an error shown to a
-   * respondent whose answers went through fine.
-   */
-  if (
-    counted &&
-    survey.audience === "public" &&
-    survey.response_cap &&
-    survey.response_cap > 0
-  ) {
-    const { count } = await db
-      .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_id", survey.id)
-      .eq("status", "valid");
-
-    if ((count ?? 0) >= survey.response_cap) {
-      await db
-        .from("surveys")
-        .update({ status: "closed" })
-        .eq("id", survey.id)
-        .eq("status", "live");
-    }
-  }
-
-  /**
-   * The IP-window branch above still answers with this sentence rather than
+   * The IP-window outcome still answers with this sentence rather than
    * "already submitted": it is a coarse signal — a lecture hall behind one NAT
    * shares an address — and telling a stranger they had already responded when
    * they had not would be wrong. Only a matching email or phone, which is the
