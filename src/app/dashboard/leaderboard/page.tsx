@@ -27,13 +27,28 @@ export default async function LeaderboardPage() {
   const rows = me && !visible.some((row) => row.is_me) ? [...visible, me] : visible;
   const meIsPinned = Boolean(me) && !visible.some((row) => row.is_me);
 
+  /**
+   * Whose board this is.
+   *
+   * The database scopes the rows to the viewer's batch, so the page does not
+   * filter anything — it only has to say so. Read off the viewer's own row
+   * rather than their profile, because it is the same value the scoping used;
+   * an ambassador with no batch gets everybody, and the heading then says
+   * nothing about batches rather than something untrue.
+   */
+  const batch = me?.batch ?? null;
+
   return (
     <div className="stagger space-y-4">
       <PageHeader
         icon={Trophy}
         tone="rank"
-        title="Completion Leaderboard"
-        description="This month's ranking is based on approved-task completion."
+        title={batch ? `${batch} Leaderboard` : "Completion Leaderboard"}
+        description={
+          batch
+            ? `This month's ranking within ${batch}, based on approved-task completion.`
+            : "This month's ranking is based on approved-task completion."
+        }
         variant="outline"
         className="bg-gray-50 border-gray-200"
         action={
@@ -54,6 +69,8 @@ export default async function LeaderboardPage() {
 
       <p className="rounded-xl border border-brand/20 bg-brand-tint/50 px-4 py-3 text-[13px] font-semibold text-brand-press">
         Completion = approved tasks divided by total tasks assigned this month.
+        {batch &&
+          ` You're ranked against the ${matched.length} active ambassadors in ${batch}.`}
       </p>
 
       <Card>
@@ -98,7 +115,11 @@ export default async function LeaderboardPage() {
                       {row.full_name}
                       {row.is_me && <span className="rounded-full border border-brand/35 bg-brand-tint px-2 py-0.5 text-[10px] font-bold uppercase text-brand-press">You</span>}
                     </p>
-                    {row.college && <p className="truncate text-[12px] font-medium text-ink-soft">{row.college}</p>}
+                    {/* The batch, not the college. On a board of one batch the
+                        college was the only thing that differed between rows
+                        and it says nothing about the ranking; the batch is
+                        what the board is now about. */}
+                    {row.batch && <p className="truncate text-[12px] font-medium text-ink-soft">{row.batch}</p>}
                   </div>
 
                   <div className="shrink-0 text-right">

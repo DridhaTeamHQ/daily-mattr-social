@@ -1304,6 +1304,7 @@ export type Database = {
           ambassador_id: string;
           full_name: string;
           college: string | null;
+          batch: string | null;
           total_tasks: number;
           approved_tasks: number;
           completion_pct: number;

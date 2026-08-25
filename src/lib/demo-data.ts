@@ -41,7 +41,9 @@ export const demoDashboard: DashboardData = {
     approvedTasks: 6,
     totalTasks: 8,
     position: 4,
-    total: 62,
+    // Out of one batch, not the programme, which is what the board ranks.
+    total: 7,
+    batch: "Batch A",
   },
 
   surveys: [
@@ -294,13 +296,13 @@ export const demoLeaderboard: LeaderboardRow[] = [
 ];
 
 export const demoCompletionLeaderboard: CompletionLeaderboardRow[] = [
-  { position: 1, ambassador_id: "a1", full_name: "Rohan Mehta", college: "VIT Vellore", total_tasks: 8, approved_tasks: 8, completion_pct: 100, is_me: false },
-  { position: 2, ambassador_id: "a2", full_name: "Fatima Sheikh", college: "Jamia Millia Islamia", total_tasks: 8, approved_tasks: 7, completion_pct: 88, is_me: false },
-  { position: 3, ambassador_id: "a3", full_name: "Karthik Iyer", college: "Anna University", total_tasks: 8, approved_tasks: 7, completion_pct: 88, is_me: false },
-  { position: 4, ambassador_id: "demo-ambassador", full_name: "Ananya Rao", college: "Christ University, Bengaluru", total_tasks: 8, approved_tasks: 6, completion_pct: 75, is_me: true },
-  { position: 5, ambassador_id: "a5", full_name: "Meera Nair", college: "Christ University, Bengaluru", total_tasks: 8, approved_tasks: 5, completion_pct: 63, is_me: false },
-  { position: 6, ambassador_id: "a6", full_name: "Aditya Deshmukh", college: "Savitribai Phule Pune University", total_tasks: 8, approved_tasks: 4, completion_pct: 50, is_me: false },
-  { position: 7, ambassador_id: "a7", full_name: "Sneha Reddy", college: "Osmania University", total_tasks: 8, approved_tasks: 2, completion_pct: 25, is_me: false },
+  { position: 1, ambassador_id: "a1", full_name: "Rohan Mehta", college: "VIT Vellore", batch: "Batch A", total_tasks: 8, approved_tasks: 8, completion_pct: 100, is_me: false },
+  { position: 2, ambassador_id: "a2", full_name: "Fatima Sheikh", college: "Jamia Millia Islamia", batch: "Batch A", total_tasks: 8, approved_tasks: 7, completion_pct: 88, is_me: false },
+  { position: 3, ambassador_id: "a3", full_name: "Karthik Iyer", college: "Anna University", batch: "Batch A", total_tasks: 8, approved_tasks: 7, completion_pct: 88, is_me: false },
+  { position: 4, ambassador_id: "demo-ambassador", full_name: "Ananya Rao", college: "Christ University, Bengaluru", batch: "Batch A", total_tasks: 8, approved_tasks: 6, completion_pct: 75, is_me: true },
+  { position: 5, ambassador_id: "a5", full_name: "Meera Nair", college: "Christ University, Bengaluru", batch: "Batch A", total_tasks: 8, approved_tasks: 5, completion_pct: 63, is_me: false },
+  { position: 6, ambassador_id: "a6", full_name: "Aditya Deshmukh", college: "Savitribai Phule Pune University", batch: "Batch A", total_tasks: 8, approved_tasks: 4, completion_pct: 50, is_me: false },
+  { position: 7, ambassador_id: "a7", full_name: "Sneha Reddy", college: "Osmania University", batch: "Batch A", total_tasks: 8, approved_tasks: 2, completion_pct: 25, is_me: false },
 ];
 
 /** Hand-written recognition, for the demo student. */

@@ -121,6 +121,8 @@ export type CompletionLeaderboardRow = {
   ambassador_id: string;
   full_name: string;
   college: string | null;
+  /** The batch they started with. What the board shows under the name. */
+  batch: string | null;
   total_tasks: number;
   approved_tasks: number;
   completion_pct: number;
@@ -153,6 +155,12 @@ export type DashboardData = {
     totalTasks: number;
     position: number;
     total: number;
+    /**
+     * The group the position is out of. Their batch, since the board is
+     * ranked inside one — null when they have no batch and are therefore
+     * ranked against everybody.
+     */
+    batch: string | null;
   };
   surveys: SurveyStat[];
   campaigns: CampaignCard[];
@@ -273,14 +281,16 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         totalTasks: mine.total_tasks,
         position: mine.position,
         total: completionBoard.length,
+        batch: mine.batch,
       }
     : {
         completionPct: 0,
         approvedTasks: 0,
         totalTasks: 0,
-    position: 0,
-    total: 0,
-  };
+        position: 0,
+        total: 0,
+        batch: null,
+      };
 
   const referral = referralsRes.data?.[0];
 

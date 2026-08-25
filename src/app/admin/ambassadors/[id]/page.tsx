@@ -61,7 +61,23 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
 
   const progress = completion?.[0] ?? null;
   const completionPct = progress?.completion_pct ?? 0;
-  const rank = (board ?? []).find((row) => row.ambassador_id === id)?.position ?? null;
+  /**
+   * Their rank as they see it: inside their own batch.
+   *
+   * An admin reads the whole programme off this RPC — that is the exemption
+   * the function makes for them — so the `position` on the row is the
+   * programme-wide one, and quoting it back would contradict the number on
+   * the student's own screen. Counting the peers ahead of them reproduces
+   * the board's scope, ties included: two people sharing a position are both
+   * ahead of nobody, so they share a rank here too.
+   */
+  const mine = (board ?? []).find((row) => row.ambassador_id === id) ?? null;
+  const peers = mine?.batch
+    ? (board ?? []).filter((row) => row.batch === mine.batch)
+    : (board ?? []);
+  const rank = mine
+    ? peers.filter((row) => row.position < mine.position).length + 1
+    : null;
 
   return (
     <div className="stagger space-y-5">
@@ -97,7 +113,7 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
             <h2 className="display text-[16px] text-ink">Task completion</h2>
             <p className="text-[12.5px] font-semibold text-ink-soft">
               {progress && progress.total_tasks > 0
-                ? `${progress.approved_tasks} of ${progress.total_tasks} tasks approved this month${rank ? ` · rank #${rank}` : ""}`
+                ? `${progress.approved_tasks} of ${progress.total_tasks} tasks approved this month${rank ? ` · rank #${rank}${mine?.batch ? ` in ${mine.batch}` : ""}` : ""}`
                 : "No tasks running this month"}
             </p>
           </div>

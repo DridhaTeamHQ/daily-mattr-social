@@ -60,6 +60,7 @@ export default async function DashboardPage() {
           <ProgressHero
             rank={standing.position > 0 ? standing.position : null}
             total={standing.total}
+            batch={standing.batch}
             streak={streak}
             completionPct={completionPct}
             approvedTasks={approvedTasks}

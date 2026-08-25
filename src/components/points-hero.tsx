@@ -79,6 +79,7 @@ function InfoBadge({ label, text }: { label: string; text: string }) {
 export function ProgressHero({
   rank,
   total,
+  batch,
   streak,
   completionPct,
   approvedTasks,
@@ -87,6 +88,8 @@ export function ProgressHero({
 }: {
   rank: number | null;
   total: number;
+  /** The group the rank is out of. Null when it is the whole programme. */
+  batch?: string | null;
   streak: number;
   completionPct: number;
   approvedTasks: number;
@@ -175,12 +178,20 @@ export function ProgressHero({
                 {ranked ? `#${rank}` : "-"}
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                {ranked ? `Out of ${total} ambassadors` : "Complete an active task to join the ranking"}
+                {ranked
+                  ? batch
+                    ? `Out of ${total} in ${batch}`
+                    : `Out of ${total} ambassadors`
+                  : "Complete an active task to join the ranking"}
               </p>
             </div>
             <InfoBadge
               label="Completion Rank"
-              text="Your position among ambassadors, ordered by approved-task completion percentage."
+              text={
+                batch
+                  ? `Your position within ${batch}, ordered by approved-task completion percentage. You are ranked against the people who started when you did, not the whole programme.`
+                  : "Your position among ambassadors, ordered by approved-task completion percentage."
+              }
             />
           </div>
         </div>
