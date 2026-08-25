@@ -197,12 +197,21 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
   const expectedHandle = c.expected_handle;
   const isClip = c.title.includes("CLIP");
 
-  const credited = c.tasks.filter(
-    (t) =>
-      t.submission_status === "approved" ||
-      t.submission_status === "auto_approved",
-  );
-  const doneCount = credited.length;
+  /**
+   * Done means sent in, not approved.
+   *
+   * It counted approved tasks, so the counter tracked the review queue: an
+   * ambassador who had uploaded everything still read "Done 0/1" until an
+   * admin got to it, and with one submission per task a rejected one would
+   * have sat at 0 forever with nothing they could do about it. Their side of
+   * the work is finished the moment the proof is sent.
+   *
+   * Revoked is the exception, and it is not an exception to the rule: the
+   * upload button comes back for those, so there is something left to do.
+   */
+  const doneCount = c.tasks.filter(
+    (t) => t.submission_status && t.submission_status !== "revoked",
+  ).length;
 
   return (
     <CampaignCard
