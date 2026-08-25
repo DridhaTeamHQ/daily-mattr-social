@@ -89,7 +89,10 @@ export const SUBMISSION_STATUS: Record<
   rejected: {
     label: "Rejected",
     tone: "bad",
-    help: "This screenshot didn't pass verification.",
+    // Says the task is closed, because it is: a task takes one submission,
+    // and leaving this at "didn't pass verification" reads as an invitation
+    // to send another that the upload action would refuse.
+    help: "This one didn't pass, and a task can only be submitted once.",
     icon: XCircle,
   },
   revoked: {

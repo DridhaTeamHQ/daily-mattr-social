@@ -338,6 +338,27 @@ export default async function ReviewPage({
                                   {item.reject_reason}
                                 </p>
                               )}
+                              {/* The only way back from a rejection.
+                                  An ambassador gets one submission per task,
+                                  so a rejection they think is wrong has to be
+                                  overturnable here — otherwise the message
+                                  telling them to ask an admin is a dead end.
+                                  Approving credits the task as normal. */}
+                              {item.status === "rejected" && (
+                                <ActionButton
+                                  size="sm"
+                                  variant="secondary"
+                                  action={approveSubmission.bind(
+                                    null,
+                                    item.id,
+                                    undefined,
+                                  )}
+                                  confirmMessage={`Approve this after all? ${item.ambassador.full_name} gets the points and the task counts as done. They cannot upload again themselves.`}
+                                >
+                                  Approve anyway
+                                </ActionButton>
+                              )}
+
                               {(item.status === "approved" ||
                                 item.status === "auto_approved") && (
                                 <ReasonDialog

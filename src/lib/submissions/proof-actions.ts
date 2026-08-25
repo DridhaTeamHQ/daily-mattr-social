@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { submissionBlockedReason } from "@/lib/submissions/attempts";
 import type { UploadResult } from "@/lib/submissions/actions";
 
 /**
@@ -103,15 +104,8 @@ export async function submitProof(
       .eq("ambassador_id", user.id)
       .order("attempt", { ascending: false });
 
-    const live = (previous ?? []).find(
-      (s) => s.status !== "rejected" && s.status !== "revoked",
-    );
-    if (live) {
-      return {
-        ok: false,
-        message: "You've already submitted this one.",
-      };
-    }
+    const blocked = submissionBlockedReason(previous ?? []);
+    if (blocked) return { ok: false, message: blocked };
 
     // ─── The proof ──────────────────────────────────────────────────────────
     let proofUrl: string | null = null;

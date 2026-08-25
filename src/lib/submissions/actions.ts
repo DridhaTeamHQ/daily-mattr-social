@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adjudicateScreenshot, aiEnabled, visionModel } from "@/lib/ai";
 import { readImageFacts } from "@/lib/images";
 import { notify } from "@/lib/notifications";
+import { submissionBlockedReason } from "@/lib/submissions/attempts";
 import { decide, runChecks } from "@/lib/submissions/checks";
 import type { Json } from "@/lib/database.types";
 
@@ -134,15 +135,8 @@ export async function uploadSubmission(
       .eq("ambassador_id", user.id)
       .order("attempt", { ascending: false });
 
-    const live = (previous ?? []).find(
-      (s) => s.status !== "rejected" && s.status !== "revoked",
-    );
-    if (live) {
-      return {
-        ok: false,
-        message: "You've already submitted this one. Check its status above.",
-      };
-    }
+    const blocked = submissionBlockedReason(previous ?? []);
+    if (blocked) return { ok: false, message: blocked };
 
     const attempt = (previous?.[0]?.attempt ?? 0) + 1;
     if (attempt > config.maxAttempts) {

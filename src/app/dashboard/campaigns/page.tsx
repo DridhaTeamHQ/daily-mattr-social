@@ -233,6 +233,12 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
               t.submission_status === "rejected" ||
               t.submission_status === "revoked";
 
+            // Nothing sent yet, or an approval that was taken back. Everything
+            // else — waiting, approved, rejected — is settled from the
+            // ambassador's side. The upload actions enforce the same rule.
+            const canSubmit =
+              !t.submission_status || t.submission_status === "revoked";
+
             return (
               <li key={t.id} className="flex items-center gap-4 p-4">
                 <div
@@ -279,9 +285,13 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
                 </div>
 
                 <div className="shrink-0">
-                  {t.submission_status &&
-                  t.submission_status !== "rejected" &&
-                  t.submission_status !== "revoked" ? (
+                  {/* A rejected task shows its badge and nothing else. The
+                      decision is final — offering the button again would
+                      promise a second chance the server refuses. A revoked
+                      one still gets it: that is credit taken back, usually
+                      for a duplicate, and they were never told what correct
+                      proof would look like. */}
+                  {t.submission_status && !canSubmit ? (
                     <StatusBadge status={t.submission_status} />
                   ) : (
                     <div className="flex flex-col items-end gap-1.5">
