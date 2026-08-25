@@ -200,12 +200,14 @@ export function ProgressHero({
                 {streak} {streak === 1 ? "day" : "days"}
               </h3>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">
-                Active streak
+                {streak === 0
+                  ? "Do anything today to start one"
+                  : "Days in a row you were active"}
               </p>
             </div>
             <InfoBadge
               label="Daily Streak"
-              text="Tracks how many days in a row you've logged in. Missing a day resets the streak."
+              text="Days in a row you did something that counts: uploaded proof, got a response through your survey link, brought in a referral, or had points credited. Miss a whole day and it resets."
             />
           </div>
         </div>

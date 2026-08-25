@@ -116,7 +116,7 @@ export function StreakChip({ days }: { days: number }) {
 
   return (
     <span
-      title={`${days}-day streak`}
+      title={`${days} day${days === 1 ? "" : "s"} active in a row`}
       className="brut-sm inline-flex items-center gap-1 rounded-full bg-flame-tint px-2.5 py-1 text-[13px] font-extrabold text-ink"
     >
       <Flame

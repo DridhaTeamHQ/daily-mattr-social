@@ -140,6 +140,10 @@ export async function previewReferralStats(
 /**
  * Mirrors `my_streak()` for one ambassador.
  *
+ * The four sources are the four the SQL unions: points credited, proof
+ * uploaded, a response arriving through their link, and a referral
+ * converting. A day counts if any of them happened on it.
+ *
  * The run is counted in Asia/Kolkata, like the SQL, and only counts when it
  * reaches today or yesterday — a streak that ended last week is over, not a
  * streak of the length it once was.
@@ -148,15 +152,37 @@ export async function previewStreak(
   supabase: Client,
   ambassadorId: string,
 ): Promise<number> {
-  const { data } = await supabase
-    .from("point_ledger")
-    .select("created_at, delta")
-    .eq("ambassador_id", ambassadorId)
-    .gt("delta", 0);
+  const [ledger, uploads, responses, referrals] = await Promise.all([
+    supabase
+      .from("point_ledger")
+      .select("created_at")
+      .eq("ambassador_id", ambassadorId)
+      .gt("delta", 0),
+    supabase
+      .from("submissions")
+      .select("uploaded_at")
+      .eq("ambassador_id", ambassadorId),
+    supabase
+      .from("survey_responses")
+      .select("submitted_at")
+      .eq("ambassador_id", ambassadorId),
+    supabase
+      .from("referral_conversions")
+      .select("converted_at")
+      .eq("ambassador_id", ambassadorId)
+      .not("converted_at", "is", null),
+  ]);
 
-  if (!data?.length) return 0;
+  const stamps = [
+    ...(ledger.data ?? []).map((row) => row.created_at),
+    ...(uploads.data ?? []).map((row) => row.uploaded_at),
+    ...(responses.data ?? []).map((row) => row.submitted_at),
+    ...(referrals.data ?? []).map((row) => row.converted_at),
+  ].filter((at): at is string => Boolean(at));
 
-  const days = new Set(data.map((row) => kolkataDay(row.created_at)));
+  if (stamps.length === 0) return 0;
+
+  const days = new Set(stamps.map((at) => kolkataDay(at)));
   const today = kolkataDay(new Date().toISOString());
   const sorted = [...days].filter((d) => d <= today).sort().reverse();
 
