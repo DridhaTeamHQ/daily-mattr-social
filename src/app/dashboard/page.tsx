@@ -94,11 +94,10 @@ export default async function DashboardPage() {
             sub={
               referrals.last_conversion
                 ? `Last ${formatDate(referrals.last_conversion)}`
-                : "Not open yet"
+                : "None yet"
             }
             icon={Gift}
             tone="invite"
-            locked
           />
         </div>
       </section>

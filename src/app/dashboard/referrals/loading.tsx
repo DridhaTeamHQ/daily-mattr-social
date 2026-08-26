@@ -5,7 +5,7 @@ import { LoadingLabel } from "@/components/skeletons";
  * Fallback for the referrals page.
  *
  * Shaped like `referrals/page.tsx`: the tinted banner, the big centred referral
- * code card, the locked link row, the downloads tile, and the how-it-works
+ * code card, the QR and link card, the downloads tile, and the how-it-works
  * note. This page does not use `<PageHeader>` — its banner is its own shape,
  * so the skeleton is written out rather than borrowed.
  */
@@ -42,12 +42,21 @@ export default function ReferralsLoading() {
         </div>
       </div>
 
-      {/* Locked link row */}
-      <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
-        <Skeleton className="size-12 shrink-0 rounded-xl" />
-        <div className="w-full space-y-2">
-          <Skeleton className="h-3 w-24 rounded-sm" />
-          <Skeleton className="h-3.5 w-full max-w-md rounded-sm" />
+      {/* QR and link. The square is the QR itself, which is rendered on the
+          server — the reason this page has a loading state worth shaping. */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
+        <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+          <Skeleton className="size-36 shrink-0 rounded-xl" />
+          <div className="w-full flex-1 space-y-2.5">
+            <Skeleton className="h-3 w-24 rounded-sm" />
+            <Skeleton className="h-4 w-full max-w-xs rounded-sm" />
+            <Skeleton className="h-3.5 w-full max-w-md rounded-sm" />
+            <div className="flex gap-2 pt-1.5">
+              <Skeleton className="h-10 w-36 rounded-xl" />
+              <Skeleton className="h-10 w-32 rounded-xl" />
+            </div>
+            <Skeleton className="h-10 w-32 rounded-xl" />
+          </div>
         </div>
       </div>
 

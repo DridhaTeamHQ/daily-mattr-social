@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Gift, Lock } from "lucide-react";
+import { Calendar, Download, Gift } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
+import { ReferralQr } from "@/components/referral-qr";
 import { Button } from "@/components/ui/button";
 import { getDashboard } from "@/lib/queries";
+import { getSiteUrl } from "@/lib/site-url";
+import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Referrals" };
 
@@ -13,6 +16,7 @@ export default async function ReferralsPage() {
   if (!data) redirect("/login");
 
   const { referrals } = data;
+  const siteUrl = await getSiteUrl();
 
   return (
     <div className="stagger space-y-6">
@@ -65,45 +69,36 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      {/* The link, the QR and the share card are locked for now. Restoring
-          them is putting <ReferralQr code siteUrl firstName /> back here — the
-          component and the /r/<code> route are untouched. Locked rather than
-          deleted, and said out loud rather than left blank: a card that simply
-          vanished would read as something that failed to load. */}
-      <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
-        <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
-          <Lock className="size-5" aria-label="Locked" />
-        </div>
-        <div>
-          <p className="text-[11px] font-extrabold tracking-wider text-gray-500 uppercase">
-            Your link
-          </p>
-          <p className="mt-0.5 text-[13px] font-semibold text-gray-500 sm:text-sm">
-            Share links and QR codes are not open yet. Your code above still
-            works — pass that on and it will be credited the same way.
-          </p>
-        </div>
-      </div>
+      {/* The link, the QR and the shareable card. `/r/<code>` picks the store
+          from the device and counts the click on the way through. */}
+      <ReferralQr
+        code={referrals.code}
+        siteUrl={siteUrl}
+        firstName={(data.profile.full_name || "A friend").trim().split(/\s+/)[0]}
+      />
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4">
-        {/* Locked like the link above it: same grey padlock in place of the
-            icon, same muted treatment. The count itself still shows — locked
-            means "not open to you yet", not "hidden", and a tile that went
-            blank would read as something that failed to load. */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs flex items-center gap-5 relative">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
-            <Lock className="size-5" aria-label="Locked" />
+          {referrals.last_conversion && (
+            <div className="absolute top-4 right-4 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-400">
+              <Calendar className="size-4" />
+            </div>
+          )}
+          <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
+            <Download className="size-6" />
           </div>
           <div>
             <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
               Confirmed Downloads
             </p>
-            <h3 className="text-3xl font-black text-gray-400 tracking-tight mt-0.5">
+            <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
               {referrals.total_confirmed}
             </h3>
             <p className="text-xs font-semibold text-gray-500 mt-0.5">
-              Download tracking is not open yet.
+              {referrals.last_conversion
+                ? `Last on ${formatDate(referrals.last_conversion)}`
+                : "No downloads yet"}
             </p>
           </div>
         </div>
