@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  Download,
   ListChecks,
   Users,
 } from "lucide-react";
@@ -228,6 +229,17 @@ export default async function AnalyticsPage({
     period.noun,
   ].join(" · ");
 
+  // Only the cohort dimensions travel to the export, never the period — the
+  // route returns a lifetime roster, and a `period` in the URL would promise a
+  // time slice it does not apply. See the comment at the top of that route.
+  const exportParams = new URLSearchParams();
+  for (const { key } of DIMENSIONS) {
+    const value = cohort.filters[key];
+    if (value) exportParams.set(key, value);
+  }
+  const exportQuery = exportParams.toString();
+  const exportHref = `/admin/analytics/export${exportQuery ? `?${exportQuery}` : ""}`;
+
   return (
     <div className="stagger space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -240,13 +252,28 @@ export default async function AnalyticsPage({
               : "active ambassadors."}
           </p>
         </div>
-        <Link
-          href="/admin/leaderboard"
-          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-extrabold text-white hover:bg-ink/85"
-        >
-          <BarChart3 className="size-4" />
-          View leaderboard
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A plain <a>, not <Link>: the response is a file download, and
+              client-side navigation to one leaves the router waiting for a
+              page that never arrives. `download` keeps the tab put even if a
+              browser decides it would rather render the CSV. */}
+          <a
+            href={exportHref}
+            download
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-surface px-4 py-2.5 text-[13px] font-extrabold text-ink hover:bg-canvas-sunk"
+          >
+            <Download className="size-4" aria-hidden />
+            Download ambassadors
+          </a>
+
+          <Link
+            href="/admin/leaderboard"
+            className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-extrabold text-white hover:bg-ink/85"
+          >
+            <BarChart3 className="size-4" />
+            View leaderboard
+          </Link>
+        </div>
       </div>
 
       {/* The page's one control bar. Given its own surface so it reads as

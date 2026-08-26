@@ -1,3 +1,4 @@
+import { csvResponse } from "@/lib/admin/csv-export";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin/queries";
 
@@ -11,13 +12,6 @@ import { requireAdmin } from "@/lib/admin/queries";
  */
 
 export const dynamic = "force-dynamic";
-
-function csvCell(value: string | number | null): string {
-  const raw = value === null ? "" : String(value);
-  // Excel executes a leading =, +, - or @. An apostrophe defuses it invisibly.
-  const guarded = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
-  return `"${guarded.replace(/"/g, '""')}"`;
-}
 
 export async function GET(
   _request: Request,
@@ -64,32 +58,18 @@ export async function GET(
     "UTR",
   ];
 
-  const lines = [
-    header.map(csvCell).join(","),
-    ...rows.map((r) =>
-      [
-        r.profiles?.full_name ?? "",
-        r.profiles?.email ?? "",
-        r.profiles?.phone ?? "",
-        r.profiles?.referral_code ?? "",
-        Number(r.amount_inr).toFixed(2),
-        r.redemption_id ? "Redemption" : "Stipend",
-        r.status,
-        r.utr ?? "",
-      ]
-        .map(csvCell)
-        .join(","),
-    ),
-  ];
+  const lines = rows.map((r) => [
+    r.profiles?.full_name ?? "",
+    r.profiles?.email ?? "",
+    r.profiles?.phone ?? "",
+    r.profiles?.referral_code ?? "",
+    Number(r.amount_inr).toFixed(2),
+    r.redemption_id ? "Redemption" : "Stipend",
+    r.status,
+    r.utr ?? "",
+  ]);
 
   const slug = batch.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-  // Leading BOM so Excel reads UTF-8 and Indian names survive the round trip.
-  return new Response(`﻿${lines.join("\r\n")}\r\n`, {
-    headers: {
-      "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${slug || "payout-batch"}.csv"`,
-      "cache-control": "no-store",
-    },
-  });
+  return csvResponse(`${slug || "payout-batch"}.csv`, header, lines);
 }
