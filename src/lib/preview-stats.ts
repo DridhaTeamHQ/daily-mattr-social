@@ -140,9 +140,14 @@ export async function previewReferralStats(
 /**
  * Mirrors `my_streak()` for one ambassador.
  *
- * The four sources are the four the SQL unions: points credited, proof
- * uploaded, a response arriving through their link, and a referral
- * converting. A day counts if any of them happened on it.
+ * The sources are the ones the SQL unions: a day the student opened the app,
+ * points credited, proof uploaded, a response arriving through their link, and
+ * a referral converting. A day counts if any of them happened on it.
+ *
+ * One branch of the SQL is deliberately not mirrored: `my_streak()` counts
+ * today unconditionally, because the student calling it is by definition here
+ * today. An admin opening a preview is not the student showing up, so a
+ * preview shows today only if there is an `active_days` row to say so.
  *
  * The run is counted in Asia/Kolkata, like the SQL, and only counts when it
  * reaches today or yesterday — a streak that ended last week is over, not a
@@ -152,7 +157,11 @@ export async function previewStreak(
   supabase: Client,
   ambassadorId: string,
 ): Promise<number> {
-  const [ledger, uploads, responses, referrals] = await Promise.all([
+  const [visits, ledger, uploads, responses, referrals] = await Promise.all([
+    supabase
+      .from("active_days")
+      .select("day")
+      .eq("ambassador_id", ambassadorId),
     supabase
       .from("point_ledger")
       .select("created_at")
@@ -180,9 +189,15 @@ export async function previewStreak(
     ...(referrals.data ?? []).map((row) => row.converted_at),
   ].filter((at): at is string => Boolean(at));
 
-  if (stamps.length === 0) return 0;
-
   const days = new Set(stamps.map((at) => kolkataDay(at)));
+
+  // `active_days.day` is already a date in IST — a stored day, not an instant.
+  // Putting it through kolkataDay() would shift it forward by the offset it has
+  // already had applied, so it goes in as it comes out of the database.
+  for (const row of visits.data ?? []) days.add(row.day);
+
+  if (days.size === 0) return 0;
+
   const today = kolkataDay(new Date().toISOString());
   const sorted = [...days].filter((d) => d <= today).sort().reverse();
 

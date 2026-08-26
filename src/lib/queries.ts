@@ -171,7 +171,7 @@ export type DashboardData = {
     last_conversion: string | null;
   };
   recentLedger: LedgerEntry[];
-  /** Consecutive days with earnings, for the flame. */
+  /** Consecutive days they showed up — signing in included — for the flame. */
   streak: number;
   notifications: NotificationRow[];
 };
