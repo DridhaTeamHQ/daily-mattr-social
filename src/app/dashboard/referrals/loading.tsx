@@ -42,21 +42,18 @@ export default function ReferralsLoading() {
         </div>
       </div>
 
-      {/* QR and link. The square is the QR itself, which is rendered on the
-          server — the reason this page has a loading state worth shaping. */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
-        <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-          <Skeleton className="size-36 shrink-0 rounded-xl" />
-          <div className="w-full flex-1 space-y-2.5">
-            <Skeleton className="h-3 w-24 rounded-sm" />
-            <Skeleton className="h-4 w-full max-w-xs rounded-sm" />
-            <Skeleton className="h-3.5 w-full max-w-md rounded-sm" />
-            <div className="flex gap-2 pt-1.5">
-              <Skeleton className="h-10 w-36 rounded-xl" />
-              <Skeleton className="h-10 w-32 rounded-xl" />
-            </div>
-            <Skeleton className="h-10 w-32 rounded-xl" />
-          </div>
+      {/* The link row, in its locked shape — one line, no QR — because that is
+          what `referral_link_unlock_at` is currently rendering. When that date
+          passes and the QR card opens, widen this to match: a 144px QR square
+          on the left and the buttons under the link. A skeleton that is the
+          wrong height is a cosmetic flash on a slow load, not a bug, which is
+          why this tracks the common case rather than trying to read the flag
+          and delaying the fallback it exists to show immediately. */}
+      <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
+        <Skeleton className="size-12 shrink-0 rounded-xl" />
+        <div className="w-full space-y-2">
+          <Skeleton className="h-3 w-24 rounded-sm" />
+          <Skeleton className="h-3.5 w-full max-w-md rounded-sm" />
         </div>
       </div>
 

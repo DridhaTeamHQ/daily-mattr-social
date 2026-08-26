@@ -80,6 +80,38 @@ export async function getTextSetting(
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+/**
+ * When a feature opens to students, if it is on a timer.
+ *
+ * The referral link and QR are built and working but held back until the app
+ * is actually in the stores — a link that opens a dead listing costs a real
+ * download and the student's confidence in the code they just handed over.
+ *
+ * A row rather than a deploy: the date these open is a business decision that
+ * moves, and "unlock it on the 3rd" should not mean shipping code on the 3rd.
+ * Set the row to a future timestamp and the card opens by itself; set it to a
+ * past one to open it now.
+ *
+ *   insert into app_settings (key, value)
+ *   values ('referral_link_unlock_at', to_jsonb('2026-09-01T00:00:00+05:30'::text))
+ *   on conflict (key) do update set value = excluded.value;
+ *
+ * Absent or unparseable means locked, which is the safe direction: a typo in
+ * the date must not open a feature early.
+ */
+export async function getUnlockAt(key: string): Promise<Date | null> {
+  const raw = await getTextSetting(key, "");
+  if (!raw.trim()) return null;
+
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/** Has a timed feature opened yet? */
+export function isUnlocked(unlockAt: Date | null): boolean {
+  return unlockAt !== null && Date.now() >= unlockAt.getTime();
+}
+
 /** List settings, e.g. the city dropdown. */
 export async function getListSetting(key: string): Promise<string[]> {
   const { data } = await createAdminClient()

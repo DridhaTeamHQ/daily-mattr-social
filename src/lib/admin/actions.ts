@@ -1123,6 +1123,64 @@ async function referralPoints(): Promise<number> {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 100;
 }
 
+/**
+ * Open or close the referral link and QR for every ambassador.
+ *
+ * The feature is finished; what it waits for is the app being live in the
+ * stores. Holding that behind a deploy would mean shipping code on the launch
+ * date at whatever hour it lands, so it is a row in app_settings and this is
+ * the switch.
+ *
+ * `at` is null to lock, a past instant to open now, or a future one to have it
+ * open by itself. Locking writes null rather than deleting the row so the
+ * previously scheduled date is not silently lost on a mis-click.
+ */
+export async function setReferralLinkUnlock(
+  at: Date | null,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+
+    const value = at ? at.toISOString() : "";
+
+    const { error } = await createAdminClient()
+      .from("app_settings")
+      .upsert(
+        { key: "referral_link_unlock_at", value: value as never },
+        { onConflict: "key" },
+      );
+    if (error) throw error;
+
+    await audit(actorId, "settings.referral_link_unlock", "setting", "referral_link_unlock_at", {
+      unlock_at: value || null,
+    });
+
+    // Both sides: the admin card that shows the state, and the student page
+    // whose card this opens.
+    revalidatePath("/admin/referrals");
+    revalidatePath("/dashboard/referrals");
+
+    if (!at) return { ok: true, message: "Share links are locked" };
+
+    return {
+      ok: true,
+      message:
+        at.getTime() <= Date.now()
+          ? "Share links are open to everyone"
+          : `Share links will open on ${at.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZone: "Asia/Kolkata",
+            })}`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
 export async function setCampaignStatus(

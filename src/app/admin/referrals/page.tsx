@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { DownloadsCell } from "@/components/downloads-cell";
+import { ReferralLinkLock } from "@/components/referral-link-lock";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { getReferralSummary } from "@/lib/admin/queries";
+import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Installs" };
@@ -26,9 +28,10 @@ export default async function AdminInstallsPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const [{ q }, summary] = await Promise.all([
+  const [{ q }, summary, linkUnlockAt] = await Promise.all([
     searchParams,
     getReferralSummary(),
+    getUnlockAt("referral_link_unlock_at"),
   ]);
 
   const query = q ?? "";
@@ -48,6 +51,13 @@ export default async function AdminInstallsPage({
         </div>
         <AmbassadorNav />
       </div>
+
+      {/* Above the numbers on purpose: it governs what ambassadors can see, so
+          it is not a setting buried under a table of results. */}
+      <ReferralLinkLock
+        unlockAt={linkUnlockAt ? linkUnlockAt.toISOString() : null}
+        open={isUnlocked(linkUnlockAt)}
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat
