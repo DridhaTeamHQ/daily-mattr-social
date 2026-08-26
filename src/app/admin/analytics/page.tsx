@@ -208,6 +208,10 @@ export default async function AnalyticsPage({
       const approved = approvedByCampaign.get(campaign.id)?.size ?? 0;
       const total = campaignTaskCount * profiles.length;
       return {
+        // Two campaigns can carry the same title — running the same brief a
+        // second month is normal — so the row is identified by the campaign,
+        // not by what it is called.
+        id: campaign.id,
         label: campaign.title,
         value: total ? Math.round((approved * 100) / total) : 0,
         sub: `${approved}/${total} approved tasks`,

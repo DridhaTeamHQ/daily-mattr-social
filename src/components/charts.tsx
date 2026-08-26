@@ -63,7 +63,20 @@ export function BarList({
   unit = "",
   emptyMessage = "Nothing yet.",
 }: {
-  data: { label: string; value: number; sub?: string; color?: string }[];
+  data: {
+    /**
+     * The row's real identity, when the caller has one — a campaign id, a
+     * profile id. Optional, and never inferred from `label`: two campaigns can
+     * share a title and two ambassadors can share a name, so a label is a
+     * caption, not a key. React only warned about it once a duplicate title
+     * actually existed, which is late to find out.
+     */
+    id?: string;
+    label: string;
+    value: number;
+    sub?: string;
+    color?: string;
+  }[];
   color?: SeriesColor;
   unit?: string;
   emptyMessage?: string;
@@ -82,11 +95,14 @@ export function BarList({
 
   return (
     <ul className="space-y-3">
-      {data.map((row) => {
+      {data.map((row, index) => {
         const pct = Math.max(2, Math.round((row.value / max) * 100));
 
         return (
-          <li key={row.label}>
+          // Position is the fallback, not the label. These lists are built
+          // fresh on the server for every render and hold no focus or input
+          // state, so there is nothing for an index key to corrupt.
+          <li key={row.id ?? index}>
             <div className="flex items-baseline justify-between gap-3">
               <span className="truncate text-[13px] font-extrabold text-ink">
                 {row.label}
@@ -377,6 +393,9 @@ export function TrendArea({
       <DataTable
         caption={caption}
         rows={data.map((point) => ({
+          // The date itself, not the rendered label — "26 Aug" repeats once the
+          // window is longer than a year.
+          id: point.day,
           label: dayLabel(point.day),
           value: point.value,
         }))}
@@ -400,7 +419,8 @@ export function DataTable({
   unit = "",
 }: {
   caption: string;
-  rows: { label: string; value: number }[];
+  /** Same rule as `BarList`: `id` when there is one, never the label. */
+  rows: { id?: string; label: string; value: number }[];
   unit?: string;
 }) {
   if (rows.length === 0) return null;
@@ -414,8 +434,8 @@ export function DataTable({
       <table className="mt-2 w-full text-left">
         <caption className="sr-only">{caption}</caption>
         <tbody className="divide-y-2 divide-ink/15">
-          {rows.map((row) => (
-            <tr key={row.label}>
+          {rows.map((row, index) => (
+            <tr key={row.id ?? index}>
               <th
                 scope="row"
                 className="py-1.5 text-[12.5px] font-semibold text-ink-soft"
