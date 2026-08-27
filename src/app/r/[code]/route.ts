@@ -28,14 +28,27 @@ export const dynamic = "force-dynamic";
 
 const PLAY_FALLBACK =
   "https://play.google.com/store/apps/details?id=com.dailymattr";
-const APP_STORE_FALLBACK = "https://apps.apple.com/app/dailymattr";
 
 /**
- * Which store to send them to.
+ * Where an iPhone goes while there is no iOS build.
  *
- * User-agent sniffing is unreliable in general and entirely adequate here: the
- * worst case is an iPhone user landing on the Play Store listing, and 'unknown'
- * is recorded honestly rather than guessed at so the store split stays true.
+ * Not the App Store: that listing does not exist, so the link a student shared
+ * would 404 in front of the person they shared it with. Not the Play Store
+ * either — an install button that cannot install is a worse answer than being
+ * told plainly.
+ */
+const IOS_NOTICE = "/android-only";
+
+/**
+ * Which store the device is asking for.
+ *
+ * Still recorded per device even though only one store can be reached: how many
+ * people are tapping these links on an iPhone is the number that says what the
+ * Android-only build is costing, and it disappears the moment every click is
+ * filed as 'play_store'.
+ *
+ * User-agent sniffing is unreliable in general and entirely adequate here, and
+ * 'unknown' is recorded honestly rather than guessed at.
  */
 function storeFor(userAgent: string): Enums<"install_store"> {
   const ua = userAgent.toLowerCase();
@@ -59,15 +72,18 @@ export async function GET(
 
   const userAgent = request.headers.get("user-agent") ?? "";
   const store = storeFor(userAgent);
+  const isIos = store === "app_store";
 
-  let destination =
-    store === "app_store" ? APP_STORE_FALLBACK : PLAY_FALLBACK;
+  // Desktop lands on the Play Store with everyone else: 'unknown' is usually
+  // someone checking their own link, and the listing is the honest answer.
+  let destination = isIos ? IOS_NOTICE : PLAY_FALLBACK;
 
   try {
-    destination = await getTextSetting(
-      store === "app_store" ? "app_store_url" : "play_store_url",
-      destination,
-    );
+    // The notice is a page of ours, not a setting — there is no store URL to
+    // look up for a platform the app is not on.
+    if (!isIos) {
+      destination = await getTextSetting("play_store_url", destination);
+    }
 
     const db = createAdminClient();
 
