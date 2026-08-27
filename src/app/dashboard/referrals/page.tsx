@@ -86,11 +86,7 @@ export default async function ReferralsPage() {
           says so — a student reading "not open yet" needs to know they have
           not been left with nothing to share. */}
       {linkOpen ? (
-        <ReferralLinkCard
-          code={referrals.code}
-          siteUrl={siteUrl}
-          firstName={(data.profile.full_name || "A friend").trim().split(/\s+/)[0]}
-        />
+        <ReferralLinkCard code={referrals.code} siteUrl={siteUrl} />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">

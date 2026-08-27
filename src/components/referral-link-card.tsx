@@ -1,57 +1,28 @@
-import QRCode from "qrcode";
 import { Lock, Smartphone } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { InstallCard } from "@/components/install-card";
-import { wordmarkSvg } from "@/components/logo";
+import { ShareReferralButton } from "@/components/share-referral";
 
 /**
  * The share link, split by the store it can actually reach.
  *
- * One link used to sit here over the line "sends Android to the Play Store and
- * iPhone to the App Store", which was a promise the programme could not keep —
- * there is no iOS build, so half of that sentence pointed at a listing that
- * 404s. A student reading it had no way to know that the friend they sent it
- * to might get nothing.
+ * One link used to sit under "sends Android to the Play Store and iPhone to
+ * the App Store", which was a promise the programme could not keep — there is
+ * no iOS build, so half that sentence pointed at a listing that 404s. A student
+ * reading it had no way to know the friend they sent it to might get nothing.
  *
  * So the two platforms are two sections, and the one that does not work says
  * so. An ambassador can see at a glance who their link is worth sending to,
  * which is the thing they are deciding when they look at this page.
- *
- * The QR is off the page while the app is Android-only — a code pointed at a
- * screen is a stall-and-poster tool, and there is no stall to run until both
- * halves of a crowd can install. It is still generated here, because the
- * shareable poster draws one: an image forwarded through WhatsApp is exactly
- * where a QR earns its place, since a picture has no link to tap.
  */
-export async function ReferralLinkCard({
+export function ReferralLinkCard({
   code,
   siteUrl,
-  firstName,
 }: {
   code: string;
   siteUrl: string;
-  /** Goes on the shareable card: "Priya is on DailyMattr — join them". */
-  firstName: string;
 }) {
   const link = `${siteUrl.replace(/\/$/, "")}/r/${code}`;
-
-  // Error-correction level M: a QR printed on a poster picks up scuffs and
-  // fingerprints, and M recovers ~15% of the symbol at a modest size cost.
-  const svg = await QRCode.toString(link, {
-    type: "svg",
-    errorCorrectionLevel: "M",
-    margin: 1,
-    color: { dark: "#0a0a0a", light: "#ffffff" },
-  });
-
-  // base64 rather than a raw data URL: an SVG full of `#` and `<` characters
-  // has to be escaped either way, and base64 is the encoding that survives
-  // every browser's image loader.
-  const qrDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-  const logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(
-    wordmarkSvg("#ffffff"),
-  ).toString("base64")}`;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -82,14 +53,10 @@ export async function ReferralLinkCard({
           Opens the Play Store and counts the click.
         </p>
 
+        {/* Share sends the code and the link together; Copy link is the one
+            for pasting into something that only wants a URL. */}
         <div className="mt-4">
-          <InstallCard
-            code={code}
-            link={link}
-            name={firstName}
-            qrDataUrl={qrDataUrl}
-            logoDataUrl={logoDataUrl}
-          />
+          <ShareReferralButton code={code} link={link} />
         </div>
 
         <div className="mt-3">
