@@ -49,6 +49,18 @@ export function ReferralLinkCard({
         <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
           {link}
         </p>
+
+        {/* Below the link on purpose: the URL is the thing they came for, and
+            this is what to do with it. Reads as the counterpart to the iOS
+            panel's "coming soon" — one side is waiting, this side is live. */}
+        <p className="mt-4 text-[13px] leading-relaxed font-extrabold text-gray-900">
+          Your referral link is live!
+        </p>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
+          Share it with your friends and get them to download Dailymattr from
+          the Play Store. The more people you bring in, the more you progress!
+        </p>
+
         {/* Share sends the code and the link together; Copy link is the one
             for pasting into something that only wants a URL. */}
         <div className="mt-4">
@@ -87,7 +99,7 @@ export function ReferralLinkCard({
           We&apos;re working on bringing the full dailymattr experience to
           iPhone, so you can stay updated on what matters, wherever you are.
         </p>
-        <p className="mt-3 text-[12.5px] leading-relaxed font-extrabold text-gray-600">
+        <p className="mt-3 text-[12.5px] leading-relaxed font-semibold text-gray-600">
           Hang tight — the iOS version is on its way!
         </p>
         <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
