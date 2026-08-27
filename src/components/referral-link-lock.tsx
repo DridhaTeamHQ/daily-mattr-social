@@ -9,7 +9,7 @@ import { setReferralLinkUnlock } from "@/lib/admin/actions";
 import { Card } from "@/components/ui/card";
 
 /**
- * The switch for the ambassador share link and QR.
+ * The switch for the ambassador share link and share card.
  *
  * The feature is built; what it waits for is the app being live in the stores.
  * That date moves, and it should not take a deploy to honour — so the state
@@ -80,11 +80,11 @@ export function ReferralLinkLock({
 
           <div>
             <h2 className="display text-[16px] text-ink">
-              Share links &amp; QR codes
+              Share links
             </h2>
             <p className="mt-1 max-w-prose text-[12.5px] text-ink-soft">
               {open
-                ? "Open. Every ambassador can see their link, their QR and the shareable card."
+                ? "Open. Every ambassador can see their link and the shareable card."
                 : "Locked. Ambassadors see their referral code and a note saying links are not open yet."}
               {!open && unlockAt && (
                 <>
@@ -98,8 +98,8 @@ export function ReferralLinkLock({
               )}
             </p>
             <p className="mt-1.5 text-[12px] text-ink-faint">
-              The code itself always works — this only controls the link, the QR
-              and the share card.
+              The code itself always works — this only controls the link and the
+              share card.
             </p>
           </div>
         </div>

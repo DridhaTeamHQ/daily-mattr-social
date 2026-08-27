@@ -83,7 +83,7 @@ export async function getTextSetting(
 /**
  * When a feature opens to students, if it is on a timer.
  *
- * The referral link and QR are built and working but held back until the app
+ * The referral link and share card are built and working but held back until the app
  * is actually in the stores — a link that opens a dead listing costs a real
  * download and the student's confidence in the code they just handed over.
  *

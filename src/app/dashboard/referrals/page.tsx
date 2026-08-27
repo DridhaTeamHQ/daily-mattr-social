@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Calendar, Download, Gift, Lock } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
-import { ReferralQr } from "@/components/referral-qr";
+import { ReferralLinkCard } from "@/components/referral-link-card";
 import { Button } from "@/components/ui/button";
 import { getDashboard } from "@/lib/queries";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
@@ -19,8 +19,8 @@ export default async function ReferralsPage() {
   const { referrals } = data;
   const siteUrl = await getSiteUrl();
 
-  // The link and QR are finished and switched off until the app is live in the
-  // stores. `referral_link_unlock_at` in app_settings decides — see getUnlockAt.
+  // The link card is finished and switched off until the app is live in the
+  // store. `referral_link_unlock_at` in app_settings decides — see getUnlockAt.
   // Checked per request, and this page is already dynamic, so the card opens on
   // the next load after the date passes with nothing to deploy.
   const linkUnlockAt = await getUnlockAt("referral_link_unlock_at");
@@ -77,8 +77,8 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      {/* The link, the QR and the shareable card. `/r/<code>` picks the store
-          from the device and counts the click on the way through.
+      {/* The link and the shareable card. `/r/<code>` counts the click on the
+          way through and sends Android to the Play Store.
 
           Locked rather than deleted, and said out loud rather than left blank:
           a card that simply vanished would read as something that failed to
@@ -86,11 +86,7 @@ export default async function ReferralsPage() {
           says so — a student reading "not open yet" needs to know they have
           not been left with nothing to share. */}
       {linkOpen ? (
-        <ReferralQr
-          code={referrals.code}
-          siteUrl={siteUrl}
-          firstName={(data.profile.full_name || "A friend").trim().split(/\s+/)[0]}
-        />
+        <ReferralLinkCard code={referrals.code} siteUrl={siteUrl} />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
@@ -105,8 +101,8 @@ export default async function ReferralsPage() {
                   is the kind of promise students stop believing the second
                   time they read it. */}
               {linkUnlockAt
-                ? `Share links and QR codes open on ${formatDate(linkUnlockAt)}.`
-                : "Share links and QR codes are not open yet."}{" "}
+                ? `Share links open on ${formatDate(linkUnlockAt)}.`
+                : "Share links are not open yet."}{" "}
               Your code above still works — pass that on and it will be
               credited the same way.
             </p>

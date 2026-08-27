@@ -42,13 +42,14 @@ export default function ReferralsLoading() {
         </div>
       </div>
 
-      {/* The link row, in its locked shape — one line, no QR — because that is
-          what `referral_link_unlock_at` is currently rendering. When that date
-          passes and the QR card opens, widen this to match: a 144px QR square
-          on the left and the buttons under the link. A skeleton that is the
-          wrong height is a cosmetic flash on a slow load, not a bug, which is
-          why this tracks the common case rather than trying to read the flag
-          and delaying the fallback it exists to show immediately. */}
+      {/* The link row, in its locked shape — one line — because that is what
+          `referral_link_unlock_at` is currently rendering. When that date
+          passes the unlocked card is taller by the two button rows under the
+          link; there is no QR square to leave room for while the app is
+          Android-only. A skeleton that is the wrong height is a cosmetic flash
+          on a slow load, not a bug, which is why this tracks the common case
+          rather than reading the flag and delaying the fallback it exists to
+          show immediately. */}
       <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
         <Skeleton className="size-12 shrink-0 rounded-xl" />
         <div className="w-full space-y-2">

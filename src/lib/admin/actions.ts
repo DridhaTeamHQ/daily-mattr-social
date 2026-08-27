@@ -1182,7 +1182,7 @@ async function referralPoints(): Promise<number> {
 }
 
 /**
- * Open or close the referral link and QR for every ambassador.
+ * Open or close the referral link and share card for every ambassador.
  *
  * The feature is finished; what it waits for is the app being live in the
  * stores. Holding that behind a deploy would mean shipping code on the launch
