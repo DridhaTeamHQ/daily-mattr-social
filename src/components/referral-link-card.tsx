@@ -49,10 +49,6 @@ export function ReferralLinkCard({
         <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
           {link}
         </p>
-        <p className="mt-2 text-[12.5px] font-semibold text-gray-500">
-          Opens the Play Store and counts the click.
-        </p>
-
         {/* Share sends the code and the link together; Copy link is the one
             for pasting into something that only wants a URL. */}
         <div className="mt-4">
