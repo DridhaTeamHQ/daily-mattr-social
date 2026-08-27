@@ -40,15 +40,6 @@ export function ReferralLinkCard({
           </div>
         </div>
 
-        <p className="mt-4 text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
-          Your link
-        </p>
-        {/* `break-all` rather than `truncate`: this is the thing a student
-            copies by eye when the button will not paste into an app, and half
-            a link with an ellipsis on the end cannot be typed out. */}
-        <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
-          {link}
-        </p>
 
         {/* Below the link on purpose: the URL is the thing they came for, and
             this is what to do with it. Reads as the counterpart to the iOS
@@ -56,8 +47,17 @@ export function ReferralLinkCard({
         <p className="mt-4 text-[13px] leading-relaxed font-extrabold text-gray-900">
           Your referral link is live!
         </p>
+                <p className="mt-4 text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
+          Your link
+        </p>
+                {/* `break-all` rather than `truncate`: this is the thing a student
+            copies by eye when the button will not paste into an app, and half
+            a link with an ellipsis on the end cannot be typed out. */}
+        <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
+          {link}
+        </p>
         <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
-          Share it with your friends and get them to download Dailymattr from
+          Share it with your friends and get them to download dailymattr from
           the Play Store. The more people you bring in, the more you progress!
         </p>
 
