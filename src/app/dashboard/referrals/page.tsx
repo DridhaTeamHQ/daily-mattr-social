@@ -6,9 +6,12 @@ import { CopyButton } from "@/components/copy-button";
 import { ReferralLinkCard } from "@/components/referral-link-card";
 import { Button } from "@/components/ui/button";
 import { getDashboard } from "@/lib/queries";
-import { getUnlockAt, isUnlocked } from "@/lib/settings";
-import { getSiteUrl } from "@/lib/site-url";
+import { getTextSetting, getUnlockAt, isUnlocked } from "@/lib/settings";
 import { formatDate } from "@/lib/utils";
+
+/** Only until the setting is filled in — the same default the redirect uses. */
+const PLAY_STORE_FALLBACK =
+  "https://play.google.com/store/apps/details?id=com.dailymattr";
 
 export const metadata = { title: "Referrals" };
 
@@ -17,7 +20,14 @@ export default async function ReferralsPage() {
   if (!data) redirect("/login");
 
   const { referrals } = data;
-  const siteUrl = await getSiteUrl();
+
+  // Read rather than hard-coded, so the store listing can be corrected without
+  // a deploy — and so this and `/[code]` can never disagree about where the
+  // app lives.
+  const playStoreUrl = await getTextSetting(
+    "play_store_url",
+    PLAY_STORE_FALLBACK,
+  );
 
   // The link card is finished and switched off until the app is live in the
   // store. `referral_link_unlock_at` in app_settings decides — see getUnlockAt.
@@ -86,7 +96,10 @@ export default async function ReferralsPage() {
           says so — a student reading "not open yet" needs to know they have
           not been left with nothing to share. */}
       {linkOpen ? (
-        <ReferralLinkCard code={referrals.code} siteUrl={siteUrl} />
+        <ReferralLinkCard
+          code={referrals.code}
+          playStoreUrl={playStoreUrl}
+        />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
           <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">

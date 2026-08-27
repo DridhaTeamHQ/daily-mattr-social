@@ -14,19 +14,27 @@ import { ShareReferralButton } from "@/components/share-referral";
  * So the two platforms are two sections, and the one that does not work says
  * so. An ambassador can see at a glance who their link is worth sending to,
  * which is the thing they are deciding when they look at this page.
+ *
+ * ─── Why this shares the store listing, not `/<code>` ───────────────────────
+ *
+ * It shares the Play Store URL directly. The tracked `/<code>` redirect still
+ * exists and still works for every link already out in the world, but it is no
+ * longer what this panel hands out.
+ *
+ * The trade is deliberate and worth knowing: nothing new is written to
+ * `referral_clicks`, so the click half of the funnel stops growing. Credit is
+ * unaffected — a referral is counted when the friend types the code into the
+ * app, never from the click — and `ShareReferralButton` sends the code beside
+ * the link precisely so that still happens.
  */
 export function ReferralLinkCard({
   code,
-  siteUrl,
+  playStoreUrl,
 }: {
   code: string;
-  siteUrl: string;
+  /** The store listing itself — what gets shown, shared and copied. */
+  playStoreUrl: string;
 }) {
-  // The short form. `/r/${code}` still works and always will — it is in
-  // WhatsApp threads and on printed cards — but this is the one worth putting
-  // in front of someone who may have to read it off a screen and type it.
-  const link = `${siteUrl.replace(/\/$/, "")}/${code}`;
-
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {/* ─── Android: the one that works ──────────────────────────────────── */}
@@ -43,36 +51,44 @@ export function ReferralLinkCard({
           </div>
         </div>
 
-
-        {/* Below the link on purpose: the URL is the thing they came for, and
-            this is what to do with it. Reads as the counterpart to the iOS
-            panel's "coming soon" — one side is waiting, this side is live. */}
+        {/* Reads as the counterpart to the iOS panel's "coming soon" — one
+            side is waiting, this side is live. */}
         <p className="mt-4 text-[13px] leading-relaxed font-extrabold text-gray-900">
           Your referral link is live!
         </p>
-                <p className="mt-4 text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
+        <p className="mt-4 text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
           Your link
         </p>
-                {/* `break-all` rather than `truncate`: this is the thing a student
+        {/* A real anchor, not lucide's `Link` — that one is the chain icon, and
+            an icon given a `to` prop renders an SVG rather than the URL.
+
+            `break-all` rather than `truncate`: this is the thing a student
             copies by eye when the button will not paste into an app, and half
             a link with an ellipsis on the end cannot be typed out. */}
-        <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
-          {link}
-        </p>
+        <a
+          href={playStoreUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1.5 block font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900 hover:underline"
+        >
+          {playStoreUrl}
+        </a>
         <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
           Share it with your friends and get them to download dailymattr from
           the Play Store. The more people you bring in, the more you progress!
         </p>
 
-        {/* Share sends the code and the link together; Copy link is the one
+        {/* Share sends the code and the store link together, which is what
+            makes this work: the link installs the app and the code is what
+            credits the ambassador once it is typed in. Copy link is the one
             for pasting into something that only wants a URL. */}
         <div className="mt-4">
-          <ShareReferralButton code={code} link={link} />
+          <ShareReferralButton code={code} link={playStoreUrl} />
         </div>
 
         <div className="mt-3">
           <CopyButton
-            value={link}
+            value={playStoreUrl}
             label="Copy link"
             copiedLabel="Link copied!"
             toastMessage="Referral link copied to clipboard"
