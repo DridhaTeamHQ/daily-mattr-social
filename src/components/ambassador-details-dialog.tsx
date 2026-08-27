@@ -9,7 +9,11 @@ import { Field, Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import { updateAmbassadorSegments } from "@/lib/admin/actions";
 import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
-import { isStructuredCode } from "@/lib/referral-code-shape";
+import {
+  codeProblem,
+  isStructuredCode,
+  normalizeCode,
+} from "@/lib/referral-code-shape";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -46,9 +50,31 @@ export function AmbassadorDetailsDialog({
 }) {
   const [open, setOpen] = React.useState(false);
   const [batch, setBatch] = React.useState(profile.batch ?? "");
+  const [code, setCode] = React.useState(profile.referral_code);
+  const [reissue, setReissue] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
   const legacyCode = !isStructuredCode(profile.referral_code);
+
+  // Reissuing replaces the code with a generated one, so whatever is in the
+  // box is about to be overwritten — no point grading it.
+  const problem = reissue ? null : codeProblem(code);
+  const codeChanged = !reissue && code !== profile.referral_code;
+
+  /**
+   * Closing has to forget an abandoned edit, or the box still holds the code
+   * typed last time and reopening would offer it up for Save without anyone
+   * meaning to. A successful save closes through `setOpen` instead, so what
+   * was just stored stays on screen until the row re-renders behind it.
+   */
+  function onOpenChange(next: boolean) {
+    if (!next) {
+      setCode(profile.referral_code);
+      setReissue(false);
+      setBatch(profile.batch ?? "");
+    }
+    setOpen(next);
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,7 +92,7 @@ export function AmbassadorDetailsDialog({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>
         {trigger ?? (
           <Button size="sm" variant="secondary">
@@ -147,28 +173,64 @@ export function AmbassadorDetailsDialog({
               </Field>
             </div>
 
-            {legacyCode && (
-              <div>
-                <label className="flex items-start gap-2.5 rounded-lg border border-line bg-canvas-sunk p-3">
-                  <input
-                    type="checkbox"
-                    name="reissue_code"
-                    className="mt-0.5 size-4 accent-[var(--color-brand)]"
-                  />
-                  <span className="text-[13px] leading-relaxed font-semibold text-ink">
-                    Reissue their referral code to match the batch
-                    <span className="mt-0.5 block text-[12px] font-medium text-ink-soft">
-                      Theirs is{" "}
-                      <code className="font-mono">{profile.referral_code}</code>
-                      , from before codes carried the batch.
-                    </span>
-                  </span>
-                </label>
+            {/* Editable, because the generated serial is only ever a guess at
+                what the programme wants. A code gets promised to a college in
+                a WhatsApp message, or printed wrong, and until now the only
+                way to change one was to reissue and take whatever came out. */}
+            <Field
+              label="Referral code"
+              htmlFor="referral_code"
+              error={problem}
+              hint={
+                reissue
+                  ? "A fresh code will be generated from the batch above."
+                  : "Goes in their share link, so letters and digits only."
+              }
+            >
+              <Input
+                id="referral_code"
+                name="referral_code"
+                value={code}
+                // Upper-cased as they type rather than silently on save: the
+                // field should show the code that is actually going to be
+                // stored, since that is the one the link will carry.
+                onChange={(e) => setCode(normalizeCode(e.target.value))}
+                disabled={reissue}
+                className="font-mono"
+                spellCheck={false}
+                autoComplete="off"
+                aria-invalid={problem ? true : undefined}
+              />
+            </Field>
 
-                <Note tone="warn" className="mt-2">
-                  Any link already shared with the old code stops working.
-                </Note>
-              </div>
+            {legacyCode && (
+              <label className="flex items-start gap-2.5 rounded-lg border border-line bg-canvas-sunk p-3">
+                <input
+                  type="checkbox"
+                  name="reissue_code"
+                  checked={reissue}
+                  onChange={(e) => setReissue(e.target.checked)}
+                  className="mt-0.5 size-4 accent-[var(--color-brand)]"
+                />
+                <span className="text-[13px] leading-relaxed font-semibold text-ink">
+                  Reissue their referral code to match the batch
+                  <span className="mt-0.5 block text-[12px] font-medium text-ink-soft">
+                    Theirs is{" "}
+                    <code className="font-mono">{profile.referral_code}</code>,
+                    from before codes carried the batch.
+                  </span>
+                </span>
+              </label>
+            )}
+
+            {/* One warning for both routes to a new code — typing one by hand
+                breaks an already-shared link exactly as reissuing does. */}
+            {(codeChanged || reissue) && (
+              <Note tone="warn">
+                Any link already shared with{" "}
+                <code className="font-mono">{profile.referral_code}</code> stops
+                working. Clicks and referrals already credited to them are kept.
+              </Note>
             )}
 
             <div className="flex justify-end gap-2">
@@ -177,7 +239,7 @@ export function AmbassadorDetailsDialog({
                   Cancel
                 </Button>
               </Dialog.Close>
-              <Button type="submit" loading={pending}>
+              <Button type="submit" loading={pending} disabled={!!problem}>
                 Save
               </Button>
             </div>
