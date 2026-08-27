@@ -66,3 +66,40 @@ export function batchFromCode(code: string): string | null {
   const key = code.charAt(PREFIX.length);
   return key === NO_BATCH ? null : key;
 }
+
+/**
+ * How a hand-typed code is stored.
+ *
+ * `/r/[code]` upper-cases whatever arrives before looking it up, so a code
+ * saved in lower case is a code no link can ever resolve. Normalising on the
+ * way in is what stops an admin typing `dmb18` from silently creating a
+ * dead link.
+ */
+export function normalizeCode(input: string): string {
+  return input.replace(/\s+/g, "").toUpperCase();
+}
+
+/** The longest code the redirect will look at — it slices to this. */
+const MAX_LENGTH = 32;
+const MIN_LENGTH = 4;
+
+/**
+ * Why a code cannot be used, or null when it is fine.
+ *
+ * Shared by the dialog and the action deliberately: the field can say what is
+ * wrong as it is typed, and the server still refuses the same things when the
+ * form is posted anyway. Assumes an already-normalised code.
+ */
+export function codeProblem(code: string): string | null {
+  if (!code) return "A referral code is required.";
+  if (!/^[A-Z0-9]+$/.test(code)) {
+    return "Letters and digits only — it has to survive being in a URL.";
+  }
+  if (code.length < MIN_LENGTH) {
+    return `Too short — ${MIN_LENGTH} characters at least.`;
+  }
+  if (code.length > MAX_LENGTH) {
+    return `Too long — ${MAX_LENGTH} characters at most.`;
+  }
+  return null;
+}
