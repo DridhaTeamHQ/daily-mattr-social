@@ -22,7 +22,10 @@ export function ReferralLinkCard({
   code: string;
   siteUrl: string;
 }) {
-  const link = `${siteUrl.replace(/\/$/, "")}/r/${code}`;
+  // The short form. `/r/${code}` still works and always will — it is in
+  // WhatsApp threads and on printed cards — but this is the one worth putting
+  // in front of someone who may have to read it off a screen and type it.
+  const link = `${siteUrl.replace(/\/$/, "")}/${code}`;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
