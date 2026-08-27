@@ -4,7 +4,7 @@ import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { getTextSetting } from "@/lib/settings";
 
-export const metadata = { title: "Android only for now" };
+export const metadata = { title: "Coming soon to iOS" };
 
 /**
  * Where `/r/[code]` sends an iPhone.
@@ -40,14 +40,30 @@ export default async function AndroidOnlyPage() {
           <Smartphone className="size-6" />
         </div>
 
-        <h1 className="display mt-5 text-[30px] leading-none text-gray-900">
-          Android only, for now
+        {/* Display type, but not its uppercase: the wordmark directly above
+            this is lowercase, and `.display` would shout DAILYMATTR back at a
+            reader who has just looked at the logo. Important because `.display`
+            is itself a utility defined after Tailwind's, so a plain
+            `normal-case` loses on source order rather than specificity. */}
+        <h1 className="display mt-5 text-[26px] leading-tight text-gray-900 normal-case!">
+          dailymattr is coming soon to the App Store!
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed font-medium text-gray-500">
-          DailyMattr isn&apos;t on the App Store yet. If you&apos;re on an
-          Android phone you can install it today — and hold on to the referral
-          code you were given either way, it still counts when the iPhone
-          version lands.
+          We&apos;re working on bringing the full dailymattr experience to
+          iPhone, so you can stay updated on what matters, wherever you are.
+        </p>
+        <p className="mt-4 text-[14px] leading-relaxed font-extrabold text-gray-900">
+          Hang tight — the iOS version is on its way!
+        </p>
+        <p className="mt-1.5 text-[14px] leading-relaxed font-medium text-gray-500">
+          Until then, keep catching up with dailymattr on Android.
+        </p>
+        {/* The one thing this page has to carry that the card does not: they
+            arrived holding somebody's referral code, and the ambassador only
+            gets credited if it survives the wait. */}
+        <p className="mt-4 text-[13px] leading-relaxed font-medium text-gray-400">
+          Hold on to the referral code you were given — it still counts when the
+          iPhone version lands.
         </p>
 
         <div className="mt-7 flex justify-center">

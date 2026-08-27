@@ -49,10 +49,6 @@ export function ReferralLinkCard({
         <p className="mt-1.5 font-mono text-[13px] leading-relaxed font-bold break-all text-gray-900">
           {link}
         </p>
-        <p className="mt-2 text-[12.5px] font-semibold text-gray-500">
-          Opens the Play Store and counts the click.
-        </p>
-
         {/* Share sends the code and the link together; Copy link is the one
             for pasting into something that only wants a URL. */}
         <div className="mt-4">
@@ -70,32 +66,32 @@ export function ReferralLinkCard({
         </div>
       </div>
 
-      {/* ─── iPhone: locked, and honest about why ─────────────────────────── */}
+      {/* ─── iOS: not here yet, and said as a promise rather than a refusal ── */}
       <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6">
         <div className="flex items-center gap-3">
           <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-200 text-gray-400">
-            <Lock className="size-5" aria-label="Locked" />
+            <Lock className="size-5" aria-label="Coming soon" />
           </div>
           <div>
-            <p className="text-[13px] font-extrabold text-gray-500">iPhone</p>
+            <p className="text-[13px] font-extrabold text-gray-500">iOS</p>
             <p className="text-[11px] font-extrabold tracking-wider text-gray-400 uppercase">
-              Not available yet
+              Coming soon
             </p>
           </div>
         </div>
 
-        <p className="mt-4 text-[13px] leading-relaxed font-semibold text-gray-500">
-          DailyMattr isn&apos;t on the App Store yet, so there is no iPhone link
-          to share.
+        <p className="mt-4 text-[13px] leading-relaxed font-extrabold text-gray-600">
+          dailymattr is coming soon to the App Store!
         </p>
-        {/* What happens anyway, said plainly. A student who does not know this
-            reads a silent locked box as "do not send my link to iPhone
-            friends", when the truth is closer to "you can, and they will be
-            told to wait" — and the click still counts toward their number. */}
-        <p className="mt-2.5 text-[12.5px] leading-relaxed font-semibold text-gray-400">
-          Send your link to an iPhone friend anyway and they&apos;ll see a note
-          explaining it&apos;s Android-only for now. The tap is still counted,
-          and your code still works for them when it launches.
+        <p className="mt-2.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
+          We&apos;re working on bringing the full dailymattr experience to
+          iPhone, so you can stay updated on what matters, wherever you are.
+        </p>
+        <p className="mt-3 text-[12.5px] leading-relaxed font-extrabold text-gray-600">
+          Hang tight — the iOS version is on its way!
+        </p>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
+          Until then, keep catching up with dailymattr on Android.
         </p>
       </div>
     </div>
