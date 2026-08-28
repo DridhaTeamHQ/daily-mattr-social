@@ -20,12 +20,10 @@ export function DownloadsCell({
   profileId,
   name,
   value,
-  voided,
 }: {
   profileId: string;
   name: string;
   value: number;
-  voided: number;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(String(value));
@@ -117,10 +115,6 @@ export function DownloadsCell({
         </span>
         <Pencil className="size-3.5 text-ink-faint group-hover:text-ink" />
       </button>
-
-      {voided > 0 && (
-        <span className="text-[11.5px] font-bold text-bad">{voided} voided</span>
-      )}
     </div>
   );
 }

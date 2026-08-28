@@ -172,7 +172,6 @@ export default async function AdminInstallsPage({
                         profileId={row.id}
                         name={row.full_name || row.email}
                         value={row.confirmed}
-                        voided={row.voided}
                       />
                     </td>
 
