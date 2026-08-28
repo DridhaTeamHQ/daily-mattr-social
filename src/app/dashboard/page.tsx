@@ -12,11 +12,28 @@ import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
 
+/**
+ * What each placing on the install board is worth saying.
+ *
+ * Written per rank rather than as "You're #N", because the whole point of the
+ * badge is that it is worth screenshotting — and "#4 for installs" is a
+ * statistic, not something anybody sends to a friend. Only the top five ever
+ * see one; see `getInstallRank`.
+ */
+const INSTALL_RANK_BADGE: Record<number, string> = {
+  1: "#1. That's a flex",
+  2: "#2. One spot to go",
+  3: "#3. On the podium",
+  4: "#4. Podium's in sight",
+  5: "#5. Top five on campus",
+};
+
 export default async function DashboardPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
 
-  const { profile, standing, campaigns, surveys, referrals, streak } = data;
+  const { profile, standing, campaigns, surveys, referrals, streak, installRank } =
+    data;
   const openTasks = campaigns
     .flatMap((campaign) => campaign.tasks)
     .filter((task) => task.submission_status === null).length;
@@ -88,6 +105,10 @@ export default async function DashboardPage() {
             icon={ClipboardList}
             tone="poll"
           />
+          {/* The placing is only ever set for the top few with at least one
+              install — see `getInstallRank`. Everyone else gets the tile they
+              had, because a rank is only worth showing to someone it is good
+              news for. */}
           <Stat
             label="Installs"
             value={referrals.total_confirmed}
@@ -96,6 +117,7 @@ export default async function DashboardPage() {
                 ? `Last ${formatDate(referrals.last_conversion)}`
                 : "None yet"
             }
+            badge={installRank ? INSTALL_RANK_BADGE[installRank] : undefined}
             icon={Gift}
             tone="invite"
           />

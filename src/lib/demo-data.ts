@@ -165,6 +165,10 @@ export const demoDashboard: DashboardData = {
     last_conversion: at(-2),
   },
 
+  // Third on the install board, so the demo shows the badge rather than
+  // leaving the one tile that can carry it looking like it never does.
+  installRank: 3,
+
   streak: 4,
 
   notifications: [

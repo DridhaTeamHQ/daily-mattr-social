@@ -170,6 +170,11 @@ export type DashboardData = {
     points_earned: number;
     last_conversion: string | null;
   };
+  /**
+   * Placing on the install board, or null for everybody outside the top few.
+   * See `getInstallRank` for why most people get nothing rather than a number.
+   */
+  installRank: number | null;
   recentLedger: LedgerEntry[];
   /** Consecutive days they showed up — signing in included — for the flame. */
   streak: number;
@@ -192,6 +197,74 @@ export async function mustChangePassword(): Promise<boolean> {
 /** True when the screens are showing fixtures rather than real data. */
 export function isDemoMode(): boolean {
   return !isSupabaseConfigured();
+}
+
+/** How far down the install board we bother telling someone they are. */
+const INSTALL_RANK_CUTOFF = 5;
+
+/**
+ * Where this ambassador sits on the install board, if they are near the top.
+ *
+ * Returns a placing only for the top few, and only for somebody who has
+ * actually referred an install. Everyone else gets null and the tile says
+ * nothing — being told you are 31st is not encouragement, and telling somebody
+ * on zero that they are "top 5" because only four people have ever referred
+ * anyone would make the badge worthless the first time it happened.
+ *
+ * Ranked over the service-role client for the same reason the leaderboards
+ * are: RLS stops a student reading anyone else's conversions, and it must stay
+ * that way. Only the placing comes back — no names, no counts, nothing about
+ * anybody else.
+ *
+ * Standard competition ranking, so two people on nine installs are both 2nd
+ * and the next is 4th. Sharing a placing is the honest answer; breaking the
+ * tie on something the students cannot see is not.
+ */
+async function getInstallRank(subjectId: string): Promise<number | null> {
+  try {
+    const db = createAdminClient();
+
+    const [profiles, conversions] = await Promise.all([
+      db
+        .from("profiles")
+        .select("id")
+        .eq("role", "ambassador")
+        .eq("status", "active"),
+      db
+        .from("referral_conversions")
+        .select("ambassador_id")
+        .eq("status", "counted"),
+    ]);
+
+    if (profiles.error || conversions.error) return null;
+
+    // Suspended and removed accounts are off the board, exactly as they are on
+    // every other leaderboard — otherwise a placing counts people the
+    // programme no longer does.
+    const active = new Set((profiles.data ?? []).map((p) => p.id));
+    if (!active.has(subjectId)) return null;
+
+    const counts = new Map<string, number>();
+    for (const row of conversions.data ?? []) {
+      if (!row.ambassador_id || !active.has(row.ambassador_id)) continue;
+      counts.set(row.ambassador_id, (counts.get(row.ambassador_id) ?? 0) + 1);
+    }
+
+    const mine = counts.get(subjectId) ?? 0;
+    if (mine <= 0) return null;
+
+    let ahead = 0;
+    for (const [id, n] of counts) {
+      if (id !== subjectId && n > mine) ahead += 1;
+    }
+
+    const rank = ahead + 1;
+    return rank <= INSTALL_RANK_CUTOFF ? rank : null;
+  } catch {
+    // A tile that quietly loses its badge is better than a dashboard that
+    // fails to load over a decoration.
+    return null;
+  }
 }
 
 export const getDashboard = cache(async (): Promise<DashboardData | null> => {
@@ -225,6 +298,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
     streakRes,
     notificationsRes,
     campaigns,
+    installRank,
   ] = await Promise.all([
       supabase
         .from("profiles")
@@ -256,6 +330,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         .order("created_at", { ascending: false })
         .limit(20),
       getCampaigns(),
+      getInstallRank(subjectId),
     ]);
 
   const profile = profileRes.data;
@@ -317,6 +392,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
     recentLedger: ledgerRes.data ?? [],
     streak: previewStreakDays ?? streakRes.data ?? 0,
     notifications: notificationsRes.data ?? [],
+    installRank,
   };
 });
 

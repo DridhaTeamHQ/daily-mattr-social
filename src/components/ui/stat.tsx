@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock, Trophy } from "lucide-react";
 
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -24,6 +24,7 @@ export function Stat({
   label,
   value,
   sub,
+  badge,
   icon: Icon,
   cornerIcon: CornerIcon,
   tone = "brand",
@@ -34,6 +35,12 @@ export function Stat({
   label: string;
   value: string | number;
   sub?: string;
+  /**
+   * A short pill under the figure, for something worth singling out — a
+   * placing, a streak that is still running. Optional and rare on purpose: a
+   * badge on every tile is a badge on none of them.
+   */
+  badge?: string;
   icon?: React.ComponentType<{ className?: string }>;
   cornerIcon?: React.ComponentType<{ className?: string }>;
   tone?: StatTone;
@@ -107,6 +114,12 @@ export function Stat({
         </p>
         {sub && (
           <p className="mt-0.5 text-[12px] font-medium text-gray-500">{sub}</p>
+        )}
+        {badge && !locked && (
+          <p className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold tracking-wide text-amber-700">
+            <Trophy className="size-3" aria-hidden />
+            {badge}
+          </p>
         )}
       </div>
     </div>
