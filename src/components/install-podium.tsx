@@ -1,4 +1,4 @@
-import { Crown, Sparkles, Trophy } from "lucide-react";
+import { Crown, Trophy } from "lucide-react";
 
 import type { InstallPodiumRow } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -36,9 +36,13 @@ export type InstallPodiumMe = {
  * ─── The rail ───────────────────────────────────────────────────────────────
  *
  * A podium nobody is on is someone else's trophy cabinet. The rail down the
- * side answers "and me?" in the same glance — the viewer's own installs, and
- * how many more would put them on it. That number comes from the third-place
- * count already printed on the podium, so it leaks nothing new.
+ * side answers "and me?" in the same glance — the viewer's own count, their
+ * placing, and a line written for the place they are actually standing in.
+ *
+ * Three counts, not three names: everybody level on seven installs shares a
+ * place, so one of them stands on the block — which leaves the third block for
+ * the third best count rather than spending the whole podium on one number.
+ * See `getInstallBoard`.
  *
  * Three, not ten: the full board already exists at /dashboard/leaderboard and
  * ranks by task completion. This is the other thing the programme is actually
@@ -65,6 +69,12 @@ export function InstallPodium({
 
   const placed = rows.map((row, i) => ({ row, rank: i + 1 }));
 
+  // Confetti is thrown for the viewer, not for the board. On somebody else's
+  // third place it is decoration on a card about other people; on your own it
+  // is the reward, so it falls only when the person reading is one of the
+  // three counts standing on it.
+  const mine = me.rank !== null && me.rank <= INSTALL_PODIUM_PLACES;
+
   /**
    * Second, first, third — the order they stand in, not the order they placed.
    *
@@ -90,7 +100,7 @@ export function InstallPodium({
           the card's edge and stand on it. `overflow-hidden` keeps their corners
           — and the confetti — inside the radius. */}
       <div className="relative mt-3 overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-b from-amber-50/70 via-white to-gray-50 shadow-sm">
-        <Confetti />
+        {mine ? <Confetti /> : null}
 
         <div className="relative flex flex-col sm:flex-row sm:items-stretch">
           {/* ─── The podium ─────────────────────────────────────────────── */}
@@ -152,7 +162,10 @@ export function InstallPodium({
                 <p
                   className={cn(
                     "mt-2 w-full break-words text-center text-[11.5px] font-extrabold leading-tight sm:text-[13px]",
-                    row.isMe ? "text-brand-strong" : "text-ink",
+                    // The page's blue, the same one the nav pill and the tile
+                    // labels take, so "You" is recognisably the same accent
+                    // rather than a second, darker blue nothing else uses.
+                    row.isMe ? "text-brand" : "text-ink",
                   )}
                   title={row.isMe ? "You" : row.name}
                 >
@@ -169,7 +182,7 @@ export function InstallPodium({
                     MEDAL[rank]?.block,
                     BLOCK_HEIGHT[rank],
                     // Nothing marks the viewer's own block. The name above it
-                    // already says "You" in the brand colour, and a blue
+                    // already says "You" in the brand blue, and a blue
                     // outline on a gold or copper block was a fourth colour
                     // fighting the three the podium is made of.
                   )}
@@ -199,7 +212,7 @@ export function InstallPodium({
           </ol>
 
           {/* ─── And you ────────────────────────────────────────────────── */}
-          <YouRail me={me} podium={placed} />
+          <YouRail me={me} />
         </div>
       </div>
     </section>
@@ -213,24 +226,12 @@ export function InstallPodium({
  * read from the viewer's seat, not a second statistic. It stacks below the
  * podium on a phone, where there is no side to put it on.
  */
-function YouRail({
-  me,
-  podium,
-}: {
-  me: InstallPodiumMe;
-  podium: { row: InstallPodiumRow; rank: number }[];
-}) {
-  const onPodium = podium.some(({ row }) => row.isMe);
-
-  // The bar to clear is the lowest count actually standing — third on a full
-  // podium, second or first while it is still filling up. One more than that
-  // is what it takes to get on, ties going to whoever was there first.
-  const lowest = podium[podium.length - 1]?.row.installs ?? 0;
-  const toGo = lowest + 1 - me.installs;
+function YouRail({ me }: { me: InstallPodiumMe }) {
+  const { tone, line } = railMessage(me.rank);
 
   return (
     <div className="flex shrink-0 flex-col justify-center gap-1 border-t border-gray-100 px-4 py-4 sm:w-[188px] sm:border-l sm:border-t-0 sm:px-5 sm:py-6">
-      <p className="text-[10.5px] font-extrabold uppercase tracking-widest text-gray-400">
+      <p className="text-[10.5px] font-extrabold uppercase tracking-widest text-amber-600">
         Your installs
       </p>
 
@@ -243,28 +244,63 @@ function YouRail({
         ) : null}
       </div>
 
-      <p className="text-[12px] font-semibold text-gray-500">
-        {onPodium ? (
-          <span className="inline-flex items-center gap-1 text-amber-700">
-            <Sparkles className="size-3.5" aria-hidden />
-            You&rsquo;re on the podium
-          </span>
-        ) : me.installs === 0 ? (
-          "Share your link to get on the board."
-        ) : toGo > 0 ? (
-          <>
-            <span className="font-extrabold text-ink">{toGo} more</span> to reach the podium.
-          </>
-        ) : (
-          "Right on the edge of the podium."
+      <p
+        className={cn(
+          "text-[12px] font-semibold leading-snug",
+          tone === "gold" ? "text-amber-700" : "text-gray-500",
         )}
+      >
+        {line}
       </p>
     </div>
   );
 }
 
 /**
+ * What the rail says, for the place the viewer is actually in.
+ *
+ * Five situations, five lines, and every one of them ends on the move rather
+ * than the standing: a rail that says "you are third" and stops has told
+ * somebody something the podium beside it already said.
+ *
+ * The placing is the dense one from `getInstallBoard` — a count, not a row —
+ * so everybody level on seven installs reads the same line. Null is eleventh
+ * or below, the one band the board does not put a number on.
+ */
+function railMessage(rank: number | null): { tone: "gold" | "plain"; line: string } {
+  if (rank === 1) {
+    return {
+      tone: "plain",
+      line: "You’re on top!! Keep referring. Don’t let anyone steal the crown.. PROTECT IT!",
+    };
+  }
+
+  if (rank === 2) {
+    return { tone: "plain", line: "So close! First place is right there.. GO TAKE IT!" };
+  }
+
+  if (rank === 3) {
+    return { tone: "plain", line: "You made the podium!! Now make it to FIRST!!" };
+  }
+
+  if (rank !== null) {
+    return {
+      tone: "plain",
+      line: "The podium is calling.. A few more referrals and YOU'RE IN!",
+    };
+  }
+
+  return {
+    tone: "plain",
+    line: "Not on the podium yet? Time to make your move.. NOW!",
+  };
+}
+
+/**
  * A handful of paper scraps across the top of the card.
+ *
+ * Only for the three counts on the board, and only on their own dashboard —
+ * see `mine` above.
  *
  * Fixed positions rather than random ones: this renders on the server, and
  * anything random here would differ between the server and client HTML.
@@ -282,6 +318,9 @@ function Confetti() {
     </span>
   );
 }
+
+/** Places the podium has, and so the placings the confetti falls for. */
+const INSTALL_PODIUM_PLACES = 3;
 
 const CONFETTI = [
   { left: "6%", top: "18px", rotate: 24, className: "h-2 w-1 bg-amber-300/70" },

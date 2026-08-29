@@ -201,8 +201,15 @@ export function isDemoMode(): boolean {
   return !isSupabaseConfigured();
 }
 
-/** How far down the install board we bother telling someone they are. */
-const INSTALL_RANK_CUTOFF = 5;
+/**
+ * How far down the install board we bother telling someone they are.
+ *
+ * Ten counts down, which is where the rail's copy changes: first, second and
+ * third get their own line, fourth to tenth are told the podium is in reach,
+ * and below that the board stops putting a number on it. Being told you are
+ * thirty-first is not encouragement.
+ */
+const INSTALL_RANK_CUTOFF = 10;
 
 /** How many places the dashboard podium shows. */
 const INSTALL_PODIUM_SIZE = 3;
@@ -245,9 +252,27 @@ export type InstallPodiumRow = {
  * that they are "top 5" because only four people have ever referred anyone
  * would make the badge worthless the first time it happened.
  *
- * Standard competition ranking, so two people on nine installs are both 2nd
- * and the next is 4th. Sharing a placing is the honest answer; breaking the
- * tie on something the students cannot see is not.
+ * ─── Places are counts, not people ─────────────────────────────────────────
+ *
+ * Ranked densely: everybody on nine installs is 2nd, and the next count down
+ * is 3rd rather than 5th. So the three blocks on the podium are the three
+ * leading *counts* — 10, 7, 6 — and not simply the first three names, which
+ * on a board where four people are level on seven would have spent the whole
+ * podium on one number and never shown third place at all.
+ *
+ * Each block carries one name and, where the count is shared, how many others
+ * are standing on it. Sharing a placing is the honest answer; breaking the tie
+ * on something the students cannot see is not.
+ *
+ * ─── Ties go to whoever is looking ──────────────────────────────────────────
+ *
+ * The placing already works that way — it counts only the people strictly
+ * ahead — and the podium is built to match: among equal counts the viewer is
+ * sorted first, so two ambassadors on ten installs each stand on the gold
+ * block in their own portal. Neither is being told something untrue. They are
+ * level, there is no honest way to put one above the other, and a board that
+ * broke the tie on alphabetical order would be handing one of them a place
+ * they did not earn and taking it off the other for a reason nobody can see.
  */
 async function getInstallBoard(subjectId: string): Promise<{
   rank: number | null;
@@ -285,33 +310,46 @@ async function getInstallBoard(subjectId: string): Promise<{
       counts.set(row.ambassador_id, (counts.get(row.ambassador_id) ?? 0) + 1);
     }
 
-    // Ties broken by name so the order is stable between loads. Two people on
-    // four installs still share a placing; this only decides which of them is
-    // printed first, and a podium that reshuffles on refresh looks broken.
+    // Count first, then the viewer, then the name. The middle term is the tie
+    // rule: level with the leader means standing on the gold block on your own
+    // dashboard, and the same person sees themselves there on theirs. The name
+    // is what is left, so the rest of the podium is stable between loads
+    // rather than reshuffling on refresh.
     const ranked = [...counts.entries()]
       .filter(([, n]) => n > 0)
       .sort(
         ([aId, aN], [bId, bN]) =>
-          bN - aN || (names.get(aId) ?? "").localeCompare(names.get(bId) ?? ""),
+          bN - aN ||
+          Number(bId === subjectId) - Number(aId === subjectId) ||
+          (names.get(aId) ?? "").localeCompare(names.get(bId) ?? ""),
       );
 
-    const podium: InstallPodiumRow[] = ranked
+    // One entry per count, in order, each already headed by the person the
+    // sort above put first — the viewer, when they are one of the people on
+    // it. Three levels, so the podium's third block is the third best count
+    // and not the third name on the leading one.
+    const levels: { installs: number; ids: string[] }[] = [];
+    for (const [id, installs] of ranked) {
+      const level = levels[levels.length - 1];
+      if (level && level.installs === installs) level.ids.push(id);
+      else levels.push({ installs, ids: [id] });
+    }
+
+    const podium: InstallPodiumRow[] = levels
       .slice(0, INSTALL_PODIUM_SIZE)
-      .map(([id, installs]) => ({
-        name: (names.get(id) ?? "").trim().replace(/\s+/g, " ") || "Someone",
+      .map(({ installs, ids }) => ({
+        name: (names.get(ids[0]) ?? "").trim().replace(/\s+/g, " ") || "Someone",
         installs,
-        isMe: id === subjectId,
+        isMe: ids[0] === subjectId,
       }));
 
     let rank: number | null = null;
     const mine = names.has(subjectId) ? (counts.get(subjectId) ?? 0) : 0;
     if (mine > 0) {
-      let ahead = 0;
-      for (const [id, n] of counts) {
-        if (id !== subjectId && n > mine) ahead += 1;
-      }
-      const placing = ahead + 1;
-      if (placing <= INSTALL_RANK_CUTOFF) rank = placing;
+      // Counts above theirs, not people: four ambassadors on seven installs
+      // are all 2nd, and somebody on six is 3rd.
+      const placing = levels.findIndex((level) => level.installs === mine) + 1;
+      if (placing > 0 && placing <= INSTALL_RANK_CUTOFF) rank = placing;
     }
 
     return { rank, podium };

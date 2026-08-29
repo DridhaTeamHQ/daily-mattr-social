@@ -39,6 +39,28 @@ export default async function AdminInstallsPage({
     matches(query, r.full_name, r.email, r.college, r.referral_code),
   );
 
+  /**
+   * Where each ambassador places, by download count rather than by row.
+   *
+   * Dense ranking, the same as the ambassadors' own podium: everybody on seven
+   * downloads is 2nd and the next count down is 3rd, not 5th. Ranking by row
+   * number instead would tell four people level on seven that one of them is
+   * second and another fourth, which is a difference the numbers do not have.
+   *
+   * Computed over the whole board and read by id, so filtering the table with
+   * the search box narrows what is shown without renumbering anybody.
+   */
+  const places = new Map<string, number>();
+  let place = 0;
+  let previous: number | null = null;
+  for (const row of summary.rows) {
+    if (row.confirmed !== previous) {
+      place += 1;
+      previous = row.confirmed;
+    }
+    places.set(row.id, place);
+  }
+
   return (
     <div className="stagger space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -121,23 +143,26 @@ export default async function AdminInstallsPage({
               </thead>
 
               <tbody className="divide-y divide-gray-100">
-                {rows.map((row, i) => (
+                {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-canvas-sunk/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        {/* Only the top three get a rank chip — beyond that it
-                            is a list, not a podium. */}
+                        {/* Only the top three counts get a rank chip — beyond
+                            that it is a list, not a podium. Everybody level on
+                            a count wears the same chip, which is the point. */}
                         <span
                           className={cn(
                             "tabular grid size-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold text-ink",
-                            !query && i < 3 && row.confirmed > 0
+                            (places.get(row.id) ?? 0) <= 3 && row.confirmed > 0
                               ? cn(
-                                  ["bg-brand", "bg-canvas-sunk", "bg-invite-tint"][i],
+                                  ["bg-brand", "bg-canvas-sunk", "bg-invite-tint"][
+                                    (places.get(row.id) ?? 1) - 1
+                                  ],
                                 )
                               : "text-ink-faint",
                           )}
                         >
-                          {i + 1}
+                          {places.get(row.id)}
                         </span>
 
                         <span
