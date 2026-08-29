@@ -3,7 +3,6 @@ import { after } from "next/server";
 import { ClipboardCheck, ClipboardList, Gift } from "lucide-react";
 
 import { CompletionMilestoneWatcher } from "@/components/level-up";
-import { InstallPodium } from "@/components/install-podium";
 import { ProgressHero, TierTrack } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
@@ -91,23 +90,15 @@ export default async function DashboardPage() {
             completionPct={completionPct}
             approvedTasks={approvedTasks}
             totalTasks={totalTasks}
+            installPodium={installPodium}
+            installMe={{ installs: referrals.total_confirmed, rank: installRank }}
             celebrate={justApproved}
           />
           <TierTrack completionPct={completionPct} />
         </div>
       </section>
 
-                  
-      {/* Directly under the tiles, so it reads as the answer to the Installs
-          number immediately above it rather than as an unrelated board. Renders
-          nothing at all until somebody has referred an install. */}
-      <InstallPodium
-        rows={installPodium}
-        me={{ installs: referrals.total_confirmed, rank: installRank }}
-      />
-
-
-      <section>
+            <section>
         <SectionHeader title="Your tasks" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Stat

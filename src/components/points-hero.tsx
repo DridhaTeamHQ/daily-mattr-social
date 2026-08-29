@@ -5,7 +5,9 @@ import * as React from "react";
 import { CheckCircle2, Flame, Info, Lock, Star, Trophy } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
+import { InstallPodiumScene, type InstallPodiumMe } from "@/components/install-podium";
 import { MilestoneLevel } from "@/components/milestone-runner";
+import type { InstallPodiumRow } from "@/lib/queries";
 import { cn, formatNumber } from "@/lib/utils";
 
 export const COMPLETION_TIERS = [
@@ -84,6 +86,8 @@ export function ProgressHero({
   completionPct,
   approvedTasks,
   totalTasks,
+  installPodium,
+  installMe,
   celebrate = false,
 }: {
   rank: number | null;
@@ -94,6 +98,9 @@ export function ProgressHero({
   completionPct: number;
   approvedTasks: number;
   totalTasks: number;
+  /** The install board, drawn inside the level rather than in a card of its own. */
+  installPodium: InstallPodiumRow[];
+  installMe: InstallPodiumMe;
   celebrate?: boolean;
 }) {
   const fireConfetti = useCelebration();
@@ -224,16 +231,17 @@ export function ProgressHero({
         </div>
       </div>
 
-      {next && (
-        <MilestoneLevel
-          name={next.name}
-          at={next.at}
-          remaining={next.at - completionPct}
-          pct={completionPct}
-          approvedTasks={approvedTasks}
-          totalTasks={totalTasks}
-        />
-      )}
+      {/* Rendered whether or not there is a tier left to run at. It used to be
+          gated on `next`, which was harmless when the card was only a progress
+          bar — but the podium lives in it now, and hiding the board from the
+          one person who has cleared every tier is exactly backwards. */}
+      <MilestoneLevel
+        next={next}
+        pct={completionPct}
+        approvedTasks={approvedTasks}
+        totalTasks={totalTasks}
+        podium={<InstallPodiumScene rows={installPodium} me={installMe} />}
+      />
     </div>
   );
 }

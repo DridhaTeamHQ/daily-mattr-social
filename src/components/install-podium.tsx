@@ -1,9 +1,8 @@
-import { Crown, Sparkles, Trophy } from "lucide-react";
-
+import { Coin } from "@/components/milestone-runner";
 import type { InstallPodiumRow } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-/** Where the viewer themselves stands, for the rail beside the podium. */
+/** Where the viewer themselves stands, for the coin counter above the podium. */
 export type InstallPodiumMe = {
   installs: number;
   /** Only ever set for the top few — see `getInstallBoard`. */
@@ -11,34 +10,34 @@ export type InstallPodiumMe = {
 };
 
 /**
- * The three ambassadors bringing in the most installs, drawn as a podium, with
- * the viewer's own count standing beside it.
+ * The three ambassadors bringing in the most installs, standing on a podium
+ * built out of the same blocks as the level they are standing in.
  *
  * A podium rather than three cards in a row, because the shape carries the
  * ranking on its own: the winner is taller and in the middle, and you read the
  * order before you read a single name. Three equal boxes need their numbers
  * read to mean anything.
  *
- * The blocks sit flush against each other and run into the bottom edge of the
- * card, so the card itself is the floor they stand on. Spaced apart and
- * floating above a gap they read as three unrelated bars, which is the shape
- * losing the one thing it was drawn for.
+ * ─── Why it lives inside the level ──────────────────────────────────────────
  *
- * ─── Why it is dressed up ───────────────────────────────────────────────────
+ * It used to be its own card, in its own idiom — a cream card with confetti,
+ * sat directly under a pixel-art one. Two celebrations in two visual languages
+ * stacked on top of each other, and neither of them the thing the eye went to.
+ * They are the same idea anyway: here is how far along you are, and here is
+ * who is ahead. So the podium moved into the level, got built out of blocks,
+ * and the scene now says both at once.
  *
- * Being top three is the reward — there is nothing else attached to it — so
- * the drawing has to do the work a prize would. Hence the warm stage light
- * behind first place, the crown, the confetti, the blocks pushing up out of
- * the floor on load and the gleam that crosses the gold one. Every bit of it
- * is CSS on plain divs: no JavaScript ships, and `prefers-reduced-motion`
- * kills the loops globally in `globals.css`.
+ * The columns stand on their own brick ledge rather than on the track below.
+ * The runner is on that track and moves with the viewer's completion, so
+ * anything else standing on it would sooner or later be stood inside — a
+ * floating platform is both the fix and the more Mario answer.
  *
- * ─── The rail ───────────────────────────────────────────────────────────────
+ * ─── The coin counter ───────────────────────────────────────────────────────
  *
- * A podium nobody is on is someone else's trophy cabinet. The rail down the
- * side answers "and me?" in the same glance — the viewer's own installs, and
- * how many more would put them on it. That number comes from the third-place
- * count already printed on the podium, so it leaks nothing new.
+ * A podium nobody is on is someone else's trophy cabinet, so the viewer's own
+ * installs go above it, counted in coins the way the HUD counts everything
+ * else. The gap to the podium comes from the third-place count already printed
+ * on it, so it leaks nothing new.
  *
  * Three, not ten: the full board already exists at /dashboard/leaderboard and
  * ranks by task completion. This is the other thing the programme is actually
@@ -48,10 +47,10 @@ export type InstallPodiumMe = {
  * its winners can see cannot make anybody climb, and the three on it get more
  * out of being named on forty-eight dashboards than on three.
  *
- * First names only, and nothing about anyone outside the three — see
- * `getInstallBoard`, which is where that boundary is drawn.
+ * Nothing about anyone outside the three — see `getInstallBoard`, which is
+ * where that boundary is drawn.
  */
-export function InstallPodium({
+export function InstallPodiumScene({
   rows,
   me,
 }: {
@@ -60,7 +59,8 @@ export function InstallPodium({
 }) {
   // Nothing to celebrate until somebody has referred an install. An empty
   // podium is three grey blocks asking to be filled, which is a worse look
-  // than no section at all.
+  // than no section at all — and here it would also be three blocks of dead
+  // scenery in the middle of the level.
   if (rows.length === 0) return null;
 
   const placed = rows.map((row, i) => ({ row, rank: i + 1 }));
@@ -74,257 +74,163 @@ export function InstallPodium({
    */
   const standing = [placed[1], placed[0], placed[2]].filter(Boolean);
 
+  const onPodium = placed.some(({ row }) => row.isMe);
+
+  // The bar to clear is the lowest count actually standing — third on a full
+  // podium, second or first while it is still filling up. One more than that
+  // is what it takes to get on, ties going to whoever was there first.
+  const lowest = placed[placed.length - 1]?.row.installs ?? 0;
+  const toGo = lowest + 1 - me.installs;
+
   return (
-    <section>
-      <div className="flex items-center gap-2">
-        <Trophy className="size-4 text-amber-500" aria-hidden />
-        <h2 className="text-[13px] font-extrabold tracking-wide text-ink uppercase">
-          Top referrers
-        </h2>
+    <section className="relative mt-3" aria-label="Top referrers">
+      {/* ─── The HUD line ──────────────────────────────────────────────────
+          The viewer's own installs, counted the way a HUD counts things. */}
+      <div className="mario-hud flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[11px] sm:text-[12px]">
+        <span className="tracking-[0.16em] uppercase">Top referrers</span>
+        {/* The coin and the count are one flex item, so a narrow screen wraps
+            the sentence after them rather than between them. */}
+        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <Coin className="shrink-0" />
+          <strong className="font-black">&times; {me.installs}</strong>
+        </span>
+        <span className="opacity-85">
+          {onPodium
+            ? "you're on the podium"
+            : me.installs === 0
+              ? "share your link to get on the board"
+              : toGo > 0
+                ? `${toGo} more to reach the podium`
+                : "right on the edge of the podium"}
+        </span>
       </div>
-      <p className="mt-1 text-[12.5px] font-medium text-gray-500">
-        Most app installs brought in so far.
-      </p>
 
-      {/* No bottom padding on the podium column: the blocks are meant to reach
-          the card's edge and stand on it. `overflow-hidden` keeps their corners
-          — and the confetti — inside the radius. */}
-      <div className="relative mt-3 overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-b from-amber-50/70 via-white to-gray-50 shadow-sm">
-        <Confetti />
+      {/* ─── The platform ──────────────────────────────────────────────────
+          Blocks and ledge share one wrapper so their edges line up. */}
+      <div className="mx-auto mt-1.5 w-full max-w-[420px]">
+        <ol className="flex items-end justify-center">
+          {standing.map(({ row, rank }, i) => (
+            <li key={`${rank}-${row.name}`} className="flex min-w-0 flex-1 flex-col items-center">
+              {/* ─── Who ─────────────────────────────────────────────────── */}
+              {rank === 1 ? (
+                <PixelCrown className="block-bob" />
+              ) : (
+                <span className="block h-[15px]" aria-hidden />
+              )}
 
-        <div className="relative flex flex-col sm:flex-row sm:items-stretch">
-          {/* ─── The podium ─────────────────────────────────────────────── */}
-          {/* Capped and centred, because across the full dashboard width three
-              columns strand the shape in the middle of an empty card. Wide
-              enough that a full name gets a line to itself at this size —
-              names are the point of the board, so the shape gives way to them
-              rather than the other way round. */}
-          {/* The padding and the gap are cut right back on a phone, where the
-              three columns are dividing 343px between them and every pixel
-              taken by the frame comes straight out of a name. */}
-          <ol className="mx-auto flex w-full max-w-[540px] items-end justify-center gap-1.5 px-2 pt-7 sm:gap-2 sm:px-6">
-            {standing.map(({ row, rank }, i) => (
-              <li
-                key={`${rank}-${row.name}`}
-                className="relative flex min-w-0 flex-1 flex-col items-center"
+              {/* Name and count on one line rather than two. The card is a
+                  scene sitting above the fold on every dashboard, so every row
+                  of text here costs the level height it cannot spare — and
+                  "installs" is a word the HUD above has already said.
+
+                  The viewer's own name is coin yellow, set inline because
+                  `.mario-hud` sets a colour of its own at the same specificity
+                  as a utility class, and which of the two wins is then down to
+                  source order rather than intent. */}
+              <p
+                className="mario-hud mt-0.5 w-full px-0.5 text-center text-[10.5px] leading-tight break-words sm:text-[11.5px]"
+                style={row.isMe ? { color: "#ffe27a" } : undefined}
+                title={`${row.isMe ? "You" : row.name} — ${row.installs} installs`}
               >
-                {/* The stage light. Sits behind first place only, and only
-                    reaches as far as the block — it is meant to look like the
-                    winner is lit, not like the card has a stain. */}
-                {rank === 1 ? (
-                  <span
-                    className="pointer-events-none absolute -inset-x-4 bottom-0 top-0 -z-10 bg-[radial-gradient(ellipse_at_50%_85%,rgba(251,191,36,0.28),transparent_70%)]"
-                    aria-hidden
-                  />
-                ) : null}
-
-                {/* ─── Who ───────────────────────────────────────────────── */}
-                {rank === 1 ? (
-                  <Crown
-                    className="animate-float size-5 fill-amber-300 text-amber-500 drop-shadow-sm"
-                    aria-hidden
-                  />
-                ) : (
-                  <span className="block h-5" aria-hidden />
-                )}
-
-                <span
-                  className={cn(
-                    "animate-pop mt-0.5 grid size-11 place-items-center rounded-full text-[15px] font-extrabold shadow-sm sm:size-12",
-                    MEDAL[rank]?.avatar,
-                  )}
-                  style={{ animationDelay: `${POP_DELAY[rank]}ms` }}
-                >
-                  {row.name.charAt(0).toUpperCase()}
+                {row.isMe ? "You" : row.name}{" "}
+                <span className="font-black whitespace-nowrap opacity-85">
+                  &middot; {row.installs}
                 </span>
+              </p>
 
-                {/* Wraps rather than truncates. A name cut off mid-word is
-                    the one failure this section cannot afford — the whole
-                    reward is seeing your name on it — so a long one takes a
-                    second line and the column grows upward. The blocks are
-                    bottom-aligned, so that costs the podium nothing: they all
-                    stay on the same floor however tall the names above go.
+              {/* ─── The block they stand on ───────────────────────────────
+                  No bottom border: the ledge underneath is the bottom edge,
+                  and two 3px lines meeting there would draw a seam across a
+                  podium that is meant to be one solid piece. */}
+              <div
+                className={cn(
+                  "podium-grow pixel-face relative mt-1 flex w-full items-start justify-center overflow-hidden border-[3px] border-b-0 border-ink pt-0.5",
+                  BLOCK_HEIGHT[rank],
+                  MEDAL[rank],
+                )}
+                // Third up first, the winner last, so the eye ends where the
+                // ranking does.
+                style={{ animationDelay: `${GROW_DELAY[rank]}ms` }}
+              >
+                {/* Pinned to the top of the block so the numerals line up
+                    across three different heights. */}
+                <span className="text-[15px] font-black text-ink sm:text-[18px]">{rank}</span>
 
-                    A size smaller on a phone, where three columns have to
-                    share 375px: at 13px a name like "Venkataraghavan" is wider
-                    than its column and `break-words` snaps it mid-syllable,
-                    which is the mangling this was meant to avoid. */}
-                <p
-                  className={cn(
-                    "mt-2 w-full break-words text-center text-[11.5px] font-extrabold leading-tight sm:text-[13px]",
-                    row.isMe ? "text-brand-strong" : "text-ink",
-                  )}
-                  title={row.isMe ? "You" : row.name}
-                >
-                  {row.isMe ? "You" : row.name}
-                </p>
-                <p className="mt-0.5 text-[10.5px] font-semibold text-gray-500 sm:text-[11.5px]">
-                  {row.installs} {row.installs === 1 ? "install" : "installs"}
-                </p>
+                {/* The light only ever falls on the blocks, offset by the
+                    column's position on the floor — left, middle, right — so
+                    the three of them read as a single sweep crossing the
+                    podium instead of three lamps blinking together. */}
+                <span
+                  className="podium-gleam pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/55 to-transparent"
+                  style={{ animationDelay: `${i * 500}ms` }}
+                  aria-hidden
+                />
+              </div>
+            </li>
+          ))}
+        </ol>
 
-                {/* ─── The block they stand on ───────────────────────────── */}
-                <div
-                  className={cn(
-                    "podium-grow relative mt-2 flex w-full items-start justify-center overflow-hidden rounded-t-lg pt-2",
-                    MEDAL[rank]?.block,
-                    BLOCK_HEIGHT[rank],
-                    // Nothing marks the viewer's own block. The name above it
-                    // already says "You" in the brand colour, and a blue
-                    // outline on a gold or copper block was a fourth colour
-                    // fighting the three the podium is made of.
-                  )}
-                  // Third up first, the winner last, so the eye ends where the
-                  // ranking does.
-                  style={{ animationDelay: `${GROW_DELAY[rank]}ms` }}
-                >
-                  {/* Pinned to the top of the block so the numerals line up
-                      across three different heights. */}
-                  <span className="text-[20px] font-black text-white/95 sm:text-[24px]">
-                    {rank}
-                  </span>
-
-                  {/* The light only ever falls on the blocks. One band per
-                      block rather than one across the card, offset by the
-                      column's position on the floor — left, middle, right — so
-                      the three of them read as a single sweep crossing the
-                      podium instead of three lamps blinking together. */}
-                  <span
-                    className="podium-gleam pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/55 to-transparent"
-                    style={{ animationDelay: `${i * 500}ms` }}
-                    aria-hidden
-                  />
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          {/* ─── And you ────────────────────────────────────────────────── */}
-          <YouRail me={me} podium={placed} />
-        </div>
+        {/* The ground the podium stands on. Floating, like the brick runs the
+            game hangs in mid-air, so the track below stays clear for the
+            runner. */}
+        <div className="pixel-ledge h-[9px] w-full border-[3px] border-ink" aria-hidden />
       </div>
     </section>
   );
 }
 
-/**
- * The viewer's own install count, beside the podium rather than under it.
- *
- * Divided off with a rule rather than a card of its own: it is the same board
- * read from the viewer's seat, not a second statistic. It stacks below the
- * podium on a phone, where there is no side to put it on.
- */
-function YouRail({
-  me,
-  podium,
-}: {
-  me: InstallPodiumMe;
-  podium: { row: InstallPodiumRow; rank: number }[];
-}) {
-  const onPodium = podium.some(({ row }) => row.isMe);
-
-  // The bar to clear is the lowest count actually standing — third on a full
-  // podium, second or first while it is still filling up. One more than that
-  // is what it takes to get on, ties going to whoever was there first.
-  const lowest = podium[podium.length - 1]?.row.installs ?? 0;
-  const toGo = lowest + 1 - me.installs;
-
+/** A crown on the same 3px grid as the rest of the scene. */
+function PixelCrown({ className }: { className?: string }) {
   return (
-    <div className="flex shrink-0 flex-col justify-center gap-1 border-t border-gray-100 px-4 py-4 sm:w-[188px] sm:border-l sm:border-t-0 sm:px-5 sm:py-6">
-      <p className="text-[10.5px] font-extrabold uppercase tracking-widest text-gray-400">
-        Your installs
-      </p>
-
-      <div className="flex items-baseline gap-2">
-        <span className="text-[30px] font-black leading-none text-ink">{me.installs}</span>
-        {me.rank ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-extrabold text-amber-800">
-            #{me.rank}
-          </span>
-        ) : null}
-      </div>
-
-      <p className="text-[12px] font-semibold text-gray-500">
-        {onPodium ? (
-          <span className="inline-flex items-center gap-1 text-amber-700">
-            <Sparkles className="size-3.5" aria-hidden />
-            You&rsquo;re on the podium
-          </span>
-        ) : me.installs === 0 ? (
-          "Share your link to get on the board."
-        ) : toGo > 0 ? (
-          <>
-            <span className="font-extrabold text-ink">{toGo} more</span> to reach the podium.
-          </>
-        ) : (
-          "Right on the edge of the podium."
-        )}
-      </p>
-    </div>
+    <svg
+      width="24"
+      height="15"
+      viewBox="0 0 24 15"
+      className={className}
+      shapeRendering="crispEdges"
+      aria-hidden
+    >
+      <g fill="#0a0a0a">
+        <rect x="0" y="0" width="3" height="15" />
+        <rect x="21" y="0" width="3" height="15" />
+        <rect x="9" y="0" width="6" height="3" />
+        <rect x="0" y="12" width="24" height="3" />
+      </g>
+      <g fill="#fbd000">
+        <rect x="3" y="3" width="3" height="9" />
+        <rect x="18" y="3" width="3" height="9" />
+        <rect x="9" y="3" width="6" height="9" />
+        <rect x="6" y="9" width="12" height="3" />
+      </g>
+      <g fill="#e39b1f">
+        <rect x="6" y="6" width="3" height="3" />
+        <rect x="15" y="6" width="3" height="3" />
+      </g>
+    </svg>
   );
 }
-
-/**
- * A handful of paper scraps across the top of the card.
- *
- * Fixed positions rather than random ones: this renders on the server, and
- * anything random here would differ between the server and client HTML.
- */
-function Confetti() {
-  return (
-    <span className="pointer-events-none absolute inset-x-0 top-0 h-24 overflow-hidden" aria-hidden>
-      {CONFETTI.map((bit, i) => (
-        <span
-          key={i}
-          className={cn("absolute block rounded-[1px]", bit.className)}
-          style={{ left: bit.left, top: bit.top, transform: `rotate(${bit.rotate}deg)` }}
-        />
-      ))}
-    </span>
-  );
-}
-
-const CONFETTI = [
-  { left: "6%", top: "18px", rotate: 24, className: "h-2 w-1 bg-amber-300/70" },
-  { left: "14%", top: "44px", rotate: -14, className: "h-1.5 w-1.5 bg-brand-strong/25" },
-  { left: "27%", top: "10px", rotate: 40, className: "h-2.5 w-1 bg-orange-300/60" },
-  { left: "41%", top: "34px", rotate: -30, className: "h-1 w-2 bg-amber-400/50" },
-  { left: "58%", top: "14px", rotate: 12, className: "h-2 w-1 bg-emerald-300/50" },
-  { left: "69%", top: "48px", rotate: -22, className: "h-1.5 w-1.5 bg-amber-300/60" },
-  { left: "82%", top: "22px", rotate: 34, className: "h-2.5 w-1 bg-brand-strong/20" },
-  { left: "92%", top: "52px", rotate: -8, className: "h-1 w-2 bg-orange-300/55" },
-];
 
 /**
  * Gold, silver, bronze — the one place in the app that reads as a medal.
  *
  * Third place is a muted copper rather than the bright orange it started as.
- * Orange-400 next to amber-400 is the louder colour of the two, so the eye
- * landed on the bronze block first and the podium ranked itself backwards.
- * Bronze is a dull brown metal; letting it look like one puts gold back on top
- * without having to make gold shout.
+ * Orange next to gold is the louder colour of the two, so the eye landed on
+ * the bronze block first and the podium ranked itself backwards. Bronze is a
+ * dull brown metal; letting it look like one puts gold back on top without
+ * having to make gold shout.
  */
-const MEDAL: Record<number, { avatar: string; block: string }> = {
-  1: {
-    avatar: "bg-amber-400 text-amber-950 ring-2 ring-amber-300",
-    block: "bg-gradient-to-b from-amber-400 to-amber-500",
-  },
-  2: {
-    avatar: "bg-gray-300 text-gray-800 ring-2 ring-gray-200",
-    block: "bg-gradient-to-b from-gray-300 to-gray-400",
-  },
-  3: {
-    avatar: "bg-[#dcb193] text-[#5c3517] ring-2 ring-[#ecd4c1]",
-    block: "bg-gradient-to-b from-[#cd9c78] to-[#b9855e]",
-  },
+const MEDAL: Record<number, string> = {
+  1: "bg-[#fbd000]",
+  2: "bg-[#cdd3da]",
+  3: "bg-[#c98a5e]",
 };
 
 /** The whole point of the shape: first stands highest. */
 const BLOCK_HEIGHT: Record<number, string> = {
-  1: "h-20 sm:h-24",
-  2: "h-14 sm:h-16",
-  3: "h-10 sm:h-12",
+  1: "h-[52px] sm:h-[62px]",
+  2: "h-[38px] sm:h-[45px]",
+  3: "h-[28px] sm:h-[33px]",
 };
 
-/** Blocks rise third, second, first; the faces land just behind each block. */
+/** Blocks rise third, second, first. */
 const GROW_DELAY: Record<number, number> = { 1: 320, 2: 160, 3: 0 };
-const POP_DELAY: Record<number, number> = { 1: 520, 2: 360, 3: 200 };

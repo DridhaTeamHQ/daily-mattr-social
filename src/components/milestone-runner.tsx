@@ -122,6 +122,8 @@ function Flag() {
  * Every other card on this page is a number in a box. This one has somebody
  * running across it, so it gets the rest of the scene: sky, clouds, bushes, a
  * question block over the finish and coins along the stretch still to go.
+ * The install podium stands in it too, on a ledge above the track — two
+ * celebrations that used to be two cards in two different idioms.
  *
  * The theme stops at this card on purpose. A dashboard where everything is a
  * game is a dashboard where nothing stands out; one card that is a place is
@@ -133,21 +135,22 @@ function Flag() {
  * and unreadable without it.
  */
 export function MilestoneLevel({
-  name,
-  at,
-  remaining,
+  next,
   pct,
   approvedTasks,
   totalTasks,
+  podium,
 }: {
-  name: string;
-  at: number;
-  remaining: number;
+  /** The tier being run at, or null once every one of them is cleared. */
+  next: { name: string; at: number } | null;
   pct: number;
   approvedTasks: number;
   totalTasks: number;
+  /** The install podium, standing on its own ledge inside the scene. */
+  podium?: React.ReactNode;
 }) {
   const hasTasks = totalTasks > 0;
+  const remaining = next ? Math.max(0, next.at - pct) : 0;
 
   return (
     <div className="mario-level relative overflow-hidden border-[3px] border-ink p-5 sm:p-6">
@@ -184,11 +187,17 @@ export function MilestoneLevel({
           </span>
         </span>
         <span className="font-black">
-          {hasTasks
-            ? `${formatNumber(Math.max(0, remaining))}% to ${name} (${formatNumber(at)}%)`
-            : "No tasks assigned yet"}
+          {!hasTasks
+            ? "No tasks assigned yet"
+            : next
+              ? `${formatNumber(remaining)}% to ${next.name} (${formatNumber(next.at)}%)`
+              : "Every tier cleared"}
         </span>
       </div>
+
+      {/* Between the HUD and the ground, on its own floating ledge — see
+          `InstallPodiumScene` for why it does not stand on the track. */}
+      {podium}
 
       <MilestoneProgress pct={pct} className="relative" />
     </div>
@@ -238,7 +247,7 @@ function Bush({ className }: { className?: string }) {
 }
 
 /** A coin. Spins on its own, in four steps like the ones it is copying. */
-function Coin({
+export function Coin({
   className,
   style,
 }: {
