@@ -114,13 +114,16 @@ export function CompletionMilestoneWatcher({ completionPct }: { completionPct: n
           <PartyPopper className="size-8 text-ink" />
         </div>
 
-        <p className="mt-4 text-[13px] font-extrabold tracking-widest text-ink uppercase">
+        {/* White on the brand blue, not ink. Near-black on a saturated blue
+            reads as a colour mistake before it reads as text; white is the
+            pairing the card was drawn for. */}
+        <p className="mt-4 text-[13px] font-extrabold tracking-widest text-white uppercase">
           Progress milestone
         </p>
-        <p className="display mt-1 text-[34px] leading-none text-ink">
+        <p className="display mt-1 text-[34px] leading-none text-white">
           {current.name}
         </p>
-        <p className="mt-3 text-[13.5px] leading-relaxed font-semibold text-ink/80">
+        <p className="mt-3 text-[13.5px] leading-relaxed font-semibold text-white/90">
           You just crossed a new completion milestone. Keep finishing tasks to
           reach the next one.
         </p>
