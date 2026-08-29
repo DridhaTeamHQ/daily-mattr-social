@@ -1,4 +1,4 @@
-import { cn, formatNumber } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /**
  * The progress bar with somebody on it.
@@ -17,15 +17,32 @@ import { cn, formatNumber } from "@/lib/utils";
  * The illustrated character this replaced is still at `/runner-sprite.webp`;
  * swapping back is the sprite URL, the frame width and the step count.
  */
-/** Where the coins sit along the track, as a percentage of the way. */
-const COIN_STOPS = [30, 50, 70, 86];
+/**
+ * Where the coins sit along the track.
+ *
+ * A coin is a tier: the name goes over it, so the run has named places on it
+ * rather than four identical pickups. Callers that know the tiers pass them
+ * in; the fallback is the same four stops with nothing written on them.
+ */
+export type MilestoneStop = { at: number; name?: string };
+
+const COIN_STOPS: MilestoneStop[] = [{ at: 30 }, { at: 50 }, { at: 70 }, { at: 86 }];
 
 export function MilestoneProgress({
   pct,
+  stops = COIN_STOPS,
+  finish,
+  marks,
   className,
 }: {
   /** 0–100. How far along the track they are. */
   pct: number;
+  /** The coins, in order. Ones already run past are dropped. */
+  stops?: MilestoneStop[];
+  /** The name over the flag — the last tier, the one the run ends at. */
+  finish?: string;
+  /** Percentages painted on the track itself. Empty leaves it plain. */
+  marks?: number[];
   className?: string;
 }) {
   const clamped = Math.max(0, Math.min(100, pct));
@@ -37,7 +54,7 @@ export function MilestoneProgress({
   const marker = Math.max(4, Math.min(93, clamped));
 
   return (
-    <div className={cn("relative pt-16 text-ink", className)}>
+    <div className={cn("relative pt-24 text-ink", className)}>
       {/* ─── Track ─────────────────────────────────────────────────────────
           Last in the flow, so the wrapper's bottom edge IS the track's bottom
           edge. Everything standing on the bar is then positioned from
@@ -56,6 +73,25 @@ export function MilestoneProgress({
           <span className="pixel-fill block h-full w-full" />
         </div>
 
+        {/* ─── The scale ───────────────────────────────────────────────────
+            Painted on the ground rather than hung under it: the card has no
+            room below the bar, and a number on the track is where a distance
+            marker belongs anyway. The ends are pinned to their edges instead
+            of centred on them, so 0 and 100 stay on the track rather than
+            half off it. */}
+        {marks?.map((at) => (
+          <span
+            key={at}
+            className={cn(
+              "track-mark pointer-events-none absolute top-1/2 -translate-y-1/2",
+              at === 0 ? "left-1" : at === 100 ? "right-1" : "-translate-x-1/2",
+            )}
+            style={at > 0 && at < 100 ? { left: `${at}%` } : undefined}
+            aria-hidden
+          >
+            {at}%
+          </span>
+        ))}
       </div>
 
       {/* ─── Runner ────────────────────────────────────────────────────────── */}
@@ -72,22 +108,28 @@ export function MilestoneProgress({
           They are the same information as the percentage, said as objects:
           three coins left is a distance you can picture, 42% is not. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-9 sm:bottom-10" aria-hidden>
-        {COIN_STOPS.filter((stop) => stop > marker + 6).map((stop) => (
-          <Coin
-            key={stop}
-            className="absolute -translate-x-1/2"
-            style={{ left: `${stop}%` }}
-          />
-        ))}
+        {stops
+          .filter((stop) => stop.at > marker + 6)
+          .map((stop) => (
+            <span
+              key={stop.at}
+              className="absolute bottom-0 flex -translate-x-1/2 flex-col items-center gap-1"
+              style={{ left: `${stop.at}%` }}
+            >
+              {stop.name && <span className="tier-tag">{stop.name}</span>}
+              <Coin />
+            </span>
+          ))}
       </div>
 
       {/* ─── Finish line ─────────────────────────────────────────────────────
           The block sits above the flag rather than beside it, so the last
           thing on the track is the thing being run at. */}
       <div
-        className="pointer-events-none absolute right-0 bottom-4 flex flex-col items-center gap-1.5 sm:bottom-5"
+        className="pointer-events-none absolute right-0 bottom-4 flex flex-col items-center gap-1 sm:bottom-5"
         aria-hidden
       >
+        {finish && <span className="tier-tag">{finish}</span>}
         <QuestionBlock />
         <Flag />
       </div>
@@ -128,27 +170,25 @@ function Flag() {
  * the thing the eye goes to, which is exactly where the goal should be.
  *
  * Everything is drawn on a 3px grid with hard edges, so it sits next to a
- * pixel sprite without one of them looking anti-aliased. The HUD text takes
- * the drop shadow a real game HUD uses, because white on sky blue is 2.5:1
- * and unreadable without it.
+ * pixel sprite without one of them looking anti-aliased. There is no text on
+ * the card beyond the tier names over the coins: the percentage, the tier and
+ * the task count are all spelled out on the tiles directly above it, and a
+ * scene that repeats them is a scene you read instead of look at.
  */
 export function MilestoneLevel({
-  name,
-  at,
-  remaining,
   pct,
-  approvedTasks,
-  totalTasks,
+  stops,
+  finish,
+  marks,
 }: {
-  name: string;
-  at: number;
-  remaining: number;
   pct: number;
-  approvedTasks: number;
-  totalTasks: number;
+  /** The tiers still ahead, drawn as named coins along the track. */
+  stops?: MilestoneStop[];
+  /** The tier the flag stands for. */
+  finish?: string;
+  /** Every tier's percentage, painted along the track. */
+  marks?: number[];
 }) {
-  const hasTasks = totalTasks > 0;
-
   return (
     <div className="mario-level relative overflow-hidden border-[3px] border-ink p-5 sm:p-6">
       {/* ─── Scenery ───────────────────────────────────────────────────────
@@ -164,33 +204,13 @@ export function MilestoneLevel({
         <Bush className="absolute bottom-[36px] left-[62%] sm:bottom-[44px]" />
       </div>
 
-      {/* ─── HUD ───────────────────────────────────────────────────────────── */}
-      <div className="mario-hud relative flex flex-wrap items-center justify-between gap-3">
-        <span className="flex items-center gap-2.5">
-          <Coin className="shrink-0" />
-          <span>
-            {hasTasks ? (
-              <>
-                Task completion: <strong className="font-black">{formatNumber(pct)}%</strong>{" "}
-                <span className="opacity-80">
-                  ({formatNumber(approvedTasks)}/{formatNumber(totalTasks)} approved)
-                </span>
-              </>
-            ) : (
-              <>
-                Waiting for <strong className="font-black">this month&apos;s tasks</strong>
-              </>
-            )}
-          </span>
-        </span>
-        <span className="font-black">
-          {hasTasks
-            ? `${formatNumber(Math.max(0, remaining))}% to ${name} (${formatNumber(at)}%)`
-            : "No tasks assigned yet"}
-        </span>
-      </div>
-
-      <MilestoneProgress pct={pct} className="relative" />
+      <MilestoneProgress
+        pct={pct}
+        stops={stops}
+        finish={finish}
+        marks={marks}
+        className="relative"
+      />
     </div>
   );
 }

@@ -2,11 +2,10 @@
 
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
-import { CheckCircle2, Flame, Info, Lock, Star, Trophy } from "lucide-react";
+import { CheckCircle2, Flame, Info, Star, Trophy } from "lucide-react";
 
 import { CountUp, useCelebration } from "@/components/celebrate";
 import { MilestoneLevel } from "@/components/milestone-runner";
-import { cn, formatNumber } from "@/lib/utils";
 
 export const COMPLETION_TIERS = [
   { at: 0, name: "Rookie" },
@@ -82,7 +81,6 @@ export function ProgressHero({
   batch,
   streak,
   completionPct,
-  approvedTasks,
   totalTasks,
   celebrate = false,
 }: {
@@ -92,7 +90,6 @@ export function ProgressHero({
   batch?: string | null;
   streak: number;
   completionPct: number;
-  approvedTasks: number;
   totalTasks: number;
   celebrate?: boolean;
 }) {
@@ -143,8 +140,11 @@ export function ProgressHero({
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-500">
               Current Tier
             </span>
-            <div className="size-8 rounded-lg bg-brand-strong flex items-center justify-center text-white">
-              <Star className="size-4 fill-current text-amber-300" />
+            {/* Tinted like the other three badges rather than filled solid
+                blue: a block of brand colour in one tile pulled the eye to the
+                tier before the completion number it is derived from. */}
+            <div className="size-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500">
+              <Star className="size-4 fill-current" />
             </div>
           </div>
           <div className="flex items-end justify-between gap-2">
@@ -226,61 +226,15 @@ export function ProgressHero({
 
       {next && (
         <MilestoneLevel
-          name={next.name}
-          at={next.at}
-          remaining={next.at - completionPct}
           pct={completionPct}
-          approvedTasks={approvedTasks}
-          totalTasks={totalTasks}
+          /* The tiers themselves are the coins: every one between the start
+             and the flag sits at its own percentage with its name over it, so
+             the track says what each stop is worth without a legend. */
+          stops={COMPLETION_TIERS.filter((tier) => tier.at > 0 && tier.at < 100)}
+          finish={COMPLETION_TIERS[COMPLETION_TIERS.length - 1].name}
+          marks={COMPLETION_TIERS.map((tier) => tier.at)}
         />
       )}
     </div>
-  );
-}
-
-export function TierTrack({
-  completionPct,
-}: {
-  completionPct: number;
-}) {
-  const { current } = completionTierFor(completionPct);
-
-  return (
-    <ul className="flex gap-2 overflow-x-auto pb-4 pt-1 no-scrollbar">
-      {COMPLETION_TIERS.map((tier) => {
-        const reached = completionPct >= tier.at;
-        const isCurrent = tier === current;
-
-        return (
-          <li key={tier.name} className="shrink-0">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold whitespace-nowrap transition-colors",
-                isCurrent
-                  ? "border-red-200 bg-yellow-50 text-ink"
-                  : reached
-                    ? "border-gray-200 bg-white text-ink"
-                    : "border-gray-100 bg-gray-50 text-gray-500",
-              )}
-            >
-              {reached ? (
-                <Star className="size-3.5" fill={isCurrent ? "currentColor" : "none"} />
-              ) : (
-                <Lock className="size-3.5 text-gray-400" />
-              )}
-              {tier.name}
-              <span
-                className={cn(
-                  "tabular ml-1",
-                  isCurrent ? "text-ink" : reached ? "text-gray-500" : "text-gray-400",
-                )}
-              >
-                {formatNumber(tier.at)}%
-              </span>
-            </span>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

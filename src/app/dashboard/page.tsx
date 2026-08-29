@@ -4,7 +4,7 @@ import { ClipboardCheck, ClipboardList, Gift } from "lucide-react";
 
 import { CompletionMilestoneWatcher } from "@/components/level-up";
 import { InstallPodium } from "@/components/install-podium";
-import { ProgressHero, TierTrack } from "@/components/points-hero";
+import { ProgressHero } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
 import { getDashboard, isDemoMode } from "@/lib/queries";
@@ -50,7 +50,6 @@ export default async function DashboardPage() {
   const firstName = (profile.full_name || "there").trim().split(/\s+/)[0];
   const isNewcomer = standing.approvedTasks === 0 && surveyResponses === 0;
   const completionPct = standing.completionPct;
-  const approvedTasks = standing.approvedTasks;
   const totalTasks = standing.totalTasks;
   const justApproved = data.notifications.some(
     (notification) => notification.type === "submission_approved" && !notification.read_at,
@@ -79,6 +78,7 @@ export default async function DashboardPage() {
             : "Welcome back! Keep completing tasks to move up the ranking."}
         </p>
       </header>
+      
 
       <section>
         <SectionHeader title="Your progress" />
@@ -89,22 +89,21 @@ export default async function DashboardPage() {
             batch={standing.batch}
             streak={streak}
             completionPct={completionPct}
-            approvedTasks={approvedTasks}
             totalTasks={totalTasks}
             celebrate={justApproved}
           />
-          <TierTrack completionPct={completionPct} />
-        </div>
-      </section>
-
-                  
-      {/* Directly under the tiles, so it reads as the answer to the Installs
+                {/* Directly under the tiles, so it reads as the answer to the Installs
           number immediately above it rather than as an unrelated board. Renders
           nothing at all until somebody has referred an install. */}
       <InstallPodium
         rows={installPodium}
         me={{ installs: referrals.total_confirmed, rank: installRank }}
       />
+        </div>
+      </section>
+
+                  
+
 
 
       <section>

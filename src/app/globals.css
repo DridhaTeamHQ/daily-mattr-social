@@ -499,18 +499,39 @@
       #5c94fc;
   }
 
-  /* A game HUD's shadow, and not decoration: white on #5c94fc is 2.5:1, which
-     is unreadable. The hard offset takes it past 4.5:1 without tinting the
-     sky or boxing the text. */
-  .mario-hud {
+  /* ─── Writing on the level ───────────────────────────────────────────────
+     The tier name over its coin, and the percentage painted on the track
+     below it. Both take a game HUD's hard drop shadow, and not as decoration:
+     white on #5c94fc is 2.5:1 and white on the brick fill is worse. The offset
+     shadow takes them past 4.5:1 without tinting the sky or boxing the text. */
+  .tier-tag {
     color: #ffffff;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
     text-shadow:
       2px 2px 0 rgb(0 0 0 / 0.85),
       -1px 0 0 rgb(0 0 0 / 0.5),
       0 -1px 0 rgb(0 0 0 / 0.5);
+  }
+
+  /* The distance markers, painted on the ground itself. Smaller than the
+     names above them — they are the scale, not the labels — and shadowed
+     hard, because half of them sit on lit brick and half on unlit ground. */
+  .track-mark {
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    text-shadow:
+      1px 1px 0 rgb(0 0 0 / 0.9),
+      -1px 0 0 rgb(0 0 0 / 0.6),
+      0 -1px 0 rgb(0 0 0 / 0.6);
   }
 
   /* Clouds drift; they do not slide. Three speeds so they do not move as one
