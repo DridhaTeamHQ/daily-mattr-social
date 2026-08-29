@@ -8,8 +8,9 @@ import { LoadingLabel, PageHeaderSkeleton } from "@/components/skeletons";
  * explaining the formula, then one card holding a divided list of rows —
  * position, avatar, name and college, percentage.
  *
- * Ten rows: the page shows up to twenty, but a fallback longer than the real
- * list would shrink on arrival, and ten is already past the fold on a phone.
+ * Ten rows: the page now lists a whole batch, so the fallback is shorter than
+ * the real list rather than longer — it grows on arrival instead of snapping
+ * shut, and ten is already past the fold on a phone.
  */
 export default function LeaderboardLoading() {
   return (

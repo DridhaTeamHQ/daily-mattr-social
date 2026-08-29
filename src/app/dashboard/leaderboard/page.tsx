@@ -11,21 +11,19 @@ export const metadata = { title: "Completion Leaderboard" };
 const MEDAL_COLORS = ["bg-brand-strong text-white", "bg-black text-white", "bg-red-500 text-white"];
 const AVATAR_COLORS = ["bg-brand-tint", "bg-gray-100", "bg-red-50"];
 /**
- * How many places the board shows.
+ * How many rows to ask for.
  *
- * Ten, not the whole cohort: past that it stops being a ranking and becomes a
- * directory. Anyone outside it still sees their own row, pinned to the bottom
- * with their real position — a board that cannot show you where you are is not
- * worth opening twice.
+ * The whole batch, not a top ten: a board is scoped to the people who started
+ * when you did, and a batch is small enough to read end to end. Cutting it at
+ * ten left everybody below tenth looking at a list of nine strangers and their
+ * own row pinned underneath, which says "you are not on this" rather than
+ * "here is where you are". The function caps at 1000 either way.
  */
-const VISIBLE = 10;
+const LIMIT = 1000;
 
 export default async function LeaderboardPage() {
-  const matched = await getCompletionLeaderboard();
-  const visible = matched.slice(0, VISIBLE);
-  const me = matched.find((row) => row.is_me);
-  const rows = me && !visible.some((row) => row.is_me) ? [...visible, me] : visible;
-  const meIsPinned = Boolean(me) && !visible.some((row) => row.is_me);
+  const rows = await getCompletionLeaderboard(LIMIT);
+  const me = rows.find((row) => row.is_me);
 
   /**
    * Whose board this is.
@@ -69,8 +67,11 @@ export default async function LeaderboardPage() {
 
       <p className="rounded-xl border border-brand/20 bg-brand-tint/50 px-4 py-3 text-[13px] font-semibold text-brand-press">
         Completion = approved tasks divided by total tasks assigned this month.
-        {batch &&
-          ` You're ranked against the ${matched.length} active ambassadors in ${batch}.`}
+        {batch && ` Everyone in ${batch} is on this board — all ${rows.length} of them.`}
+        {/* Their own placing, said once at the top. On a board of forty-one
+            the row highlighted in brand blue is somewhere down the page, and
+            a number here saves scrolling for it. */}
+        {me && ` You're #${me.position}.`}
       </p>
 
       <Card>
@@ -92,7 +93,6 @@ export default async function LeaderboardPage() {
                   className={cn(
                     "flex items-center gap-4 px-6 py-4",
                     row.is_me && "bg-brand-tint/50",
-                    meIsPinned && index === rows.length - 1 && "border-t-[3px] border-dashed border-brand/50",
                   )}
                 >
                   {isTop3 ? (
