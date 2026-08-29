@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { ClipboardCheck, ClipboardList, Gift } from "lucide-react";
 
 import { CompletionMilestoneWatcher } from "@/components/level-up";
+import { InstallPodium } from "@/components/install-podium";
 import { ProgressHero, TierTrack } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
@@ -18,7 +19,7 @@ export const metadata = { title: "Home" };
  * Written per rank rather than as "You're #N", because the whole point of the
  * badge is that it is worth screenshotting — and "#4 for installs" is a
  * statistic, not something anybody sends to a friend. Only the top five ever
- * see one; see `getInstallRank`.
+ * see one; see `getInstallBoard`.
  */
 const INSTALL_RANK_BADGE: Record<number, string> = {
   1: "#1. That's a flex",
@@ -32,8 +33,16 @@ export default async function DashboardPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
 
-  const { profile, standing, campaigns, surveys, referrals, streak, installRank } =
-    data;
+  const {
+    profile,
+    standing,
+    campaigns,
+    surveys,
+    referrals,
+    streak,
+    installRank,
+    installPodium,
+  } = data;
   const openTasks = campaigns
     .flatMap((campaign) => campaign.tasks)
     .filter((task) => task.submission_status === null).length;
@@ -88,6 +97,16 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+                  
+      {/* Directly under the tiles, so it reads as the answer to the Installs
+          number immediately above it rather than as an unrelated board. Renders
+          nothing at all until somebody has referred an install. */}
+      <InstallPodium
+        rows={installPodium}
+        me={{ installs: referrals.total_confirmed, rank: installRank }}
+      />
+
+
       <section>
         <SectionHeader title="Your tasks" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -106,7 +125,7 @@ export default async function DashboardPage() {
             tone="poll"
           />
           {/* The placing is only ever set for the top few with at least one
-              install — see `getInstallRank`. Everyone else gets the tile they
+              install — see `getInstallBoard`. Everyone else gets the tile they
               had, because a rank is only worth showing to someone it is good
               news for. */}
           <Stat
@@ -123,6 +142,7 @@ export default async function DashboardPage() {
           />
         </div>
       </section>
+
     </div>
   );
 }

@@ -172,9 +172,11 @@ export type DashboardData = {
   };
   /**
    * Placing on the install board, or null for everybody outside the top few.
-   * See `getInstallRank` for why most people get nothing rather than a number.
+   * See `getInstallBoard` for why most people get nothing rather than a number.
    */
   installRank: number | null;
+  /** The leading three by installs. Empty until somebody has referred one. */
+  installPodium: InstallPodiumRow[];
   recentLedger: LedgerEntry[];
   /** Consecutive days they showed up — signing in included — for the flame. */
   streak: number;
@@ -202,32 +204,64 @@ export function isDemoMode(): boolean {
 /** How far down the install board we bother telling someone they are. */
 const INSTALL_RANK_CUTOFF = 5;
 
+/** How many places the dashboard podium shows. */
+const INSTALL_PODIUM_SIZE = 3;
+
+export type InstallPodiumRow = {
+  /**
+   * The name as it is on the profile, in full.
+   *
+   * First names alone were ambiguous in practice: the programme has several
+   * people sharing one, and half the profiles are entered surname-first, so
+   * the board was crediting "Gaddam" next to "Kartikeya" for the same kind of
+   * name. Being recognised is the whole reward here, and it does not work if
+   * the campus cannot tell which of the two of you it is.
+   */
+  name: string;
+  installs: number;
+  isMe: boolean;
+};
+
 /**
- * Where this ambassador sits on the install board, if they are near the top.
+ * The install board: where this ambassador stands, and who is on top.
  *
- * Returns a placing only for the top few, and only for somebody who has
- * actually referred an install. Everyone else gets null and the tile says
- * nothing — being told you are 31st is not encouragement, and telling somebody
- * on zero that they are "top 5" because only four people have ever referred
- * anyone would make the badge worthless the first time it happened.
+ * One pass over the tables rather than two queries, because the dashboard
+ * wants both the viewer's placing (for the tile badge) and the leading three
+ * (for the podium), and they are the same ranking.
+ *
+ * ─── What comes back, and what deliberately does not ────────────────────────
  *
  * Ranked over the service-role client for the same reason the leaderboards
  * are: RLS stops a student reading anyone else's conversions, and it must stay
- * that way. Only the placing comes back — no names, no counts, nothing about
- * anybody else.
+ * that way. So the shape here is the whole privacy boundary — three names with
+ * their counts, and the viewer's own placing. No ids, no colleges, no contact
+ * details, and nothing at all about the people outside the top three. The
+ * names are the ones already printed on the completion leaderboard, so the
+ * podium is not the thing that makes them visible to the campus.
+ *
+ * `rank` is set only for the top few, and only for somebody who has actually
+ * referred an install. Everyone else gets null and the tile says nothing:
+ * being told you are 31st is not encouragement, and telling somebody on zero
+ * that they are "top 5" because only four people have ever referred anyone
+ * would make the badge worthless the first time it happened.
  *
  * Standard competition ranking, so two people on nine installs are both 2nd
  * and the next is 4th. Sharing a placing is the honest answer; breaking the
  * tie on something the students cannot see is not.
  */
-async function getInstallRank(subjectId: string): Promise<number | null> {
+async function getInstallBoard(subjectId: string): Promise<{
+  rank: number | null;
+  podium: InstallPodiumRow[];
+}> {
+  const empty = { rank: null, podium: [] as InstallPodiumRow[] };
+
   try {
     const db = createAdminClient();
 
     const [profiles, conversions] = await Promise.all([
       db
         .from("profiles")
-        .select("id")
+        .select("id, full_name")
         .eq("role", "ambassador")
         .eq("status", "active"),
       db
@@ -236,34 +270,55 @@ async function getInstallRank(subjectId: string): Promise<number | null> {
         .eq("status", "counted"),
     ]);
 
-    if (profiles.error || conversions.error) return null;
+    if (profiles.error || conversions.error) return empty;
 
     // Suspended and removed accounts are off the board, exactly as they are on
     // every other leaderboard — otherwise a placing counts people the
     // programme no longer does.
-    const active = new Set((profiles.data ?? []).map((p) => p.id));
-    if (!active.has(subjectId)) return null;
+    const names = new Map(
+      (profiles.data ?? []).map((p) => [p.id, p.full_name ?? ""]),
+    );
 
     const counts = new Map<string, number>();
     for (const row of conversions.data ?? []) {
-      if (!row.ambassador_id || !active.has(row.ambassador_id)) continue;
+      if (!row.ambassador_id || !names.has(row.ambassador_id)) continue;
       counts.set(row.ambassador_id, (counts.get(row.ambassador_id) ?? 0) + 1);
     }
 
-    const mine = counts.get(subjectId) ?? 0;
-    if (mine <= 0) return null;
+    // Ties broken by name so the order is stable between loads. Two people on
+    // four installs still share a placing; this only decides which of them is
+    // printed first, and a podium that reshuffles on refresh looks broken.
+    const ranked = [...counts.entries()]
+      .filter(([, n]) => n > 0)
+      .sort(
+        ([aId, aN], [bId, bN]) =>
+          bN - aN || (names.get(aId) ?? "").localeCompare(names.get(bId) ?? ""),
+      );
 
-    let ahead = 0;
-    for (const [id, n] of counts) {
-      if (id !== subjectId && n > mine) ahead += 1;
+    const podium: InstallPodiumRow[] = ranked
+      .slice(0, INSTALL_PODIUM_SIZE)
+      .map(([id, installs]) => ({
+        name: (names.get(id) ?? "").trim().replace(/\s+/g, " ") || "Someone",
+        installs,
+        isMe: id === subjectId,
+      }));
+
+    let rank: number | null = null;
+    const mine = names.has(subjectId) ? (counts.get(subjectId) ?? 0) : 0;
+    if (mine > 0) {
+      let ahead = 0;
+      for (const [id, n] of counts) {
+        if (id !== subjectId && n > mine) ahead += 1;
+      }
+      const placing = ahead + 1;
+      if (placing <= INSTALL_RANK_CUTOFF) rank = placing;
     }
 
-    const rank = ahead + 1;
-    return rank <= INSTALL_RANK_CUTOFF ? rank : null;
+    return { rank, podium };
   } catch {
-    // A tile that quietly loses its badge is better than a dashboard that
-    // fails to load over a decoration.
-    return null;
+    // A dashboard that quietly loses its podium is better than one that fails
+    // to load over a decoration.
+    return empty;
   }
 }
 
@@ -298,7 +353,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
     streakRes,
     notificationsRes,
     campaigns,
-    installRank,
+    installBoard,
   ] = await Promise.all([
       supabase
         .from("profiles")
@@ -330,7 +385,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         .order("created_at", { ascending: false })
         .limit(20),
       getCampaigns(),
-      getInstallRank(subjectId),
+      getInstallBoard(subjectId),
     ]);
 
   const profile = profileRes.data;
@@ -392,7 +447,8 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
     recentLedger: ledgerRes.data ?? [],
     streak: previewStreakDays ?? streakRes.data ?? 0,
     notifications: notificationsRes.data ?? [],
-    installRank,
+    installRank: installBoard.rank,
+    installPodium: installBoard.podium,
   };
 });
 

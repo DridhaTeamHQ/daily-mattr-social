@@ -169,6 +169,15 @@ export const demoDashboard: DashboardData = {
   // leaving the one tile that can carry it looking like it never does.
   installRank: 3,
 
+  // The demo student is the third row, so the "You" highlight is visible too.
+  // Full names, as the real board now sends them — including one long enough
+  // to wrap, so the demo shows the case the layout has to survive.
+  installPodium: [
+    { name: "Kabir Raghunathan", installs: 11, isMe: false },
+    { name: "Meera Iyer", installs: 8, isMe: false },
+    { name: "Ananya Rao", installs: 6, isMe: true },
+  ],
+
   streak: 4,
 
   notifications: [
