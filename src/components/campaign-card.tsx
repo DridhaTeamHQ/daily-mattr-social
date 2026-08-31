@@ -16,6 +16,7 @@ export function CampaignCard({
   ended,
   taskCount,
   doneCount,
+  defaultOpen = false,
   children,
 }: {
   id: string;
@@ -26,9 +27,11 @@ export function CampaignCard({
   ended: boolean;
   taskCount: number;
   doneCount: number;
+  /** Open on first render — the admin preview has nothing else to show. */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   const Icon = variant === "clip" ? Video : Megaphone;
   const bodyId = `campaign-${id}-body`;
   const allDone = taskCount > 0 && doneCount === taskCount;

@@ -1,18 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  Clapperboard,
-  ExternalLink,
-  Heart,
-  MessageCircle,
-  Play,
-  Share2,
-  Sparkles,
-  Upload,
-} from "lucide-react";
+import { Clapperboard, ExternalLink, Sparkles, Upload } from "lucide-react";
 
 import { CampaignCard } from "@/components/campaign-card";
+import { TASK_META } from "@/components/task-meta";
 import { SurveyLinkCard } from "@/components/survey-link-card";
 import { StatusBadge, SUBMISSION_STATUS } from "@/components/ui/badge";
 import { UploadTask } from "@/components/upload-task";
@@ -30,19 +22,8 @@ import {
 import { getSetting } from "@/lib/settings";
 import { getSiteUrl } from "@/lib/site-url";
 import { formatDate, timeRemaining } from "@/lib/utils";
-import type { Enums } from "@/lib/database.types";
 
 export const metadata = { title: "Tasks" };
-
-const TASK_META: Record<
-  Enums<"task_type">,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
-> = {
-  like: { label: "Like the reel", icon: Heart },
-  comment: { label: "Leave a comment", icon: MessageCircle },
-  share: { label: "Share it", icon: Share2 },
-  story: { label: "Post to your story", icon: Play },
-};
 
 /**
  * The networks that always get a button, in the order the programme cares

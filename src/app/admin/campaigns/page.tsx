@@ -6,6 +6,7 @@ import { SectionTabs, CAMPAIGN_TABS } from "@/components/section-tabs";
 import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
+import { CampaignPreviewDialog } from "@/components/campaign-preview";
 import { SearchBox } from "@/components/search-box";
 import { InfiniteList } from "@/components/infinite-scroll";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -257,6 +258,21 @@ export default async function AdminCampaignsPage({
                       required: t.required,
                       instructions: t.instructions,
                       submitted: t.submitted,
+                    }))}
+                  />
+
+                  {/* Next to Edit, because it answers the question Edit
+                      raises: the admin form is a stack of fields, and what
+                      an ambassador meets is a card with the tasks opened
+                      out. A draft has no other way to be seen at all. */}
+                  <CampaignPreviewDialog
+                    campaign={c}
+                    tasks={c.tasks.map((t) => ({
+                      id: t.id,
+                      label: t.label,
+                      instructions: t.instructions,
+                      required: t.required,
+                      type: t.type,
                     }))}
                   />
 
