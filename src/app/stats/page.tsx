@@ -10,7 +10,7 @@ export const metadata = {
   // "· DailyMattr Socials".
   title: "By the numbers",
   description:
-    "How the DailyMattr student ambassador programme is going, in four numbers.",
+    "How the dailymattr student ambassador programme is going, in four numbers.",
 };
 
 // Recomputed at most every ten minutes. This is the one page strangers can
@@ -76,7 +76,7 @@ export default async function PublicStatsPage() {
     <main className="min-h-dvh bg-white">
       <div className="mx-auto max-w-4xl px-5 py-16 sm:py-24">
         <Wordmark
-          label="DailyMattr"
+          label="dailymattr"
           className="h-[34px] w-auto text-brand-strong"
         />
 
@@ -88,7 +88,7 @@ export default async function PublicStatsPage() {
 
         <p className="mt-4 max-w-xl text-[15px] leading-relaxed font-medium text-gray-500">
           Students across Hyderabad, Vijayawada and Warangal run surveys, post
-          on social, and get their friends onto DailyMattr. Everything they do
+          on social, and get their friends onto dailymattr. Everything they do
           converts to points, and the points convert to money.
         </p>
 

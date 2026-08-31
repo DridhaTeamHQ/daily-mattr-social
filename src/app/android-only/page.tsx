@@ -32,7 +32,7 @@ export default async function AndroidOnlyPage() {
     <main className="grid min-h-dvh place-items-center bg-white px-5 py-16">
       <div className="w-full max-w-md text-center">
         <Wordmark
-          label="DailyMattr"
+          label="dailymattr"
           className="mx-auto h-[28px] w-auto text-brand"
         />
 

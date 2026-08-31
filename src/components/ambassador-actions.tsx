@@ -59,7 +59,7 @@ function CredentialsPanel({
   const loginUrl =
     typeof window !== "undefined" ? `${window.location.origin}/login` : "";
   const shareText = [
-    `Hi ${credentials.fullName}, here's your DailyMattr login.`,
+    `Hi ${credentials.fullName}, here's your dailymattr login.`,
     "",
     `Email: ${credentials.email}`,
     `Temporary password: ${credentials.password}`,

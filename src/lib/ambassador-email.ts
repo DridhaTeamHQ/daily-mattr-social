@@ -93,7 +93,7 @@ function welcomeEmailHtml(input: {
     <div style="margin:0;background:#f4f8ff;padding:32px 16px;font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">
       <div style="max-width:640px;margin:0 auto;overflow:hidden;border:1px solid #bfdbfe;border-radius:24px;background:#ffffff;box-shadow:0 14px 40px rgba(37,99,235,0.12);">
         <div style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);padding:28px 32px;color:#ffffff;">
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;opacity:0.92;">DailyMattr</div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;opacity:0.92;">dailymattr</div>
           <h1 style="margin:12px 0 0;font-size:30px;line-height:1.1;font-weight:800;">Your Marketing Ambassador login credentials</h1>
           <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#dbeafe;">
             Welcome aboard, ${escapeHtml(input.fullName)}. Use the credentials below to sign in and get started.
@@ -138,7 +138,7 @@ function welcomeEmailText(input: {
   return [
     `Hi ${input.fullName},`,
     "",
-    "Here are your DailyMattr Marketing Ambassador login credentials.",
+    "Here are your dailymattr Marketing Ambassador login credentials.",
     "",
     `Email: ${input.email}`,
     `Temporary password: ${input.password}`,

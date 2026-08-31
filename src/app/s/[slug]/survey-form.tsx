@@ -193,7 +193,7 @@ export function SurveyForm({
       <p className="pb-4 text-center text-[12px] leading-relaxed text-ink-faint">
         {preview
           ? "Preview — the button is off and nothing you type here is recorded."
-          : "Your answers go to the DailyMattr team. We don't store your IP address, only a scrambled version of it to stop duplicate entries."}
+          : "Your answers go to the dailymattr team. We don't store your IP address, only a scrambled version of it to stop duplicate entries."}
       </p>
     </form>
   );

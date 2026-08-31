@@ -26,7 +26,7 @@ export function AuthShell({
       <div className="w-full max-w-[22rem]">
         <Link href="/login" className="block">
           <Wordmark
-            label="DailyMattr"
+            label="dailymattr"
             className="mx-auto mb-8 h-[30px] w-auto text-brand"
           />
         </Link>

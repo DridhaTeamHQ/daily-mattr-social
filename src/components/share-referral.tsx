@@ -33,7 +33,7 @@ export function ShareReferralButton({
   const [busy, setBusy] = React.useState(false);
 
   /** The ask, without the URL — `url` carries that so it arrives as a link. */
-  const ask = `Get DailyMattr — use my referral code ${code}`;
+  const ask = `Get dailymattr — use my referral code ${code}`;
 
   /** The clipboard has no notion of a link field, so this one is glued. */
   const message = `${ask}\n${link}`;
@@ -50,7 +50,7 @@ export function ShareReferralButton({
         // `url` as its own field, not glued into `text`. WhatsApp and the rest
         // linkify what arrives in `url` and leave a pasted string alone, and a
         // referral link nobody can tap is a referral nobody makes.
-        sheet = navigator.share({ title: "DailyMattr", text: ask, url: link });
+        sheet = navigator.share({ title: "dailymattr", text: ask, url: link });
       }
     } catch {
       // Some browsers throw synchronously rather than rejecting.

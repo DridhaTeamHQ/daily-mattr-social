@@ -64,7 +64,7 @@ export function AdminNav({
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-5 px-4 sm:px-6">
         <Link
           href="/admin"
-          aria-label="DailyMattr admin — overview"
+          aria-label="dailymattr admin — overview"
           className="flex shrink-0 items-center gap-1.5"
         >
           <Wordmark className="h-[22px] w-auto text-white" />

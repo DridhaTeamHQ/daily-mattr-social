@@ -56,7 +56,7 @@ export default async function LoginPage({
           figure and this padding has to grow with it. */}
       <aside className="relative hidden overflow-hidden bg-gradient-to-br from-brand-strong to-brand-press lg:flex lg:flex-col lg:justify-between lg:p-14 xl:pr-[11rem] 2xl:pr-[15rem]">
         <Wordmark
-          label="DailyMattr"
+          label="dailymattr"
           className="relative z-20 h-[34px] w-auto text-white"
         />
 
@@ -133,7 +133,7 @@ export default async function LoginPage({
       <main className="grid place-items-center bg-white px-5 py-12">
         <div className="w-full max-w-[22rem]">
           <Wordmark
-            label="DailyMattr"
+            label="dailymattr"
             className="mx-auto mb-8 h-[30px] w-auto text-brand lg:hidden"
           />
 
@@ -151,7 +151,7 @@ export default async function LoginPage({
           </div>
 
           <p className="mt-8 border-t border-gray-200 pt-5 text-[12.5px] leading-relaxed font-medium text-ink-soft">
-            Accounts are created by the DailyMattr team. If you can&apos;t get
+            Accounts are created by the dailymattr team. If you can&apos;t get
             in, ask whoever added you to reset your password.
           </p>
         </div>

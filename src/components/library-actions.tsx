@@ -89,7 +89,7 @@ export function LibraryTaskDialog() {
                 id="instructions"
                 name="instructions"
                 rows={3}
-                placeholder="Post about DailyMattr and paste the post URL."
+                placeholder="Post about dailymattr and paste the post URL."
               />
             </Field>
 

@@ -50,7 +50,7 @@ export default async function ReferralsPage() {
                 Referrals
               </h1>
               <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-600">
-                Share your code and help grow the DailyMattr community.
+                Share your code and help grow the dailymattr community.
               </p>
             </div>
           </div>

@@ -231,7 +231,7 @@ export function TopNav({
           {/* White on the ink bar, not brand blue: #2563eb on #0a0a0a is a
               3.1:1 contrast, which is under the floor for something this
               small. The blue lives on the nav pills instead. */}
-          <Wordmark label="DailyMattr — home" className="h-[26px] w-auto text-white" />
+          <Wordmark label="dailymattr — home" className="h-[26px] w-auto text-white" />
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-2 sm:flex">

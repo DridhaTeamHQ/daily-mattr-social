@@ -23,11 +23,11 @@ const display = Archivo_Black({
 
 export const metadata: Metadata = {
   title: {
-    default: "DailyMattr Socials",
-    template: "%s · DailyMattr Socials",
+    default: "dailymattr Socials",
+    template: "%s · dailymattr Socials",
   },
   description:
-    "The student ambassador platform for DailyMattr — surveys, Instagram campaigns, and referrals in one place.",
+    "The student ambassador platform for dailymattr — surveys, Instagram campaigns, and referrals in one place.",
 };
 
 export const viewport: Viewport = {

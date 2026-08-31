@@ -77,7 +77,7 @@ export async function requestPasswordReset(
       body: JSON.stringify({
         sender: { name: env.brevoSenderName, email: env.brevoSenderEmail },
         to: [{ email }],
-        subject: "Reset your DailyMattr password",
+        subject: "Reset your dailymattr password",
         htmlContent: resetEmailHtml(link),
       }),
     });
@@ -102,7 +102,7 @@ function resetEmailHtml(link: string): string {
       <tr><td align="center">
         <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;padding:32px">
           <tr><td>
-            <p style="margin:0 0 8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3979ff">DailyMattr</p>
+            <p style="margin:0 0 8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3979ff">dailymattr</p>
             <h1 style="margin:0 0 12px;font-size:24px;line-height:1.2">Reset your password</h1>
             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4b4b4b">
               Click the button below to choose a new password. The link works once and expires in an hour.

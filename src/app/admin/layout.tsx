@@ -4,7 +4,7 @@ import { aiEnabled } from "@/lib/ai";
 import { getOverview, requireAdmin } from "@/lib/admin/queries";
 
 export const metadata = {
-  title: { default: "Admin", template: "%s · DailyMattr Admin" },
+  title: { default: "Admin", template: "%s · dailymattr Admin" },
 };
 
 export default async function AdminLayout({

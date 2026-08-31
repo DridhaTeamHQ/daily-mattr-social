@@ -23,10 +23,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "DailyMattr", body: event.data.text() };
+    payload = { title: "dailymattr", body: event.data.text() };
   }
 
-  const title = payload.title || "DailyMattr";
+  const title = payload.title || "dailymattr";
   const options = {
     body: payload.body || "",
     icon: "/icon-192.png",

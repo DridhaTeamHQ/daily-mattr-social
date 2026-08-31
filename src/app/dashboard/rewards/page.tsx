@@ -60,7 +60,7 @@ export default async function RewardsPage() {
             <div>
               <h2 className="display text-[16px] text-ink">Achievements</h2>
               <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-                Recognition from the DailyMattr team.
+                Recognition from the dailymattr team.
               </p>
             </div>
             <Trophy className="size-5 shrink-0 text-rank" />
