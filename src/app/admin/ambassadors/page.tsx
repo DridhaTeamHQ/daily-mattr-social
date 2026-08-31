@@ -33,9 +33,15 @@ const STATUS_TONE = {
 export default async function AmbassadorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; group?: string; batch?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    group?: string;
+    batch?: string;
+    city?: string;
+    status?: string;
+  }>;
 }) {
-  const [{ q, group, batch }, all] = await Promise.all([
+  const [{ q, group, batch, city, status }, all] = await Promise.all([
     searchParams,
     getAmbassadors(),
   ]);
@@ -45,30 +51,40 @@ export default async function AmbassadorsPage({
     : "none";
 
   /**
-   * Every batch on the programme, named in order, with "Not set" last.
+   * Every batch and every city on the programme, named in order with "Not set"
+   * last, each with how many people it holds.
    *
-   * Taken from `all` so the picker keeps offering a batch even while a search
-   * or another batch is narrowing the table — a filter that removes its own
-   * options is a filter you cannot get back out of.
+   * Counted from `all` so the pickers keep offering their options while a
+   * search or the other picker is narrowing the table — a filter that removes
+   * its own options is a filter you cannot get back out of.
    */
-  const batchCounts = new Map<string, number>();
-  for (const row of all) {
-    const key = row.batch || NOT_SET;
-    batchCounts.set(key, (batchCounts.get(key) ?? 0) + 1);
-  }
-  const batches = [...batchCounts.entries()].sort((a, b) => {
-    if (a[0] === NOT_SET) return 1;
-    if (b[0] === NOT_SET) return -1;
-    return a[0].localeCompare(b[0]);
-  });
+  const batches = tally(all, (r) => r.batch);
+  const cities = tally(all, (r) => r.city);
 
-  const batchFilter = batch && batchCounts.has(batch) ? batch : "";
+  // A value the list doesn't have is ignored rather than shown as an empty
+  // table: a stale link should land on the list, not on a dead end.
+  const batchFilter = batches.some(([name]) => name === batch) ? batch! : "";
+  const cityFilter = cities.some(([name]) => name === city) ? city! : "";
+  const statusFilter = STATUSES.some((name) => name === status)
+    ? (status as Status)
+    : "";
 
   const rows = all.filter(
     (r) =>
       (!batchFilter || (r.batch || NOT_SET) === batchFilter) &&
+      (!cityFilter || (r.city || NOT_SET) === cityFilter) &&
+      (!statusFilter || r.status === statusFilter) &&
       matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
   );
+
+  // What every control links back out of, so changing one keeps the rest.
+  const here: View = {
+    group: groupBy,
+    q: query,
+    batch: batchFilter,
+    city: cityFilter,
+    status: statusFilter,
+  };
 
   /**
    * Rows in groups, or one unlabelled group when grouping is off.
@@ -112,6 +128,7 @@ export default async function AmbassadorsPage({
   const active = all.filter((r) => r.status === "active").length;
   const invited = all.filter((r) => r.status === "invited").length;
   const suspended = all.filter((r) => r.status === "suspended").length;
+  const statusCounts = { active, invited, suspended };
 
   return (
     <div className="stagger space-y-5">
@@ -121,8 +138,18 @@ export default async function AmbassadorsPage({
             Ambassadors
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            {query || batchFilter
-              ? `${rows.length} of ${all.length}${batchFilter ? ` in ${batchFilter}` : ""}${query ? ` matching "${query}"` : ""}`
+            {query || batchFilter || cityFilter || statusFilter
+              ? `${rows.length} of ${all.length}${
+                  batchFilter || cityFilter || statusFilter
+                    ? ` in ${[
+                        statusFilter ? STATUS_LABEL[statusFilter] : "",
+                        batchFilter,
+                        cityFilter,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}`
+                    : ""
+                }${query ? ` matching "${query}"` : ""}`
               : `${all.length} ${all.length === 1 ? "person" : "people"} on the programme.`}
           </p>
         </div>
@@ -131,26 +158,37 @@ export default async function AmbassadorsPage({
           <AmbassadorNav />
           <NavSelect
             label="Group"
-            value={listHref({ group: groupBy, q: query, batch: batchFilter })}
+            value={listHref(here)}
             options={GROUPINGS.map((g) => ({
-              value: listHref({ group: g.key, q: query, batch: batchFilter }),
+              value: listHref({ ...here, group: g.key }),
               label: g.label,
             }))}
           />
-          {/* Grouping stacks every batch on one page; this picks one of them.
-              Hidden when there is nothing to choose between — a lone batch is
-              the whole programme, and a select with one option is furniture. */}
+          {/* Grouping stacks every batch and city onto one page; these pick a
+              single one, and they narrow together. Each is hidden when there
+              is nothing to choose between — a lone batch is the whole
+              programme, and a select with one option is furniture. */}
           {batches.length > 1 && (
             <NavSelect
               label="Batch"
-              value={listHref({ group: groupBy, q: query, batch: batchFilter })}
+              value={listHref(here)}
               options={[
-                {
-                  value: listHref({ group: groupBy, q: query, batch: "" }),
-                  label: "All batches",
-                },
+                { value: listHref({ ...here, batch: "" }), label: "All batches" },
                 ...batches.map(([name, count]) => ({
-                  value: listHref({ group: groupBy, q: query, batch: name }),
+                  value: listHref({ ...here, batch: name }),
+                  label: `${name} (${count})`,
+                })),
+              ]}
+            />
+          )}
+          {cities.length > 1 && (
+            <NavSelect
+              label="City"
+              value={listHref(here)}
+              options={[
+                { value: listHref({ ...here, city: "" }), label: "All cities" },
+                ...cities.map(([name, count]) => ({
+                  value: listHref({ ...here, city: name }),
                   label: `${name} (${count})`,
                 })),
               ]}
@@ -203,21 +241,40 @@ export default async function AmbassadorsPage({
         )}
       </div>
 
-      <SearchBox
-        placeholder="Search by name, email, college/office, city, batch or code…"
-        className="max-w-md"
-      />
+      {/* Status sits with the search rather than in the row of pickers
+          above: that row is what the table is grouped and sliced by, and this
+          is the same kind of narrowing as typing a name — "show me the twelve
+          who never signed in" is a search anyone would otherwise do by eye. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox
+          placeholder="Search by name, email, college/office, city, batch or code…"
+          className="w-full max-w-md"
+        />
+        <NavSelect
+          label="Status"
+          value={listHref(here)}
+          options={[
+            { value: listHref({ ...here, status: "" }), label: "Any status" },
+            ...STATUSES.filter((name) => statusCounts[name] > 0).map((name) => ({
+              value: listHref({ ...here, status: name }),
+              label: `${STATUS_LABEL[name]} (${statusCounts[name]})`,
+            })),
+          ]}
+        />
+      </div>
 
       {rows.length === 0 ? (
         <Card>
           <EmptyState
             icon={Users}
             title={
-              query || batchFilter ? "Nobody matches that" : "No ambassadors yet"
+              query || batchFilter || cityFilter || statusFilter
+                ? "Nobody matches that"
+                : "No ambassadors yet"
             }
             description={
-              query || batchFilter
-                ? "Try a different name, email or code — or another batch."
+              query || batchFilter || cityFilter || statusFilter
+                ? "Try a different name or code — or another status, batch or city."
                 : "Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
             }
           />
@@ -239,7 +296,7 @@ export default async function AmbassadorsPage({
               </thead>
 
               <InfiniteTableBody
-                key={`${groupBy}:${batchFilter}:${query}`}
+                key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${query}`}
                 colSpan={5}
                 pageSize={25}
               >
@@ -373,20 +430,55 @@ const GROUPINGS = [
 
 type Grouping = (typeof GROUPINGS)[number]["key"];
 
-/** One URL for the whole view, so changing one control keeps the other two. */
-function listHref({
-  group,
-  q,
-  batch,
-}: {
+/** The three the table can be filtered down to, in the order they read. */
+const STATUSES = ["active", "invited", "suspended"] as const;
+
+type Status = (typeof STATUSES)[number];
+
+const STATUS_LABEL: Record<Status, string> = {
+  active: "Active",
+  invited: "Invited",
+  suspended: "Suspended",
+};
+
+type View = {
   group: Grouping;
   q: string;
   batch: string;
-}): string {
+  city: string;
+  status: Status | "";
+};
+
+/** One URL for the whole view, so changing one control keeps the others. */
+function listHref({ group, q, batch, city, status }: View): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (group !== "none") params.set("group", group);
   if (batch) params.set("batch", batch);
+  if (city) params.set("city", city);
+  if (status) params.set("status", status);
   const query = params.toString();
   return query ? `/admin/ambassadors?${query}` : "/admin/ambassadors";
+}
+
+/**
+ * Counts one field across the list, named in order with "Not set" last.
+ *
+ * "Not set" sinks to the bottom for the same reason it does in the grouped
+ * table: it is a gap to fill, not a cohort to pick out.
+ */
+function tally<T>(
+  rows: T[],
+  pick: (row: T) => string | null,
+): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = pick(row) || NOT_SET;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => {
+    if (a[0] === NOT_SET) return 1;
+    if (b[0] === NOT_SET) return -1;
+    return a[0].localeCompare(b[0]);
+  });
 }
