@@ -89,7 +89,10 @@ export default async function CampaignDetailPage({
         <CardBody className="flex flex-wrap items-start gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="display text-[24px] leading-none text-ink">
+              {/* White, not ink: the header sits on a saturated violet, and
+                  near-black on it — at 70% for the meta line — was under the
+                  contrast a body of text needs to be read at a glance. */}
+              <h1 className="display text-[24px] leading-none text-white">
                 {campaign.title}
               </h1>
               <Badge tone={STATUS_TONE[campaign.status]} dot>
@@ -101,13 +104,13 @@ export default async function CampaignDetailPage({
             </div>
 
             {campaign.description && (
-              <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed font-semibold text-ink/80">
+              <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed font-semibold text-white/95">
                 {campaign.description}
               </p>
             )}
 
-            <p className="mt-2 text-[12.5px] font-semibold text-ink/70">
-              Handle <span className="text-ink">@{campaign.expected_handle}</span>
+            <p className="mt-2 text-[12.5px] font-semibold text-white/85">
+              Handle <span className="font-extrabold text-white">@{campaign.expected_handle}</span>
               {campaign.caption_hint ? ` · caption “${campaign.caption_hint}”` : ""}{" "}
               · created {formatDate(campaign.created_at)}
             </p>
