@@ -26,12 +26,22 @@ function Overlay() {
   );
 }
 
-/** `datetime-local` wants `YYYY-MM-DDTHH:mm`, not an ISO string with a zone. */
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
+/**
+ * The deadline as the two fields that edit it: `YYYY-MM-DD` and `HH:mm`.
+ *
+ * Two inputs rather than one `datetime-local`, because the browser's combined
+ * picker opens a calendar *and* a scrolling clock over the middle of a dialog
+ * — covering the very buttons that would save what you just picked. A date
+ * field and a time field are the same two values with nothing overlapping.
+ */
+function toLocalInput(iso: string | null): { date: string; time: string } {
+  if (!iso) return { date: "", time: "" };
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
 }
 
 export type EditableTask = {
@@ -72,6 +82,7 @@ export function CampaignEditDialog({
   const live = campaign.status === "live";
   const editableTasks = tasks ?? [];
   const withTasks = editableTasks.length > 0;
+  const endsAt = toLocalInput(campaign.ends_at);
   const worked = editableTasks.filter((task) => task.submitted > 0).length;
 
   return (
@@ -109,6 +120,14 @@ export function CampaignEditDialog({
             onSubmit={(event) => {
               event.preventDefault();
               const formData = new FormData(event.currentTarget);
+              // The admin's clock, not the server's. Without it "11:36 PM"
+              // is read in whatever zone the server happens to run in — on
+              // Vercel that is UTC, so an evening deadline set from India
+              // came back as the following morning.
+              formData.set(
+                "tz_offset",
+                String(new Date().getTimezoneOffset()),
+              );
               startTransition(async () => {
                 // The campaign first: if its title is rejected, nothing has
                 // been written yet and the form is still exactly what the
@@ -182,13 +201,26 @@ export function CampaignEditDialog({
               </select>
             </Field>
 
-            <Field label="Ends at" htmlFor="c-ends">
-              <Input
-                id="c-ends"
-                name="ends_at"
-                type="datetime-local"
-                defaultValue={toLocalInput(campaign.ends_at)}
-              />
+            <Field label="Ends at" htmlFor="c-ends-date">
+              <div className="grid grid-cols-[1fr_9rem] gap-2">
+                <Input
+                  id="c-ends-date"
+                  name="ends_date"
+                  type="date"
+                  defaultValue={endsAt.date}
+                />
+                <Input
+                  id="c-ends-time"
+                  name="ends_time"
+                  type="time"
+                  aria-label="Ends at, time"
+                  defaultValue={endsAt.time}
+                />
+              </div>
+              <p className="mt-1.5 text-[12px] text-ink-soft">
+                Clear the date for no deadline. A date on its own closes the
+                campaign at 11:59 PM that day.
+              </p>
             </Field>
 
             {withTasks && (

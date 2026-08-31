@@ -29,7 +29,7 @@ import {
 } from "@/lib/queries";
 import { getSetting } from "@/lib/settings";
 import { getSiteUrl } from "@/lib/site-url";
-import { timeRemaining } from "@/lib/utils";
+import { formatDate, timeRemaining } from "@/lib/utils";
 import type { Enums } from "@/lib/database.types";
 
 export const metadata = { title: "Tasks" };
@@ -276,6 +276,18 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
                   {t.instructions && (
                     <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
                       {t.instructions}
+                    </p>
+                  )}
+
+                  {/* On the rows that can still be sent in, and only those:
+                      the deadline is a thing to act on, and repeating it
+                      under work already submitted is eleven lines of
+                      nothing. The date as well as the gap — "2 days left"
+                      is the nudge, the date is what you plan around. */}
+                  {canSubmit && c.ends_at && !ended && (
+                    <p className="mt-1.5 text-[12px] font-bold text-warn">
+                      {timeRemaining(c.ends_at)} · due{" "}
+                      {formatDate(c.ends_at, true)}
                     </p>
                   )}
 

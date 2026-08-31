@@ -28,7 +28,17 @@ export async function updateCampaign(
     const title = String(formData.get("title") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
     const captionHint = String(formData.get("caption_hint") ?? "").trim();
-    const endsAt = String(formData.get("ends_at") ?? "").trim();
+    // A date and a time, from the two fields that replaced the combined
+    // picker. The time is optional: a date on its own means the end of that
+    // day, which is what "ends on the 7th" means to everyone who is not a
+    // computer.
+    const endsDate = String(formData.get("ends_date") ?? "").trim();
+    const endsTime = String(formData.get("ends_time") ?? "").trim();
+    const endsAt = endsDate ? `${endsDate}T${endsTime || "23:59"}` : "";
+    // The browser's offset as `getTimezoneOffset` reports it: −330 in India.
+    // Falls back to the server's own zone when the field is missing, which is
+    // what every form here used to do.
+    const tzOffset = Number(formData.get("tz_offset"));
     const platform = String(formData.get("platform") ?? "").trim();
 
     if (title.length < 3) {
@@ -47,7 +57,7 @@ export async function updateCampaign(
         description: description || null,
         caption_hint: captionHint || null,
         platform: platform || "Instagram",
-        ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+        ends_at: toInstant(endsAt, tzOffset),
       })
       .eq("id", campaignId);
     if (error) throw error;
@@ -656,4 +666,20 @@ export async function updateSurveyQuestions(
   } catch (err) {
     return fail(err);
   }
+}
+
+/**
+ * A wall-clock date and time, in the admin's zone, as a UTC instant.
+ *
+ * `new Date("2026-09-07T23:59")` reads the string in whatever zone the
+ * process runs in, which is the server's — so the same form saved from Delhi
+ * and from London used to mean two different moments, and neither was the one
+ * on screen. Parsing it as UTC and then subtracting the browser's offset
+ * pins it to the clock the admin was actually looking at.
+ */
+function toInstant(local: string, tzOffsetMinutes: number): string | null {
+  if (!local) return null;
+  if (!Number.isFinite(tzOffsetMinutes)) return new Date(local).toISOString();
+  const asUtc = new Date(`${local}:00.000Z`).getTime();
+  return new Date(asUtc + tzOffsetMinutes * 60_000).toISOString();
 }

@@ -162,8 +162,21 @@ export default async function AdminCampaignsPage({
                     <Badge tone={STATUS_TONE[c.status]} dot>
                       {c.status}
                     </Badge>
-                    {c.status === "live" && (
-                      <Badge tone="reel">{timeRemaining(c.ends_at)}</Badge>
+                    {/* At every status, not just live: a draft with a
+                        deadline two days out is the one worth publishing
+                        first, and an ended campaign should say so on the
+                        card rather than in the reviewer's memory. */}
+                    {c.ends_at && (
+                      <Badge
+                        tone={
+                          c.status === "live" &&
+                          timeRemaining(c.ends_at) !== "Ended"
+                            ? "reel"
+                            : "neutral"
+                        }
+                      >
+                        {timeRemaining(c.ends_at)}
+                      </Badge>
                     )}
                   </div>
 
@@ -211,6 +224,17 @@ export default async function AdminCampaignsPage({
                         {formatDate(c.created_at)}
                       </dd>
                     </div>
+                    {/* The badge above says how long is left; this says when
+                        that runs out. The gap answers "do I chase this
+                        today", the date answers "what do I tell them". */}
+                    {c.ends_at && (
+                      <div>
+                        <dt className="inline">Ends: </dt>
+                        <dd className="inline text-ink">
+                          {formatDate(c.ends_at, true)}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </CardBody>
 
