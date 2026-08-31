@@ -125,28 +125,40 @@ export default async function ReferralsPage() {
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs flex items-center gap-5 relative">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs relative">
           {referrals.last_conversion && (
             <div className="absolute top-4 right-4 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-400">
               <Calendar className="size-4" />
             </div>
           )}
-          <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
-            <Download className="size-6" />
+
+          <div className="flex items-center gap-5">
+            <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
+              <Download className="size-6" />
+            </div>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+                Confirmed Downloads
+              </p>
+              <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
+                {referrals.total_confirmed}
+              </h3>
+              <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                {referrals.last_conversion
+                  ? `Last on ${formatDate(referrals.last_conversion)}`
+                  : "No downloads yet"}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
-              Confirmed Downloads
-            </p>
-            <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
-              {referrals.total_confirmed}
-            </h3>
-            <p className="text-xs font-semibold text-gray-500 mt-0.5">
-              {referrals.last_conversion
-                ? `Last on ${formatDate(referrals.last_conversion)}`
-                : "No downloads yet"}
-            </p>
-          </div>
+
+          {/* On the number itself, not only in the note at the foot of the
+              page: this is the figure people come here to check, and somebody
+              who shared their code an hour ago is counting today's installs
+              against a total that cannot hold them yet. */}
+          <p className="mt-4 rounded-xl border border-brand/20 bg-brand-tint/60 px-4 py-3 text-xs font-semibold leading-relaxed text-brand-press">
+            Installs take up to 24 hrs to show up. Got a new download? Give it
+            a little time - it&rsquo;ll be counted! 💛
+          </p>
         </div>
 
       </div>
@@ -158,7 +170,7 @@ export default async function ReferralsPage() {
         </div>
         <div>
           <strong className="font-extrabold text-brand-press block mb-0.5">How referrals work:</strong>
-          A referral is credited once the person installs the DailyMattr app and enters your code. Confirmations are imported in batches, so a download today may take a day or two to appear here.
+          A referral is credited once the person installs the dailymattr app and enters your code. Confirmations are imported in batches, so a download today may take a day or two to appear here.
         </div>
       </div>
     </div>

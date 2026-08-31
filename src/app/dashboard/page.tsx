@@ -138,6 +138,12 @@ export default async function DashboardPage() {
             badge={installRank ? INSTALL_RANK_BADGE[installRank] : undefined}
             icon={Gift}
             tone="invite"
+            info={
+              <>
+                Installs take up to 24 hrs to show up. Got a new download? Give
+                it a little time - it&rsquo;ll be counted! 💛
+              </>
+            }
           />
         </div>
       </section>

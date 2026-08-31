@@ -1,5 +1,6 @@
 import { Lock, Trophy } from "lucide-react";
 
+import { InfoDot } from "@/components/ui/info-dot";
 import { cn, formatNumber } from "@/lib/utils";
 
 type StatTone = "brand" | "reel" | "poll" | "invite" | "rank";
@@ -27,6 +28,7 @@ export function Stat({
   badge,
   icon: Icon,
   cornerIcon: CornerIcon,
+  info,
   tone = "brand",
   interactive = false,
   locked = false,
@@ -43,6 +45,14 @@ export function Stat({
   badge?: string;
   icon?: React.ComponentType<{ className?: string }>;
   cornerIcon?: React.ComponentType<{ className?: string }>;
+  /**
+   * What the figure means, behind an "i" in the corner.
+   *
+   * For a number that is right but reads as wrong — one that lags, or counts
+   * something narrower than its label suggests. It takes the corner slot, so
+   * a tile has an explanation or a corner icon, not both.
+   */
+  info?: React.ReactNode;
   tone?: StatTone;
   /**
    * The tile is for something not open yet.
@@ -74,10 +84,16 @@ export function Stat({
         className,
       )}
     >
-      {CornerIcon && (
-        <div className="absolute top-4 right-4 rounded-md border border-gray-200 bg-white p-1.5 shadow-sm text-ink-soft">
-          <CornerIcon className="size-4" />
+      {info ? (
+        <div className="absolute top-4 right-4">
+          <InfoDot label={`About ${label.toLowerCase()}`}>{info}</InfoDot>
         </div>
+      ) : (
+        CornerIcon && (
+          <div className="absolute top-4 right-4 rounded-md border border-gray-200 bg-white p-1.5 shadow-sm text-ink-soft">
+            <CornerIcon className="size-4" />
+          </div>
+        )
       )}
       {(Icon || locked) && (
         <div
