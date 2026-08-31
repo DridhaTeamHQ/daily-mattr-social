@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { earningRoute } from "@/lib/admin/participation";
 import { readAll } from "@/lib/admin/read-all";
+import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -383,6 +384,11 @@ export type AdminCampaign = Tables<"campaigns"> & {
 
 export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   const supabase = await createClient();
+
+  // Before the read, not after: a campaign whose deadline passed an hour ago
+  // has to come back from this query as ended, not as live with an "Ended"
+  // badge bolted on by the page that draws it.
+  await closeExpiredCampaigns();
 
   const [{ data: campaigns }, { data: subs }, cohort] = await Promise.all([
     supabase

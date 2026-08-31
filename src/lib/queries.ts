@@ -5,6 +5,7 @@ import { cache } from "react";
 import { earningRoute } from "@/lib/admin/participation";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
 import { createClient } from "@/lib/supabase/server";
 import {
   previewReferralStats,
@@ -597,6 +598,10 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
 
   const user = await currentUser();
   if (!user) return [];
+
+  // The dashboard is the page most likely to be open when a deadline
+  // passes, so it is the one that should notice.
+  await closeExpiredCampaigns();
 
   const { data: campaigns } = await supabase
     .from("campaigns")
