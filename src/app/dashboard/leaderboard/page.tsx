@@ -126,15 +126,12 @@ export default async function LeaderboardPage() {
                     {/* A dash rather than "0%". The ranking still counts it as
                         zero — this only changes how it reads, because a column
                         of 0% down the bottom of a board is a list of people
-                        being told off. The count below still says 0/10. */}
+                        being told off. */}
                     <span className={cn("tabular rounded-lg px-3 py-1.5 text-[14px] font-bold", row.is_me ? "bg-brand-tint text-brand-press" : "bg-gray-100 text-gray-900")}>
                       {row.completion_pct > 0
                         ? `${formatNumber(row.completion_pct)}%`
                         : "—"}
                     </span>
-                    <p className="mt-1 text-[11px] font-semibold text-ink-soft">
-                      {formatNumber(row.approved_tasks)}/{formatNumber(row.total_tasks)} approved
-                    </p>
                   </div>
                 </li>
               );
