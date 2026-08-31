@@ -164,36 +164,6 @@ export default async function AmbassadorsPage({
               label: g.label,
             }))}
           />
-          {/* Grouping stacks every batch and city onto one page; these pick a
-              single one, and they narrow together. Each is hidden when there
-              is nothing to choose between — a lone batch is the whole
-              programme, and a select with one option is furniture. */}
-          {batches.length > 1 && (
-            <NavSelect
-              label="Batch"
-              value={listHref(here)}
-              options={[
-                { value: listHref({ ...here, batch: "" }), label: "All batches" },
-                ...batches.map(([name, count]) => ({
-                  value: listHref({ ...here, batch: name }),
-                  label: `${name} (${count})`,
-                })),
-              ]}
-            />
-          )}
-          {cities.length > 1 && (
-            <NavSelect
-              label="City"
-              value={listHref(here)}
-              options={[
-                { value: listHref({ ...here, city: "" }), label: "All cities" },
-                ...cities.map(([name, count]) => ({
-                  value: listHref({ ...here, city: name }),
-                  label: `${name} (${count})`,
-                })),
-              ]}
-            />
-          )}
           <Button variant="secondary" asChild>
             <Link href="/admin/ambassadors/import">
               <Upload aria-hidden />
@@ -241,11 +211,12 @@ export default async function AmbassadorsPage({
         )}
       </div>
 
-      {/* Status sits with the search rather than in the row of pickers
-          above: that row is what the table is grouped and sliced by, and this
-          is the same kind of narrowing as typing a name — "show me the twelve
-          who never signed in" is a search anyone would otherwise do by eye. */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Every way of narrowing the list on one line, with the search:
+          they all do the same job, and the row above is the view itself —
+          what it is grouped by, and the two things you can add to it. Each
+          picker is hidden when there is nothing to choose between; a select
+          with one option is furniture. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <SearchBox
           placeholder="Search by name, email, college/office, city, batch or code…"
           className="w-full max-w-md"
@@ -261,6 +232,32 @@ export default async function AmbassadorsPage({
             })),
           ]}
         />
+        {batches.length > 1 && (
+          <NavSelect
+            label="Batch"
+            value={listHref(here)}
+            options={[
+              { value: listHref({ ...here, batch: "" }), label: "All batches" },
+              ...batches.map(([name, count]) => ({
+                value: listHref({ ...here, batch: name }),
+                label: `${name} (${count})`,
+              })),
+            ]}
+          />
+        )}
+        {cities.length > 1 && (
+          <NavSelect
+            label="City"
+            value={listHref(here)}
+            options={[
+              { value: listHref({ ...here, city: "" }), label: "All cities" },
+              ...cities.map(([name, count]) => ({
+                value: listHref({ ...here, city: name }),
+                label: `${name} (${count})`,
+              })),
+            ]}
+          />
+        )}
       </div>
 
       {rows.length === 0 ? (
