@@ -32,6 +32,7 @@ export const metadata = { title: "Analytics" };
 
 const APPROVED = new Set(["approved", "auto_approved"]);
 const DECIDED = new Set(["approved", "auto_approved", "rejected", "revoked"]);
+const REJECTED = new Set(["rejected", "revoked"]);
 
 type Campaign = {
   id: string;
@@ -138,6 +139,10 @@ export default async function AnalyticsPage({
 
   const taskTotal = taskRows.length;
   const approvedByAmbassador = new Map<string, Set<string>>();
+  // Rejections are counted per upload, not per task: two rejected attempts at
+  // the same brief are two pieces of work sent back, and collapsing them to
+  // one would hide the ambassador who keeps missing.
+  const rejectedByAmbassador = new Map<string, number>();
   const approvedByCampaign = new Map<string, Set<string>>();
   const submittedByCampaign = new Map<string, number>();
   const taskCampaign = new Map(taskRows.map((task) => [task.id, task.campaign_id]));
@@ -155,6 +160,12 @@ export default async function AnalyticsPage({
     }
     if (!DECIDED.has(submission.status)) pendingReview += 1;
     if (DECIDED.has(submission.status)) decided += 1;
+    if (REJECTED.has(submission.status)) {
+      rejectedByAmbassador.set(
+        submission.ambassador_id,
+        (rejectedByAmbassador.get(submission.ambassador_id) ?? 0) + 1,
+      );
+    }
     if (!APPROVED.has(submission.status)) continue;
 
     approvedSubmissions += 1;
@@ -191,6 +202,7 @@ export default async function AnalyticsPage({
       return {
         ...profile,
         approved,
+        rejected: rejectedByAmbassador.get(profile.id) ?? 0,
         completion: taskTotal ? Math.round((approved * 100) / taskTotal) : 0,
       };
     })
@@ -372,18 +384,22 @@ export default async function AnalyticsPage({
             <EmptyState title="No active ambassadors" />
           </CardBody>
         ) : (
-          // Horizontal scroll rather than dropping columns: city, college and
-          // batch are the three things the filters cut on, so they have to be
-          // readable next to the number they explain.
+          // Horizontal scroll rather than dropping columns: the counts have
+          // to stay readable next to the completion they explain. College is
+          // not among them — it is the longest field on the row and the one
+          // the filters above already say, so it buys nothing here.
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] text-left">
               <thead className="border-y border-line bg-canvas-sunk">
                 <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
                   <th className="w-12 px-4 py-2.5 text-center font-medium">#</th>
                   <th className="px-4 py-2.5 font-medium">Ambassador</th>
-                  <th className="px-4 py-2.5 font-medium">College/Office</th>
                   <th className="px-4 py-2.5 font-medium">City</th>
                   <th className="px-4 py-2.5 font-medium">Batch</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                  <th className="px-4 py-2.5 text-right font-medium">
+                    Rejections
+                  </th>
                   <th className="px-4 py-2.5 text-right font-medium">Approved</th>
                   <th className="w-44 px-4 py-2.5 text-right font-medium">
                     Completion
@@ -393,7 +409,7 @@ export default async function AnalyticsPage({
 
               <InfiniteTableBody
                 key={`${period.key}:${cohort.filters.city}:${cohort.filters.college}:${cohort.filters.batch}`}
-                colSpan={7}
+                colSpan={8}
                 pageSize={15}
               >
                 {ranked.map((ambassador, index) => (
@@ -420,17 +436,27 @@ export default async function AnalyticsPage({
                     </td>
 
                     <td className="px-4 py-3 text-[12.5px] text-ink-soft">
-                      {ambassador.college || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
                       {ambassador.city || "—"}
                     </td>
                     <td className="px-4 py-3 text-[12.5px] text-ink-soft">
                       {ambassador.batch || "—"}
                     </td>
 
+                    <td className="tabular px-4 py-3 text-right text-[13px] text-ink-soft">
+                      {formatNumber(taskTotal)}
+                    </td>
+
+                    {/* A dash rather than a column of zeroes: the rejections
+                        worth reading are the ones somebody has, and nought is
+                        the answer for most of the table. */}
+                    <td className="tabular px-4 py-3 text-right text-[13px] font-bold text-ink-soft">
+                      {ambassador.rejected
+                        ? formatNumber(ambassador.rejected)
+                        : "—"}
+                    </td>
+
                     <td className="tabular px-4 py-3 text-right text-[13px] font-bold text-ink">
-                      {ambassador.approved}/{taskTotal}
+                      {formatNumber(ambassador.approved)}
                     </td>
 
                     <td className="px-4 py-3">
