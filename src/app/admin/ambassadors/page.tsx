@@ -33,9 +33,9 @@ const STATUS_TONE = {
 export default async function AmbassadorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; group?: string }>;
+  searchParams: Promise<{ q?: string; group?: string; batch?: string }>;
 }) {
-  const [{ q, group }, all] = await Promise.all([
+  const [{ q, group, batch }, all] = await Promise.all([
     searchParams,
     getAmbassadors(),
   ]);
@@ -44,8 +44,30 @@ export default async function AmbassadorsPage({
     ? (group as Grouping)
     : "none";
 
-  const rows = all.filter((r) =>
-    matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
+  /**
+   * Every batch on the programme, named in order, with "Not set" last.
+   *
+   * Taken from `all` so the picker keeps offering a batch even while a search
+   * or another batch is narrowing the table — a filter that removes its own
+   * options is a filter you cannot get back out of.
+   */
+  const batchCounts = new Map<string, number>();
+  for (const row of all) {
+    const key = row.batch || NOT_SET;
+    batchCounts.set(key, (batchCounts.get(key) ?? 0) + 1);
+  }
+  const batches = [...batchCounts.entries()].sort((a, b) => {
+    if (a[0] === NOT_SET) return 1;
+    if (b[0] === NOT_SET) return -1;
+    return a[0].localeCompare(b[0]);
+  });
+
+  const batchFilter = batch && batchCounts.has(batch) ? batch : "";
+
+  const rows = all.filter(
+    (r) =>
+      (!batchFilter || (r.batch || NOT_SET) === batchFilter) &&
+      matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
   );
 
   /**
@@ -99,8 +121,8 @@ export default async function AmbassadorsPage({
             Ambassadors
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            {query
-              ? `${rows.length} of ${all.length} matching "${query}"`
+            {query || batchFilter
+              ? `${rows.length} of ${all.length}${batchFilter ? ` in ${batchFilter}` : ""}${query ? ` matching "${query}"` : ""}`
               : `${all.length} ${all.length === 1 ? "person" : "people"} on the programme.`}
           </p>
         </div>
@@ -109,12 +131,31 @@ export default async function AmbassadorsPage({
           <AmbassadorNav />
           <NavSelect
             label="Group"
-            value={groupHref(groupBy, query)}
+            value={listHref({ group: groupBy, q: query, batch: batchFilter })}
             options={GROUPINGS.map((g) => ({
-              value: groupHref(g.key, query),
+              value: listHref({ group: g.key, q: query, batch: batchFilter }),
               label: g.label,
             }))}
           />
+          {/* Grouping stacks every batch on one page; this picks one of them.
+              Hidden when there is nothing to choose between — a lone batch is
+              the whole programme, and a select with one option is furniture. */}
+          {batches.length > 1 && (
+            <NavSelect
+              label="Batch"
+              value={listHref({ group: groupBy, q: query, batch: batchFilter })}
+              options={[
+                {
+                  value: listHref({ group: groupBy, q: query, batch: "" }),
+                  label: "All batches",
+                },
+                ...batches.map(([name, count]) => ({
+                  value: listHref({ group: groupBy, q: query, batch: name }),
+                  label: `${name} (${count})`,
+                })),
+              ]}
+            />
+          )}
           <Button variant="secondary" asChild>
             <Link href="/admin/ambassadors/import">
               <Upload aria-hidden />
@@ -171,10 +212,12 @@ export default async function AmbassadorsPage({
         <Card>
           <EmptyState
             icon={Users}
-            title={query ? "Nobody matches that" : "No ambassadors yet"}
+            title={
+              query || batchFilter ? "Nobody matches that" : "No ambassadors yet"
+            }
             description={
-              query
-                ? "Try a different name, email or code."
+              query || batchFilter
+                ? "Try a different name, email or code — or another batch."
                 : "Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
             }
           />
@@ -196,7 +239,7 @@ export default async function AmbassadorsPage({
               </thead>
 
               <InfiniteTableBody
-                key={`${groupBy}:${query}`}
+                key={`${groupBy}:${batchFilter}:${query}`}
                 colSpan={5}
                 pageSize={25}
               >
@@ -330,11 +373,20 @@ const GROUPINGS = [
 
 type Grouping = (typeof GROUPINGS)[number]["key"];
 
-/** Keeps the search term when the grouping changes. */
-function groupHref(group: Grouping, q: string): string {
+/** One URL for the whole view, so changing one control keeps the other two. */
+function listHref({
+  group,
+  q,
+  batch,
+}: {
+  group: Grouping;
+  q: string;
+  batch: string;
+}): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (group !== "none") params.set("group", group);
+  if (batch) params.set("batch", batch);
   const query = params.toString();
   return query ? `/admin/ambassadors?${query}` : "/admin/ambassadors";
 }
