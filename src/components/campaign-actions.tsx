@@ -27,6 +27,12 @@ export function CreateCampaignDialog({
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
+  // `pending` only disables the button after React commits the transition.
+  // Two submit events can arrive before that render (most commonly from a
+  // quick double-click), so keep a synchronous lock as well. Without it both
+  // Server Action calls insert a campaign and the admin sees two identical
+  // cards even though they completed the form once.
+  const submittingRef = React.useRef(false);
 
   const [brief, setBrief] = React.useState("");
   const [drafting, startDrafting] = React.useTransition();
@@ -95,19 +101,27 @@ export function CreateCampaignDialog({
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     const formData = new FormData(event.currentTarget);
 
     startTransition(async () => {
-      const result = await createCampaign(formData);
-      if (result.ok) {
-        toast.success(result.message);
-        setOpen(false);
-        // Only on success. A failed create keeps everything typed — losing a
-        // campaign's worth of work to a validation error would be worse than
-        // the bug this fixes.
-        reset();
-      } else {
-        toast.error(result.message);
+      try {
+        const result = await createCampaign(formData);
+        if (result.ok) {
+          toast.success(result.message);
+          setOpen(false);
+          // Only on success. A failed create keeps everything typed — losing a
+          // campaign's worth of work to a validation error would be worse than
+          // the bug this fixes.
+          reset();
+        } else {
+          toast.error(result.message);
+        }
+      } finally {
+        submittingRef.current = false;
       }
     });
   }
