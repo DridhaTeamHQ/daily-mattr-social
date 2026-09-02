@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -75,6 +76,7 @@ export async function addCampaignTask(
     });
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
 
@@ -116,6 +118,7 @@ export async function updateCampaignTask(
       .eq("id", taskId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
 
@@ -200,6 +203,7 @@ export async function updateCampaignTasks(
       if (error) throw error;
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
@@ -236,6 +240,7 @@ export async function removeCampaignTask(
     const { error } = await db.from("campaign_tasks").delete().eq("id", taskId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
 

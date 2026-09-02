@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { notify } from "@/lib/notifications";
@@ -124,6 +125,7 @@ export async function decideRedemption(
       href: "/dashboard/rewards",
     }).catch(() => {});
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     revalidatePath("/dashboard/rewards");
 
@@ -199,6 +201,7 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
     );
     if (payoutError) throw payoutError;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     revalidatePath("/admin/stipend");
 
@@ -261,6 +264,7 @@ export async function buildRedemptionBatch(): Promise<ActionResult> {
     );
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     return { ok: true, message: `Batch created for ${toPay.length} payout${toPay.length === 1 ? "" : "s"}.` };
   } catch (err) {
@@ -329,6 +333,7 @@ export async function markPayoutPaid(
       href: "/dashboard/rewards",
     }).catch(() => {});
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     revalidatePath("/dashboard/rewards");
 
@@ -426,6 +431,7 @@ export async function markPayoutFailed(
       }
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     revalidatePath("/dashboard/rewards");
 
@@ -457,6 +463,7 @@ export async function setBatchStatus(
       .eq("id", batchId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/stipend");
     return { ok: true, message: `Batch marked ${status}.` };
   } catch (err) {

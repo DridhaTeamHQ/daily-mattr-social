@@ -6,7 +6,7 @@ import { type PublicQuestion } from "@/app/s/[slug]/survey-form";
 import { SurveyView } from "@/app/s/[slug]/survey-view";
 import { Note } from "@/components/ui/feedback";
 import { requireAdmin } from "@/lib/admin/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 
 export const metadata = { title: "Ambassador view" };
 

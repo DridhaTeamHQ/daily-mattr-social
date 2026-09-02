@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const month =
     requested && months.includes(requested) ? requested : monthStart(new Date());
 
-  const period = await getStipendPeriod(month);
+  const period = await getStipendPeriod(month, true);
 
   const header = [
     "Name",

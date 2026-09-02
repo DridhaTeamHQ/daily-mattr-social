@@ -2,7 +2,8 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createUncachedClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { earningRoute } from "@/lib/admin/participation";
 import { readAll } from "@/lib/admin/read-all";
 import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
@@ -14,13 +15,13 @@ import type { Enums, Tables } from "@/lib/database.types";
  *
  * These use the ordinary RLS client, not the service-role one. Every admin
  * table policy is `using (public.is_admin())`, so the database is doing the
- * authorization — a non-admin session simply sees nothing. `requireAdmin()`
- * exists to give them a redirect instead of an empty page, not to be the
- * security boundary.
+ * authorization on a miss. The cached client additionally checks the current
+ * admin role/status before every render, including cache hits. `requireAdmin()`
+ * keeps its uncached client to provide redirects without trusting cache data.
  */
 
 export async function requireAdmin(): Promise<Tables<"profiles">> {
-  const supabase = await createClient();
+  const supabase = await createUncachedClient();
 
   const {
     data: { user },

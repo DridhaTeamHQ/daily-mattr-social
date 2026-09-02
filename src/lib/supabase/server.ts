@@ -15,13 +15,14 @@ import type { Database } from "@/lib/database.types";
  *
  * `cookies()` is async in Next.js 16, so this is async too.
  */
-export async function createClient() {
+export async function createClient(customFetch?: typeof fetch) {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
     publicEnv.supabaseUrl,
     publicEnv.supabaseAnonKey,
     {
+      ...(customFetch ? { global: { fetch: customFetch } } : {}),
       cookies: {
         getAll() {
           return cookieStore.getAll();

@@ -1,4 +1,5 @@
 "use server";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { createHash } from "node:crypto";
 
@@ -340,6 +341,7 @@ export async function submitSurvey(
    * successful submission is worse, because the respondent walks away believing
    * their answers were counted when they were not.
    */
+  await invalidateAdminCache();
   return {
     status: "done",
     message: "Thanks — your answers were recorded.",

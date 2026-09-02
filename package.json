@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:redis": "tsx --test scripts/test-redis-cache.mts scripts/test-admin-cache.mts",
+    "check:redis": "tsx scripts/check-redis.mts",
     "seed": "tsx scripts/seed.ts",
     "admin": "tsx scripts/create-admin.ts"
   },

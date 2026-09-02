@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { readAll } from "@/lib/admin/read-all";
 import type { CohortIds } from "@/lib/admin/scope";
 
@@ -61,7 +61,7 @@ export function earningRoute(row: LedgerRow): EarningRoute | null {
  */
 export const getPointsByAmbassador = cache(
   async (): Promise<Map<string, number>> => {
-    const db = createAdminClient();
+    const db = (await createAdminClient());
     const data = await readAll<{ ambassador_id: string; delta: number }>(
       (from, to) =>
         db
@@ -101,7 +101,7 @@ const REJECTED = new Set(["rejected", "revoked"]);
 
 export const getCampaignParticipation = cache(
   async (): Promise<{ rows: CampaignParticipation[]; campaigns: number }> => {
-    const db = createAdminClient();
+    const db = (await createAdminClient());
 
     const [profiles, submissions, ledger, { count }] = await Promise.all([
       readAll<{
@@ -225,7 +225,7 @@ export type SurveyParticipation = {
 
 export const getSurveyParticipation = cache(
   async (): Promise<SurveyParticipation[]> => {
-    const db = createAdminClient();
+    const db = (await createAdminClient());
 
     const [profiles, links, responses, ledger] = await Promise.all([
       readAll<{
@@ -340,7 +340,7 @@ export type DownloadLeader = {
 
 /** Every ambassador, ranked by confirmed downloads. */
 export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [profiles, conversions, ledger] = await Promise.all([
     readAll<{
@@ -438,7 +438,7 @@ export type CampaignTotals = {
 export const getCampaignTotals = cache(async (
   scope: CohortIds = null,
 ): Promise<CampaignTotals[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [{ data: campaigns }, submissions, ledger] = await Promise.all([
     db
@@ -548,7 +548,7 @@ export type SurveyTotals = {
 export const getSurveyTotals = cache(async (
   scope: CohortIds = null,
 ): Promise<SurveyTotals[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [{ data: surveys }, links, responses] = await Promise.all([
     db
@@ -645,7 +645,7 @@ export type SurveyAmbassador = {
  */
 export const getSurveyAmbassadors = cache(
   async (surveyId: string): Promise<SurveyAmbassador[]> => {
-    const db = createAdminClient();
+    const db = (await createAdminClient());
 
     const [{ data: survey }, links, responses] = await Promise.all([
       db

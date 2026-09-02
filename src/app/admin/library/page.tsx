@@ -17,7 +17,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { setLibraryTaskActive } from "@/lib/admin/library-actions";
 import { requireAdmin } from "@/lib/admin/queries";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { matches } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/lib/database.types";
@@ -52,7 +52,7 @@ export default async function LibraryPage({
   const { q, net } = await searchParams;
   const query = q ?? "";
 
-  const db = createAdminClient();
+  const db = (await createAdminClient());
   const { data } = await db
     .from("task_library")
     .select("*")

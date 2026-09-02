@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { getSettings } from "@/lib/settings";
 import { readAll } from "@/lib/admin/read-all";
 import { cohortLabel, type CohortIds, type Dimension } from "@/lib/admin/scope";
@@ -52,7 +52,7 @@ export type GoalTracking = {
 
 export const getGoalTracking = cache(
   async (days = 30, scope: CohortIds = null): Promise<GoalTracking> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
   const { download_goal: goal } = await getSettings("download_goal");
 
   // Paged, because this is the table the 10,000-download goal counts. A plain
@@ -152,7 +152,7 @@ export type FunnelStage = {
 };
 
 export const getFunnel = cache(async (): Promise<FunnelStage[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [{ count: clicks }, conversions] = await Promise.all([
     db.from("referral_clicks").select("id", { count: "exact", head: true }),
@@ -211,7 +211,7 @@ async function sliceBy(
   field: Dimension,
   scope: CohortIds,
 ): Promise<CohortSlice[]> {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [profiles, conversions, ledger] = await Promise.all([
     readAll<{
@@ -325,7 +325,7 @@ export type ReviewOps = {
 };
 
 export const getReviewOps = cache(async (): Promise<ReviewOps> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const rows = await readAll<{
     uploaded_at: string;

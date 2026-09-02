@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,6 +56,7 @@ export async function setOwnPassword(
     return { error: "Password changed, but activating the account failed. Tell your admin." };
   }
 
+  await invalidateAdminCache();
   revalidatePath("/", "layout");
   redirect("/dashboard");
 }

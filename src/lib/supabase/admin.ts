@@ -22,7 +22,7 @@ import type { Database } from "@/lib/database.types";
  *
  * Everywhere else, use `lib/supabase/server.ts` so RLS stays in force.
  */
-export function createAdminClient() {
+export function createAdminClient(customFetch?: typeof fetch) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
     throw new Error(
@@ -31,6 +31,7 @@ export function createAdminClient() {
   }
 
   return createSupabaseClient<Database>(publicEnv.supabaseUrl, serviceRoleKey, {
+    ...(customFetch ? { global: { fetch: customFetch } } : {}),
     auth: {
       persistSession: false,
       autoRefreshToken: false,

@@ -2,8 +2,10 @@ import "server-only";
 
 import { cache } from "react";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
+import { createClient as createFreshClient } from "@/lib/supabase/server";
+import { createAdminClient as createFreshAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
 import { readAll } from "@/lib/admin/read-all";
 import type { CohortIds } from "@/lib/admin/scope";
@@ -12,11 +14,9 @@ import type { Enums, Tables } from "@/lib/database.types";
 /**
  * Stipend eligibility, redemptions and payouts — the read side.
  *
- * Eligibility is never stored. It is recomputed from the ledger and the
- * conversions every time it is asked for, because an admin correcting a
- * download count must change who is eligible immediately. A monthly snapshot
- * table would answer "who was eligible when the job last ran", which is a
- * different and much less useful question, and it would go stale silently.
+ * Display reads have a five-minute Redis lifetime and are invalidated after
+ * completed admin mutations. Payment actions recompute eligibility using the
+ * uncached client, and financial exports opt into fresh reads below.
  *
  * Payouts, by contrast, are read straight out of the table. A payment is an
  * event that happened, not a calculation.
@@ -85,12 +85,12 @@ export type StipendPeriod = {
 };
 
 export const getStipendPeriod = cache(
-  async (month: string): Promise<StipendPeriod> => {
+  async (month: string, fresh = false): Promise<StipendPeriod> => {
     // The RPC goes through the *user's* client on purpose: it checks is_admin()
     // internally, and calling it as service-role would bypass the one guard the
     // function has.
-    const supabase = await createClient();
-    const db = createAdminClient();
+    const supabase = await (fresh ? createFreshClient() : createClient());
+    const db = fresh ? createFreshAdminClient() : await createAdminClient();
 
     const [{ data: rows }, settings, { data: payouts }] = await Promise.all([
       supabase.rpc("stipend_eligibility", { period_start: month }),
@@ -166,7 +166,7 @@ export type RedemptionRow = Tables<"redemption_requests"> & {
 };
 
 export const getRedemptions = cache(async (): Promise<RedemptionRow[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const { data } = await db
     .from("redemption_requests")
@@ -224,7 +224,7 @@ export type BatchRow = Tables<"payout_batches"> & {
 };
 
 export const getPayoutBatches = cache(async (): Promise<BatchRow[]> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const { data } = await db
     .from("payout_batches")
@@ -265,7 +265,7 @@ export type MoneySummary = {
 export const getMoneySummary = cache(async (
   scope: CohortIds = null,
 ): Promise<MoneySummary> => {
-  const db = createAdminClient();
+  const db = (await createAdminClient());
 
   const [payouts, redemptions, conversions] = await Promise.all([
     readAll<{

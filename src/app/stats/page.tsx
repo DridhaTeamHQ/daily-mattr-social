@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ClipboardList, Coins, Download, Users } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
+import { redisCache } from "@/lib/cache/redis";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatNumber } from "@/lib/utils";
 
@@ -13,10 +14,10 @@ export const metadata = {
     "How the dailymattr student ambassador programme is going, in four numbers.",
 };
 
-// Recomputed at most every ten minutes. This is the one page strangers can
-// reach, so it should not run four aggregate queries per visit, and nobody
-// needs a live counter to be convinced the programme is real.
-export const revalidate = 600;
+// Redis caches the aggregate for ten minutes. Keep the page dynamic so ISR
+// cannot extend an almost-expired Redis result for another ten minutes, and
+// the public visibility switch is checked on every request.
+export const dynamic = "force-dynamic";
 
 /**
  * The public transparency page.
@@ -34,7 +35,11 @@ export default async function PublicStatsPage() {
   const db = createAdminClient();
 
   const [{ data: stats }, { data: setting }] = await Promise.all([
-    db.rpc("public_stats"),
+    redisCache.remember("public-stats", 600, async () => {
+      const result = await db.rpc("public_stats");
+      if (result.error) throw result.error;
+      return { data: result.data };
+    }).catch(() => ({ data: null })),
     db.from("app_settings").select("value").eq("key", "public_stats_enabled").maybeSingle(),
   ]);
 

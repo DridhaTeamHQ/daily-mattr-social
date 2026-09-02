@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { redisCache } from "@/lib/cache/redis";
 
 import { earningRoute } from "@/lib/admin/participation";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -284,19 +285,27 @@ async function getInstallBoard(subjectId: string): Promise<{
   try {
     const db = createAdminClient();
 
-    const [profiles, conversions] = await Promise.all([
+    const [profiles, conversionCounts] = await Promise.all([
       db
         .from("profiles")
         .select("id, full_name")
         .eq("role", "ambassador")
         .eq("status", "active"),
-      db
-        .from("referral_conversions")
-        .select("ambassador_id")
-        .eq("status", "counted"),
+      redisCache.remember("install-counts", 30, async () => {
+        const conversions = await db
+          .from("referral_conversions")
+          .select("ambassador_id")
+          .eq("status", "counted");
+        if (conversions.error) throw conversions.error;
+        const totals = new Map<string, number>();
+        for (const row of conversions.data ?? []) {
+          if (row.ambassador_id) totals.set(row.ambassador_id, (totals.get(row.ambassador_id) ?? 0) + 1);
+        }
+        return [...totals.entries()];
+      }),
     ]);
 
-    if (profiles.error || conversions.error) return empty;
+    if (profiles.error) return empty;
 
     // Suspended and removed accounts are off the board, exactly as they are on
     // every other leaderboard — otherwise a placing counts people the
@@ -306,9 +315,8 @@ async function getInstallBoard(subjectId: string): Promise<{
     );
 
     const counts = new Map<string, number>();
-    for (const row of conversions.data ?? []) {
-      if (!row.ambassador_id || !names.has(row.ambassador_id)) continue;
-      counts.set(row.ambassador_id, (counts.get(row.ambassador_id) ?? 0) + 1);
+    for (const [id, count] of conversionCounts) {
+      if (names.has(id)) counts.set(id, count);
     }
 
     // Count first, then the viewer, then the name. The middle term is the tie

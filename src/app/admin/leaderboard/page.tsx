@@ -8,7 +8,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { requireAdmin } from "@/lib/admin/queries";
 import { matches } from "@/lib/search";
-import { createClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { cn, formatNumber, initials } from "@/lib/utils";
 
 export const metadata = { title: "Completion leaderboard" };

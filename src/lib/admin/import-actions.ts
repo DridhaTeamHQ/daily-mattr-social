@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { readAmbassadorCsv, tempPassword } from "@/lib/admin/csv";
@@ -225,6 +226,7 @@ export async function importAmbassadors(
       });
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
 
     const emailSummary = {

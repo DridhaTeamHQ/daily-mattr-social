@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -69,6 +70,7 @@ export async function createLibraryTask(
       throw error;
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/library");
     return { ok: true, message: `Added "${label}".` };
   } catch (err) {
@@ -98,6 +100,7 @@ export async function setLibraryTaskActive(
       .eq("id", id);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/library");
     return { ok: true, message: active ? "Back in the library." : "Retired." };
   } catch (err) {
@@ -126,6 +129,7 @@ export async function updateLibraryTaskPoints(
     // Only the DEFAULT changes. Campaigns already built keep the points they
     // were created with, because changing what a live campaign pays out from
     // under the students doing it would be indefensible.
+    await invalidateAdminCache();
     revalidatePath("/admin/library");
     return { ok: true, message: "Default updated. Live campaigns are unchanged." };
   } catch (err) {

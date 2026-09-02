@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
-import { createClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { readAll } from "@/lib/admin/read-all";
 
 /**

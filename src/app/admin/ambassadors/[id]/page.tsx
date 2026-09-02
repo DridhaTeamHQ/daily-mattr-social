@@ -16,7 +16,7 @@ import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { deleteAchievement } from "@/lib/admin/edit-actions";
 import { getAmbassadorDetail, requireAdmin } from "@/lib/admin/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassador" };

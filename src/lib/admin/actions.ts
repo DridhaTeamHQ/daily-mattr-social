@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { createClient } from "@/lib/supabase/server";
 import { sendAmbassadorWelcomeEmail } from "@/lib/ambassador-email";
@@ -151,6 +152,7 @@ export async function approveSubmission(
 
     if (!result.ok) throw new Error(result.reason);
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
 
@@ -232,6 +234,7 @@ export async function approveAllSubmissions(
       }
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
 
@@ -326,6 +329,7 @@ export async function approveSubmissions(
       }
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
 
@@ -426,6 +430,7 @@ export async function rejectSubmission(
     );
     if (!result.ok) throw new Error(result.reason);
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
     return { ok: true, message: "Rejected" };
@@ -472,6 +477,7 @@ export async function rejectSubmissions(
       else failures.push(result.reason);
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
 
@@ -547,6 +553,7 @@ export async function revokeSubmission(
       meta: { submissionId, points },
     }).catch(() => {});
 
+    await invalidateAdminCache();
     revalidatePath("/admin/review");
     revalidatePath("/admin");
     return { ok: true, message: `Revoked · −${points} points` };
@@ -671,6 +678,7 @@ export async function updateAmbassadorSegments(
       referral_code_was: newCode ? current.referral_code : null,
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     revalidatePath(`/admin/ambassadors/${profileId}`);
     revalidatePath("/admin/analytics");
@@ -730,6 +738,7 @@ export async function setAmbassadorStatus(
       }).catch(() => {});
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     return { ok: true, message: `Marked ${status}` };
   } catch (err) {
@@ -778,6 +787,7 @@ export async function adjustPoints(
       meta: { delta },
     }).catch(() => {});
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     revalidatePath("/admin");
     return {
@@ -928,6 +938,7 @@ export async function createAmbassador(
       };
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
@@ -990,6 +1001,7 @@ export async function resetAmbassadorPassword(
       };
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
@@ -1155,6 +1167,7 @@ export async function setReferralCount(
 
     await audit(actorId, "referral.set_count", "profile", profileId, { count });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/referrals");
     revalidatePath("/dashboard/referrals");
     return {
@@ -1215,6 +1228,7 @@ export async function setReferralLinkUnlock(
 
     // Both sides: the admin card that shows the state, and the student page
     // whose card this opens.
+    await invalidateAdminCache();
     revalidatePath("/admin/referrals");
     revalidatePath("/dashboard/referrals");
 
@@ -1275,6 +1289,7 @@ export async function setCampaignStatus(
       });
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     revalidatePath("/dashboard/campaigns");
     return { ok: true, message: `Campaign is now ${status}` };
@@ -1427,6 +1442,7 @@ export async function createCampaign(formData: FormData): Promise<ActionResult> 
 
     await audit(actorId, "campaign.create", "campaign", campaign.id, { title });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     return { ok: true, message: `"${title}" created as a draft` };
   } catch (err) {
@@ -1570,6 +1586,7 @@ export async function createSurvey(input: {
       questions: questions.length,
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/surveys");
     return {
       ok: true,
@@ -1635,6 +1652,7 @@ export async function setSurveyStatus(
       });
     }
 
+    await invalidateAdminCache();
     revalidatePath("/admin/surveys");
     revalidatePath("/dashboard/surveys");
     return { ok: true, message: `Survey is now ${status}${extra}` };
@@ -1655,6 +1673,7 @@ export async function issueSurveyLinks(surveyId: string): Promise<ActionResult> 
 
     await audit(actorId, "survey.links", "survey", surveyId, { created });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/surveys");
     return {
       ok: true,

@@ -25,7 +25,7 @@ import {
   readCohortFilters,
   type Dimension,
 } from "@/lib/admin/scope";
-import { createClient } from "@/lib/supabase/server";
+import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { formatNumber, initials } from "@/lib/utils";
 
 export const metadata = { title: "Analytics" };
@@ -265,6 +265,9 @@ export default async function AnalyticsPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/admin/analytics/cache" prefetch={false} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-surface px-4 py-2.5 text-[13px] font-extrabold text-ink hover:bg-canvas-sunk">
+            Cache health
+          </Link>
           {/* A plain <a>, not <Link>: the response is a file download, and
               client-side navigation to one leaves the router waiting for a
               page that never arrives. `download` keeps the tab put even if a

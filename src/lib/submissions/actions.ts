@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -319,6 +320,7 @@ export async function uploadSubmission(
       }
     }
 
+    await invalidateAdminCache();
     revalidatePath("/dashboard/campaigns");
     revalidatePath("/dashboard");
 

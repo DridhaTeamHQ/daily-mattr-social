@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -62,6 +63,7 @@ export async function updateCampaign(
       .eq("id", campaignId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     revalidatePath(`/admin/campaigns/${campaignId}`);
     revalidatePath("/dashboard/campaigns");
@@ -94,6 +96,7 @@ export async function archiveCampaign(
       .eq("id", campaignId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     return { ok: true, message: archived ? "Archived." : "Back in the list." };
   } catch (err) {
@@ -138,6 +141,7 @@ export async function updateSurvey(
       .eq("id", surveyId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath("/admin/surveys");
     revalidatePath(`/admin/surveys/${surveyId}/responses`);
 
@@ -209,6 +213,7 @@ export async function setResponseStatus(
       if (ledgerError) throw ledgerError;
     }
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/surveys/${response.survey_id}/responses`);
     revalidatePath("/admin/surveys");
 
@@ -266,6 +271,7 @@ export async function addAchievement(
     });
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/ambassadors/${ambassadorId}`);
     // The ambassador sees it on their own rewards page.
     revalidatePath("/dashboard/rewards");
@@ -289,6 +295,7 @@ export async function deleteAchievement(
       .eq("id", achievementId);
     if (error) throw error;
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/ambassadors/${ambassadorId}`);
     revalidatePath("/dashboard/rewards");
 
@@ -409,6 +416,7 @@ export async function deleteCampaign(campaignId: string): Promise<ActionResult> 
       },
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/campaigns");
     revalidatePath("/dashboard/campaigns");
     revalidatePath("/admin/review");
@@ -525,6 +533,7 @@ export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
       },
     });
 
+    await invalidateAdminCache();
     revalidatePath("/admin/surveys");
     revalidatePath("/dashboard/surveys");
     // Surveys sit in the ambassadors' Tasks list too.
@@ -651,6 +660,7 @@ export async function updateSurveyQuestions(
       if (error) throw error;
     }
 
+    await invalidateAdminCache();
     revalidatePath(`/admin/surveys/${surveyId}/responses`);
     // The ambassador view renders these same rows, and the rating scale is
     // edited from that page.

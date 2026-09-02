@@ -9,7 +9,7 @@ import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { CampaignPreviewDialog } from "@/components/campaign-preview";
 import { SearchBox } from "@/components/search-box";
 import { InfiniteList } from "@/components/infinite-scroll";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,14 +37,14 @@ export default async function AdminCampaignsPage({
   const [{ q, net }, all, { data: library }, queue] = await Promise.all([
     searchParams,
     getAdminCampaigns(),
-    createAdminClient()
+    (await createAdminClient())
       .from("task_library")
       .select("id, label, platform, default_points, proof_type")
       .eq("active", true)
       .order("platform", { ascending: true, nullsFirst: false })
       .order("label", { ascending: true }),
     // Head-only: the button wants the number, not the rows.
-    createAdminClient()
+    (await createAdminClient())
       .from("submissions")
       .select("id", { count: "exact", head: true })
       .in("status", ["pending", "needs_review"])

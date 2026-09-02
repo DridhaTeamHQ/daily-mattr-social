@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 /**
  * How often a page load is allowed to sweep, per server instance.
@@ -60,6 +61,8 @@ async function sweep(): Promise<number> {
     .lt("ends_at", new Date().toISOString())
     .select("id");
   if (error) throw error;
+
+  if (data?.length) await invalidateAdminCache();
 
   return data?.length ?? 0;
 }

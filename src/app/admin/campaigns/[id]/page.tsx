@@ -21,7 +21,7 @@ import { Stat } from "@/components/ui/stat";
 import { setCampaignStatus } from "@/lib/admin/actions";
 import { archiveCampaign, deleteCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
 
 export const metadata = { title: "Campaign" };
@@ -53,7 +53,7 @@ export default async function CampaignDetailPage({
   const data = await getCampaignDetail(id);
   if (!data) notFound();
 
-  const { data: library } = await createAdminClient()
+  const { data: library } = await (await createAdminClient())
     .from("task_library")
     .select("id, label, platform, default_points, proof_type")
     .eq("active", true)
