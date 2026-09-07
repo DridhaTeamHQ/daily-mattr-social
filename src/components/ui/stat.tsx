@@ -142,6 +142,27 @@ export function Stat({
   );
 }
 
+type BarTone =
+  | "brand"
+  | "ok"
+  | "warn"
+  | "bad"
+  | "reel"
+  | "poll"
+  | "invite"
+  | "rank";
+
+const BAR_FILL: Record<BarTone, string> = {
+  brand: "bg-brand",
+  ok: "bg-ok",
+  warn: "bg-warn",
+  bad: "bg-bad",
+  reel: "bg-reel",
+  poll: "bg-poll",
+  invite: "bg-invite",
+  rank: "bg-rank",
+};
+
 export function ProgressBar({
   value,
   max,
@@ -151,18 +172,10 @@ export function ProgressBar({
   value: number;
   max: number;
   className?: string;
-  tone?: "brand" | "ok" | "reel" | "poll" | "invite" | "rank";
+  tone?: BarTone;
 }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-
-  const fill = {
-    brand: "bg-brand",
-    ok: "bg-ok",
-    reel: "bg-reel",
-    poll: "bg-poll",
-    invite: "bg-invite",
-    rank: "bg-rank",
-  }[tone];
+  const fill = BAR_FILL[tone];
 
   return (
     <div
@@ -182,6 +195,59 @@ export function ProgressBar({
         )}
         style={{ width: `${pct}%` }}
       />
+    </div>
+  );
+}
+
+/**
+ * One track, several fills laid end to end — approved in one colour, waiting
+ * in another, rejected in a third — every one of them measured against the
+ * same `max`. A full bar means each unit has an outcome; the gap at the end
+ * is the work nobody has touched yet, which is why it is left empty rather
+ * than painted.
+ *
+ * A later segment is squeezed rather than allowed to spill: two shares that
+ * each rounded up can add to 101, and a fill poking past its track reads as
+ * a bug, not as rounding.
+ */
+export function StackedBar({
+  segments,
+  max,
+  label,
+  className,
+}: {
+  segments: { value: number; tone: BarTone }[];
+  max: number;
+  /** What the bar says, for a screen reader and for a hover. */
+  label: string;
+  className?: string;
+}) {
+  const widths = segments.reduce<number[]>((laid, { value }) => {
+    const used = laid.reduce((sum, width) => sum + width, 0);
+    const pct = max > 0 ? Math.round((Math.max(0, value) / max) * 100) : 0;
+    return [...laid, Math.max(0, Math.min(pct, 100 - used))];
+  }, []);
+
+  return (
+    <div
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex h-3 w-full overflow-hidden rounded-full border border-gray-200 bg-surface",
+        className,
+      )}
+    >
+      {segments.map((segment, index) => (
+        <div
+          key={index}
+          className={cn(
+            "h-full shrink-0 transition-[width] duration-500 ease-out",
+            BAR_FILL[segment.tone],
+          )}
+          style={{ width: `${widths[index]}%` }}
+        />
+      ))}
     </div>
   );
 }

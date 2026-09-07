@@ -15,7 +15,7 @@ import { InfiniteTableBody } from "@/components/infinite-scroll";
 import { PeriodFilter } from "@/components/period-filter";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
-import { ProgressBar, Stat } from "@/components/ui/stat";
+import { StackedBar, Stat } from "@/components/ui/stat";
 import { readAll } from "@/lib/admin/read-all";
 import { requireAdmin } from "@/lib/admin/queries";
 import { readPeriod, resolvePeriod } from "@/lib/admin/period";
@@ -33,6 +33,28 @@ export const metadata = { title: "Analytics" };
 const APPROVED = new Set(["approved", "auto_approved"]);
 const DECIDED = new Set(["approved", "auto_approved", "rejected", "revoked"]);
 const REJECTED = new Set(["rejected", "revoked"]);
+
+/**
+ * Integer percentages that add to exactly 100.
+ *
+ * Plain rounding gives 33 + 33 + 33, or 13 + 88, and a row whose parts do not
+ * add up reads as a mistake rather than as arithmetic. Every part is floored,
+ * and the units that leaves short go, one each, to the parts that lost the
+ * most in flooring — the way seats are apportioned. `counts` must add to
+ * `total`; with a total of nought every share is nought.
+ */
+function percentages(counts: number[], total: number): number[] {
+  if (total <= 0) return counts.map(() => 0);
+  const exact = counts.map((count) => (count * 100) / total);
+  const shares = exact.map(Math.floor);
+  const short = 100 - shares.reduce((sum, share) => sum + share, 0);
+  const byLoss = exact
+    .map((value, index) => ({ index, loss: value - shares[index] }))
+    .sort((left, right) => right.loss - left.loss)
+    .slice(0, Math.max(0, short));
+  for (const { index } of byLoss) shares[index] += 1;
+  return shares;
+}
 
 type Campaign = {
   id: string;
@@ -143,6 +165,14 @@ export default async function AnalyticsPage({
   // the same brief are two pieces of work sent back, and collapsing them to
   // one would hide the ambassador who keeps missing.
   const rejectedByAmbassador = new Map<string, number>();
+  // The bar, though, is drawn per task, so it needs the set of tasks a
+  // rejection landed on: three rejected attempts at one brief are one task
+  // sent back, and painting them as three would show more red than there
+  // are tasks. A task that was approved in the end drops out when the bar
+  // is built — red is only for work still outstanding. The same goes for
+  // the tasks with an upload nobody has ruled on yet.
+  const rejectedTasksByAmbassador = new Map<string, Set<string>>();
+  const pendingTasksByAmbassador = new Map<string, Set<string>>();
   const approvedByCampaign = new Map<string, Set<string>>();
   const submittedByCampaign = new Map<string, number>();
   const taskCampaign = new Map(taskRows.map((task) => [task.id, task.campaign_id]));
@@ -158,13 +188,23 @@ export default async function AnalyticsPage({
         (submittedByCampaign.get(campaignId) ?? 0) + 1,
       );
     }
-    if (!DECIDED.has(submission.status)) pendingReview += 1;
+    if (!DECIDED.has(submission.status)) {
+      pendingReview += 1;
+      const waiting =
+        pendingTasksByAmbassador.get(submission.ambassador_id) ?? new Set();
+      waiting.add(submission.campaign_task_id);
+      pendingTasksByAmbassador.set(submission.ambassador_id, waiting);
+    }
     if (DECIDED.has(submission.status)) decided += 1;
     if (REJECTED.has(submission.status)) {
       rejectedByAmbassador.set(
         submission.ambassador_id,
         (rejectedByAmbassador.get(submission.ambassador_id) ?? 0) + 1,
       );
+      const sentBack =
+        rejectedTasksByAmbassador.get(submission.ambassador_id) ?? new Set();
+      sentBack.add(submission.campaign_task_id);
+      rejectedTasksByAmbassador.set(submission.ambassador_id, sentBack);
     }
     if (!APPROVED.has(submission.status)) continue;
 
@@ -198,12 +238,39 @@ export default async function AnalyticsPage({
   // the bottom, the ones who have done nothing, are the ones worth finding.
   const ranked = profiles
     .map((profile) => {
-      const approved = approvedByAmbassador.get(profile.id)?.size ?? 0;
+      // Each task is in exactly one state, settled by its best upload:
+      // approved beats waiting beats sent back, so a brief that was rejected
+      // and then re-uploaded is waiting, not failing, and the four states
+      // between them account for every task the ambassador has.
+      const approvedTasks = approvedByAmbassador.get(profile.id);
+      const pendingTasks = pendingTasksByAmbassador.get(profile.id);
+      const approved = approvedTasks?.size ?? 0;
+      let pending = 0;
+      for (const taskId of pendingTasks ?? []) {
+        if (!approvedTasks?.has(taskId)) pending += 1;
+      }
+      let sentBack = 0;
+      for (const taskId of rejectedTasksByAmbassador.get(profile.id) ?? []) {
+        if (!approvedTasks?.has(taskId) && !pendingTasks?.has(taskId)) {
+          sentBack += 1;
+        }
+      }
+      const untouched = taskTotal - approved - pending - sentBack;
+      const [completion, awaiting, rejection, remainder] = percentages(
+        [approved, pending, sentBack, untouched],
+        taskTotal,
+      );
       return {
         ...profile,
         approved,
         rejected: rejectedByAmbassador.get(profile.id) ?? 0,
-        completion: taskTotal ? Math.round((approved * 100) / taskTotal) : 0,
+        pending,
+        sentBack,
+        untouched,
+        completion,
+        awaiting,
+        rejection,
+        remainder,
       };
     })
     .sort(
@@ -378,7 +445,30 @@ export default async function AnalyticsPage({
                 {scopeSummary}
               </p>
             </div>
-            <Users className="size-5 shrink-0 text-ink-soft" />
+            {/* The key to the bar, in the corner the decorative icon used
+                to hold. Four states on one track need naming exactly once,
+                and up here they are read before the first row is. */}
+            <ul className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11.5px] font-bold text-ink-soft">
+              <li className="flex items-center gap-1.5">
+                <span aria-hidden className="size-2 rounded-full bg-brand" />
+                Approved
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span aria-hidden className="size-2 rounded-full bg-warn" />
+                Pending
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span aria-hidden className="size-2 rounded-full bg-bad" />
+                Rejected
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="size-2 rounded-full border border-gray-300 bg-surface"
+                />
+                Not submitted
+              </li>
+            </ul>
           </div>
         </CardBody>
 
@@ -392,7 +482,7 @@ export default async function AnalyticsPage({
           // not among them — it is the longest field on the row and the one
           // the filters above already say, so it buys nothing here.
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-left">
+            <table className="w-full min-w-[46rem] text-left">
               <thead className="border-y border-line bg-canvas-sunk">
                 <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
                   <th className="w-12 px-4 py-2.5 text-center font-medium">#</th>
@@ -404,7 +494,7 @@ export default async function AnalyticsPage({
                     Rejections
                   </th>
                   <th className="px-4 py-2.5 text-right font-medium">Approved</th>
-                  <th className="w-44 px-4 py-2.5 text-right font-medium">
+                  <th className="w-52 px-4 py-2.5 text-right font-medium">
                     Completion
                   </th>
                 </tr>
@@ -463,19 +553,53 @@ export default async function AnalyticsPage({
                     </td>
 
                     <td className="px-4 py-3">
-                      {/* The bar carries the comparison, the number carries the
-                          value — reading a column of percentages for the gap
-                          between 30% and 20% is work a length does for free. */}
-                      <div className="flex items-center justify-end gap-2.5">
-                        <ProgressBar
-                          value={ambassador.completion}
+                      {/* The bar carries the comparison, the numbers carry the
+                          values — reading a column of percentages for the gap
+                          between 30% and 20% is work a length does for free.
+                          One track, scaled to every task the ambassador has,
+                          filled left to right with approved, then awaiting
+                          review, then sent back; whatever stays empty has not
+                          been submitted. The four figures under it are the
+                          same shares in the same order, and they add to 100
+                          by construction — see `percentages` above. The bar
+                          is given the shares rather than the counts so that
+                          it cannot round differently from the figures. */}
+                      <div className="ml-auto flex w-40 flex-col gap-1.5">
+                        <StackedBar
                           max={100}
-                          tone="brand"
-                          className="h-2 w-24 shrink-0"
+                          segments={[
+                            { value: ambassador.completion, tone: "brand" },
+                            { value: ambassador.awaiting, tone: "warn" },
+                            { value: ambassador.rejection, tone: "bad" },
+                          ]}
+                          label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.pending)} pending, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.untouched)} not submitted, of ${formatNumber(taskTotal)} tasks`}
+                          className="h-2 w-full"
                         />
-                        <span className="tabular w-10 text-right text-[13px] font-extrabold text-ink">
-                          {ambassador.completion}%
-                        </span>
+                        <ul className="tabular flex items-center justify-between text-[11.5px] font-extrabold text-ink">
+                          <li className="flex items-center gap-1">
+                            <span aria-hidden className="size-1.5 rounded-full bg-brand" />
+                            <span className="sr-only">Approved </span>
+                            {ambassador.completion}%
+                          </li>
+                          <li className="flex items-center gap-1">
+                            <span aria-hidden className="size-1.5 rounded-full bg-warn" />
+                            <span className="sr-only">Pending </span>
+                            {ambassador.awaiting}%
+                          </li>
+                          <li className="flex items-center gap-1">
+                            <span aria-hidden className="size-1.5 rounded-full bg-bad" />
+                            <span className="sr-only">Rejected </span>
+                            {ambassador.rejection}%
+                          </li>
+                          <li className="flex items-center gap-1 text-ink-faint">
+                            <span
+                              aria-hidden
+                              className="size-1.5 rounded-full border border-gray-300 bg-surface"
+                            />
+                            <span className="sr-only">Not submitted </span>
+                            {ambassador.remainder}%
+                          </li>
+                        </ul>
                       </div>
                     </td>
                   </tr>
