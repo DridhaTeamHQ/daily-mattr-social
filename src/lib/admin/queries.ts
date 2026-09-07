@@ -526,6 +526,8 @@ export type ReferralRow = {
   full_name: string;
   email: string;
   college: string | null;
+  /** As typed on the profile — run through `cohortLabel` before grouping. */
+  batch: string | null;
   referral_code: string;
   status: Enums<"user_status">;
   /** Downloads credited to this code. */
@@ -561,7 +563,7 @@ export async function getReferralSummary(): Promise<ReferralSummary> {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("id, full_name, email, college, referral_code, status")
+        .select("id, full_name, email, college, batch, referral_code, status")
         .eq("role", "ambassador")
         .order("full_name", { ascending: true }),
       supabase
