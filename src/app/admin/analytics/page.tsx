@@ -239,36 +239,32 @@ export default async function AnalyticsPage({
   const ranked = profiles
     .map((profile) => {
       // Each task is in exactly one state, settled by its best upload:
-      // approved beats waiting beats sent back, so a brief that was rejected
-      // and then re-uploaded is waiting, not failing, and the four states
-      // between them account for every task the ambassador has.
+      // approved beats an upload still under review beats sent back, so a
+      // brief that was rejected and then re-uploaded is pending, not
+      // failing. Pending is everything without an outcome yet — waiting on
+      // a decision or never submitted — so the three states between them
+      // account for every task the ambassador has.
       const approvedTasks = approvedByAmbassador.get(profile.id);
       const pendingTasks = pendingTasksByAmbassador.get(profile.id);
       const approved = approvedTasks?.size ?? 0;
-      let pending = 0;
-      for (const taskId of pendingTasks ?? []) {
-        if (!approvedTasks?.has(taskId)) pending += 1;
-      }
       let sentBack = 0;
       for (const taskId of rejectedTasksByAmbassador.get(profile.id) ?? []) {
         if (!approvedTasks?.has(taskId) && !pendingTasks?.has(taskId)) {
           sentBack += 1;
         }
       }
-      const untouched = taskTotal - approved - pending - sentBack;
-      const [completion, awaiting, rejection, remainder] = percentages(
-        [approved, pending, sentBack, untouched],
+      const pending = taskTotal - approved - sentBack;
+      const [completion, rejection, remainder] = percentages(
+        [approved, sentBack, pending],
         taskTotal,
       );
       return {
         ...profile,
         approved,
         rejected: rejectedByAmbassador.get(profile.id) ?? 0,
-        pending,
         sentBack,
-        untouched,
+        pending,
         completion,
-        awaiting,
         rejection,
         remainder,
       };
@@ -446,16 +442,12 @@ export default async function AnalyticsPage({
               </p>
             </div>
             {/* The key to the bar, in the corner the decorative icon used
-                to hold. Four states on one track need naming exactly once,
+                to hold. Three states on one track need naming exactly once,
                 and up here they are read before the first row is. */}
             <ul className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11.5px] font-bold text-ink-soft">
               <li className="flex items-center gap-1.5">
                 <span aria-hidden className="size-2 rounded-full bg-brand" />
                 Approved
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span aria-hidden className="size-2 rounded-full bg-warn" />
-                Pending
               </li>
               <li className="flex items-center gap-1.5">
                 <span aria-hidden className="size-2 rounded-full bg-bad" />
@@ -466,7 +458,7 @@ export default async function AnalyticsPage({
                   aria-hidden
                   className="size-2 rounded-full border border-gray-300 bg-surface"
                 />
-                Not submitted
+                Pending
               </li>
             </ul>
           </div>
@@ -557,22 +549,21 @@ export default async function AnalyticsPage({
                           values — reading a column of percentages for the gap
                           between 30% and 20% is work a length does for free.
                           One track, scaled to every task the ambassador has,
-                          filled left to right with approved, then awaiting
-                          review, then sent back; whatever stays empty has not
-                          been submitted. The four figures under it are the
-                          same shares in the same order, and they add to 100
-                          by construction — see `percentages` above. The bar
-                          is given the shares rather than the counts so that
-                          it cannot round differently from the figures. */}
+                          filled left to right with approved, then sent back;
+                          whatever stays empty is still pending. The three
+                          figures under it are the same shares in the same
+                          order, and they add to 100 by construction — see
+                          `percentages` above. The bar is given the shares
+                          rather than the counts so that it cannot round
+                          differently from the figures. */}
                       <div className="ml-auto flex w-40 flex-col gap-1.5">
                         <StackedBar
                           max={100}
                           segments={[
                             { value: ambassador.completion, tone: "brand" },
-                            { value: ambassador.awaiting, tone: "warn" },
                             { value: ambassador.rejection, tone: "bad" },
                           ]}
-                          label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.pending)} pending, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.untouched)} not submitted, of ${formatNumber(taskTotal)} tasks`}
+                          label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.pending)} pending, of ${formatNumber(taskTotal)} tasks`}
                           className="h-2 w-full"
                         />
                         <ul className="tabular flex items-center justify-between text-[11.5px] font-extrabold text-ink">
@@ -580,11 +571,6 @@ export default async function AnalyticsPage({
                             <span aria-hidden className="size-1.5 rounded-full bg-brand" />
                             <span className="sr-only">Approved </span>
                             {ambassador.completion}%
-                          </li>
-                          <li className="flex items-center gap-1">
-                            <span aria-hidden className="size-1.5 rounded-full bg-warn" />
-                            <span className="sr-only">Pending </span>
-                            {ambassador.awaiting}%
                           </li>
                           <li className="flex items-center gap-1">
                             <span aria-hidden className="size-1.5 rounded-full bg-bad" />
@@ -596,7 +582,7 @@ export default async function AnalyticsPage({
                               aria-hidden
                               className="size-1.5 rounded-full border border-gray-300 bg-surface"
                             />
-                            <span className="sr-only">Not submitted </span>
+                            <span className="sr-only">Pending </span>
                             {ambassador.remainder}%
                           </li>
                         </ul>

@@ -142,20 +142,11 @@ export function Stat({
   );
 }
 
-type BarTone =
-  | "brand"
-  | "ok"
-  | "warn"
-  | "bad"
-  | "reel"
-  | "poll"
-  | "invite"
-  | "rank";
+type BarTone = "brand" | "ok" | "bad" | "reel" | "poll" | "invite" | "rank";
 
 const BAR_FILL: Record<BarTone, string> = {
   brand: "bg-brand",
   ok: "bg-ok",
-  warn: "bg-warn",
   bad: "bg-bad",
   reel: "bg-reel",
   poll: "bg-poll",
@@ -200,11 +191,10 @@ export function ProgressBar({
 }
 
 /**
- * One track, several fills laid end to end — approved in one colour, waiting
- * in another, rejected in a third — every one of them measured against the
- * same `max`. A full bar means each unit has an outcome; the gap at the end
- * is the work nobody has touched yet, which is why it is left empty rather
- * than painted.
+ * One track, several fills laid end to end — approved in one colour, rejected
+ * in another — every one of them measured against the same `max`. A full bar
+ * means each unit has an outcome; the gap at the end is the work still
+ * pending, which is why it is left empty rather than painted.
  *
  * A later segment is squeezed rather than allowed to spill: two shares that
  * each rounded up can add to 101, and a fill poking past its track reads as
