@@ -11,6 +11,7 @@ import {
   House,
   LogOut,
   Trophy,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
@@ -30,7 +31,22 @@ import { cn, initials } from "@/lib/utils";
  * phone screen.
  */
 
-const ITEMS = [
+/**
+ * `mobileOnly`/`desktopOnly` are optional and currently only the first is
+ * used. Declared on the type rather than inferred from the array so that
+ * removing the last item carrying a flag does not make the bar that filters on
+ * it stop compiling.
+ */
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  fill: string;
+  mobileOnly?: boolean;
+  desktopOnly?: boolean;
+};
+
+const ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House, fill: "bg-brand" },
   {
     href: "/dashboard/campaigns",
@@ -42,13 +58,15 @@ const ITEMS = [
   // in date order. The page still exists at /dashboard/surveys for anyone
   // holding a link to it — it is just not a destination of its own any more.
   {
-    // Off the phone bar: it is the one people check occasionally rather than
-    // act on, and it is still one tap from Home and the top bar.
+    // On both bars. It was desktop-only on the reasoning that a ranking is
+    // checked occasionally rather than acted on — but ambassadors are on
+    // phones almost exclusively, so "occasionally, on desktop" meant never for
+    // most of them, and the board is the one screen that tells a student where
+    // they stand.
     href: "/dashboard/leaderboard",
     label: "Leaderboard",
     icon: Trophy,
     fill: "bg-rank",
-    desktopOnly: true,
   },
   {
     // Kept on the phone bar but off the desktop one. Sharing a code is the
