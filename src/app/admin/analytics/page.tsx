@@ -62,7 +62,24 @@ type Campaign = {
   status: string;
   starts_at: string;
   ends_at: string | null;
+  updated_at: string;
 };
+
+/**
+ * The moment a campaign stopped accepting work, as a timestamp.
+ *
+ * Uploads are refused once the campaign is no longer `live` or its deadline
+ * has passed — see the guards in `src/lib/submissions/actions.ts`. A deadline
+ * is the exact answer. Without one, a campaign an admin ended by hand leaves
+ * no record of when except `updated_at`, which is close enough to decide who
+ * was in the programme at the time. A live campaign with no deadline has not
+ * closed at all.
+ */
+function closedAt(campaign: Campaign): number {
+  if (campaign.ends_at) return new Date(campaign.ends_at).getTime();
+  if (campaign.status === "ended") return new Date(campaign.updated_at).getTime();
+  return Number.POSITIVE_INFINITY;
+}
 
 type Submission = {
   ambassador_id: string;
@@ -95,11 +112,12 @@ export default async function AnalyticsPage({
       college: string | null;
       city: string | null;
       batch: string | null;
+      created_at: string;
     }>(
       (from, to) =>
         supabase
           .from("profiles")
-          .select("id, full_name, college, city, batch")
+          .select("id, full_name, college, city, batch, created_at")
           .eq("role", "ambassador")
           .eq("status", "active")
           .order("id")
@@ -108,7 +126,7 @@ export default async function AnalyticsPage({
     ),
     supabase
       .from("campaigns")
-      .select("id, title, status, starts_at, ends_at")
+      .select("id, title, status, starts_at, ends_at, updated_at")
       .neq("status", "draft"),
   ]);
 
@@ -160,6 +178,43 @@ export default async function AnalyticsPage({
   });
 
   const taskTotal = taskRows.length;
+
+  // How many tasks each campaign in the period carries, and when it shut. A
+  // campaign nobody can upload to any more is still real work for the people
+  // who were here while it was open — it is only unreachable for the ones who
+  // were not.
+  const tasksPerCampaign = new Map<string, number>();
+  for (const task of taskRows) {
+    tasksPerCampaign.set(
+      task.campaign_id,
+      (tasksPerCampaign.get(task.campaign_id) ?? 0) + 1,
+    );
+  }
+  const campaignWindows = activeCampaigns.map((campaign) => ({
+    id: campaign.id,
+    closed: closedAt(campaign),
+    tasks: tasksPerCampaign.get(campaign.id) ?? 0,
+  }));
+
+  /**
+   * The tasks this ambassador actually had a chance to do.
+   *
+   * The denominator used to be every task in the period, the same number for
+   * everybody, which made the figure unreachable by construction: a campaign
+   * that closed in March is in a April joiner's total, and no upload of theirs
+   * can ever land on it. So a campaign counts for someone only if they were in
+   * the programme before it closed. Work they were here for and skipped stays
+   * counted — the point is to drop what was never open to them, not to forgive
+   * what was.
+   */
+  function availableTo(joinedAt: number): number {
+    let total = 0;
+    for (const campaign of campaignWindows) {
+      if (joinedAt < campaign.closed) total += campaign.tasks;
+    }
+    return total;
+  }
+
   const approvedByAmbassador = new Map<string, Set<string>>();
   // Rejections are counted per upload, not per task: two rejected attempts at
   // the same brief are two pieces of work sent back, and collapsing them to
@@ -220,7 +275,13 @@ export default async function AnalyticsPage({
     }
   }
 
-  const availableAssignments = profiles.length * taskTotal;
+  // Not `profiles.length * taskTotal`: the rate at the top of the page has to
+  // be the same arithmetic as the rows underneath it, or the tile and the
+  // table disagree about the same cohort.
+  const availableAssignments = profiles.reduce(
+    (total, profile) => total + availableTo(new Date(profile.created_at).getTime()),
+    0,
+  );
   const completedTasks = [...approvedByAmbassador.values()].reduce(
     (total, tasksForAmbassador) => total + tasksForAmbassador.size,
     0,
@@ -253,13 +314,20 @@ export default async function AnalyticsPage({
           sentBack += 1;
         }
       }
-      const pending = taskTotal - approved - sentBack;
+      // `Math.max` rather than the bare subtraction: an upload can only have
+      // happened while its campaign was open, so approved and sent back are
+      // inside `total` in any consistent data — but a backfilled or
+      // hand-edited row must not be allowed to drive pending negative and
+      // silently unbalance the three shares.
+      const total = availableTo(new Date(profile.created_at).getTime());
+      const pending = Math.max(0, total - approved - sentBack);
       const [completion, rejection, remainder] = percentages(
         [approved, sentBack, pending],
-        taskTotal,
+        approved + sentBack + pending,
       );
       return {
         ...profile,
+        total,
         approved,
         rejected: rejectedByAmbassador.get(profile.id) ?? 0,
         sentBack,
@@ -270,7 +338,12 @@ export default async function AnalyticsPage({
       };
     })
     .sort(
+      // Somebody who joined after every campaign in the period closed has no
+      // tasks to be measured against. They read as 0% next to people who had
+      // the whole month and did nothing, so they go below the ranking rather
+      // than into the bottom of it.
       (left, right) =>
+        Number(right.total > 0) - Number(left.total > 0) ||
         right.completion - left.completion ||
         right.approved - left.approved ||
         left.full_name.localeCompare(right.full_name),
@@ -278,11 +351,17 @@ export default async function AnalyticsPage({
 
   const campaignPerformance = activeCampaigns
     .map((campaign) => {
-      const campaignTaskCount = taskRows.filter(
-        (task) => task.campaign_id === campaign.id,
-      ).length;
+      const campaignTaskCount = tasksPerCampaign.get(campaign.id) ?? 0;
       const approved = approvedByCampaign.get(campaign.id)?.size ?? 0;
-      const total = campaignTaskCount * profiles.length;
+      // The people who were in the programme before this campaign closed, not
+      // the whole cohort: counting a January campaign against ambassadors
+      // recruited in March caps it below 100% for reasons that have nothing to
+      // do with the campaign.
+      const closes = closedAt(campaign);
+      const reached = profiles.filter(
+        (profile) => new Date(profile.created_at).getTime() < closes,
+      ).length;
+      const total = campaignTaskCount * reached;
       return {
         // Two campaigns can carry the same title — running the same brief a
         // second month is normal — so the row is identified by the campaign,
@@ -414,7 +493,7 @@ export default async function AnalyticsPage({
       ) : (
         <ChartCard
           title="Campaign completion"
-          hint="Approved tasks divided by all tasks available to active ambassadors."
+          hint="Approved tasks divided by the tasks available to the ambassadors who were in the programme before the campaign closed."
         >
           <BarList
             data={campaignPerformance}
@@ -527,8 +606,12 @@ export default async function AnalyticsPage({
                       {ambassador.batch || "—"}
                     </td>
 
+                    {/* The ambassador's own pool, not the programme's. Two
+                        rows can legitimately show different totals — that is
+                        the column saying one of them joined after a campaign
+                        had already closed. */}
                     <td className="tabular px-4 py-3 text-right text-[13px] text-ink-soft">
-                      {formatNumber(taskTotal)}
+                      {formatNumber(ambassador.total)}
                     </td>
 
                     {/* A dash rather than a column of zeroes: the rejections
@@ -557,35 +640,48 @@ export default async function AnalyticsPage({
                           rather than the counts so that it cannot round
                           differently from the figures. */}
                       <div className="ml-auto flex w-40 flex-col gap-1.5">
-                        <StackedBar
-                          max={100}
-                          segments={[
-                            { value: ambassador.completion, tone: "brand" },
-                            { value: ambassador.rejection, tone: "bad" },
-                          ]}
-                          label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.pending)} pending, of ${formatNumber(taskTotal)} tasks`}
-                          className="h-2 w-full"
-                        />
-                        <ul className="tabular flex items-center justify-between text-[11.5px] font-extrabold text-ink">
-                          <li className="flex items-center gap-1">
-                            <span aria-hidden className="size-1.5 rounded-full bg-brand" />
-                            <span className="sr-only">Approved </span>
-                            {ambassador.completion}%
-                          </li>
-                          <li className="flex items-center gap-1">
-                            <span aria-hidden className="size-1.5 rounded-full bg-bad" />
-                            <span className="sr-only">Rejected </span>
-                            {ambassador.rejection}%
-                          </li>
-                          <li className="flex items-center gap-1 text-ink-faint">
-                            <span
-                              aria-hidden
-                              className="size-1.5 rounded-full border border-gray-300 bg-surface"
-                            />
-                            <span className="sr-only">Pending </span>
-                            {ambassador.remainder}%
-                          </li>
-                        </ul>
+                        {/* No campaign was open to this person in the period,
+                            so there is no share to draw. A 0% bar here would
+                            be a judgement, and the one thing the row can say
+                            for certain is that nobody asked them for
+                            anything. */}
+                        {ambassador.total === 0 ? (
+                          <p className="py-1 text-right text-[11.5px] font-bold text-ink-faint">
+                            No tasks open to them {period.noun}
+                          </p>
+                        ) : (
+                          <>
+                          <StackedBar
+                            max={100}
+                            segments={[
+                              { value: ambassador.completion, tone: "brand" },
+                              { value: ambassador.rejection, tone: "bad" },
+                            ]}
+                            label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.pending)} pending, of ${formatNumber(ambassador.total)} tasks`}
+                            className="h-2 w-full"
+                          />
+                          <ul className="tabular flex items-center justify-between text-[11.5px] font-extrabold text-ink">
+                            <li className="flex items-center gap-1">
+                              <span aria-hidden className="size-1.5 rounded-full bg-brand" />
+                              <span className="sr-only">Approved </span>
+                              {ambassador.completion}%
+                            </li>
+                            <li className="flex items-center gap-1">
+                              <span aria-hidden className="size-1.5 rounded-full bg-bad" />
+                              <span className="sr-only">Rejected </span>
+                              {ambassador.rejection}%
+                            </li>
+                            <li className="flex items-center gap-1 text-ink-faint">
+                              <span
+                                aria-hidden
+                                className="size-1.5 rounded-full border border-gray-300 bg-surface"
+                              />
+                              <span className="sr-only">Pending </span>
+                              {ambassador.remainder}%
+                            </li>
+                          </ul>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
