@@ -1298,7 +1298,7 @@ export type Database = {
         }[];
       };
       completion_leaderboard: {
-        Args: { limit_count?: number };
+        Args: { limit_count?: number; viewer?: string };
         Returns: {
           position: number;
           ambassador_id: string;

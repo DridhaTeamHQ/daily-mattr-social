@@ -407,7 +407,10 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         .select("id, full_name, college, referral_code, role, status, must_change_password")
         .eq("id", subjectId)
         .maybeSingle(),
-      supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
+      supabase.rpc("completion_leaderboard", {
+        limit_count: 1000,
+        ...(preview ? { viewer: subjectId } : {}),
+      }),
       // The `my_*` RPCs filter on auth.uid() internally, so a preview has to
       // read the same tables directly. See preview-stats.ts.
       preview
@@ -446,11 +449,10 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   }
 
   const completionBoard = completionBoardRes.data ?? [];
-  // `is_me` is stamped by the database against auth.uid(), so a preview finds
-  // its row by id instead. Same row, different way of pointing at it.
-  const mine = preview
-    ? completionBoard.find((row) => row.ambassador_id === subjectId)
-    : completionBoard.find((row) => row.is_me);
+  // `is_me` is stamped against the viewer now, so in a preview it and the id
+  // agree. Matching on the id anyway: it is the same row either way, and it
+  // stays right against a database where 0039 has not been applied yet.
+  const mine = completionBoard.find((row) => row.ambassador_id === subjectId);
   const standing = mine
     ? {
         completionPct: mine.completion_pct,
@@ -697,7 +699,16 @@ export const getLeaderboard = cache(async (
   return data ?? [];
 });
 
-/** The programme-wide current-month board, ranked by approved task completion. */
+/**
+ * The current-month board, ranked by approved task completion and scoped by
+ * the database to the viewer's batch.
+ *
+ * The viewer is passed explicitly because it is not always the caller. An
+ * admin previewing a student is signed in as themselves, and the function's
+ * admin exemption would hand them the unscoped programme-wide board — every
+ * batch, ranked together, with the student's own row unmarked. Naming the
+ * student gets the board the student would see. See `view-as.ts`.
+ */
 export const getCompletionLeaderboard = cache(
   async (limit = 200): Promise<CompletionLeaderboardRow[]> => {
     if (isDemoMode()) {
@@ -705,9 +716,14 @@ export const getCompletionLeaderboard = cache(
       return demoCompletionLeaderboard.slice(0, limit);
     }
 
+    const viewer = await getViewer();
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("completion_leaderboard", {
       limit_count: limit,
+      // Only when previewing. Passing it always would be the same id the
+      // function already reads off `auth.uid()`, but it would also drop the
+      // admin exemption that /admin/leaderboard depends on.
+      ...(viewer?.isPreview ? { viewer: viewer.id } : {}),
     });
 
     if (error) {
