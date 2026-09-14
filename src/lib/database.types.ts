@@ -469,6 +469,9 @@ export type Database = {
           status: Enums<"campaign_status">;
           starts_at: string;
           ends_at: string | null;
+          /** When it actually stopped taking work, as opposed to the deadline
+           * in `ends_at`. Stamped by trigger on the way into ended/archived. */
+          ended_at: string | null;
           /** First time this campaign left draft. Stamped by trigger. */
           published_at: string | null;
           created_by: string | null;
@@ -488,6 +491,7 @@ export type Database = {
           status?: Enums<"campaign_status">;
           starts_at?: string;
           ends_at?: string | null;
+          ended_at?: string | null;
           published_at?: string | null;
           created_by?: string | null;
           created_at?: string;
@@ -506,6 +510,7 @@ export type Database = {
           status?: Enums<"campaign_status">;
           starts_at?: string;
           ends_at?: string | null;
+          ended_at?: string | null;
           published_at?: string | null;
           created_by?: string | null;
           created_at?: string;
