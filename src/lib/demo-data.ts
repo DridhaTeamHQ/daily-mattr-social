@@ -79,6 +79,8 @@ export const demoDashboard: DashboardData = {
       thumbnail_path: null,
       starts_at: at(-2),
       ends_at: at(3),
+      status: "live",
+      ended_at: null,
       tasks: [
         {
           id: "t1",
@@ -128,6 +130,8 @@ export const demoDashboard: DashboardData = {
       thumbnail_path: null,
       starts_at: at(-9),
       ends_at: at(-1), // ended — the card must still render
+      status: "ended",
+      ended_at: at(-1),
       tasks: [
         {
           id: "t4",

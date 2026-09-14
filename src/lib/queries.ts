@@ -88,6 +88,14 @@ export type CampaignCard = {
   /** When it went out. What Tasks sorts on, newest first. */
   starts_at: string;
   ends_at: string | null;
+  /**
+   * Closed campaigns reach this page too, so the page has to say which is
+   * which. Anything other than 'live' takes no more submissions — the proof
+   * actions refuse it — and renders as closed.
+   */
+  status: Enums<"campaign_status">;
+  /** When it actually stopped, for a campaign ended before its deadline. */
+  ended_at: string | null;
   tasks: TaskCard[];
 };
 
@@ -618,9 +626,13 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     // Must stay a single string literal — postgrest-js infers the row shape
     // from it, and a concatenated expression degrades to `GenericStringError`.
     .select(
-      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, starts_at, ends_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
+      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, starts_at, ends_at, status, ended_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
     )
-    .eq("status", "live")
+    // Closed campaigns included on purpose. Only 'live' was listed, so a
+    // campaign that closed vanished from this page while staying in the
+    // completion denominator — an ambassador read "All done" on every card
+    // and 91% on the leaderboard, with the missing task nowhere on screen.
+    .in("status", ["live", "ended", "archived"])
     .order("starts_at", { ascending: false });
 
   if (!campaigns?.length) return [];
@@ -628,6 +640,12 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   // Own rows by RLS, or the previewed student's — an admin may read those too,
   // which is what turns "Done 0/1" on every card into their real progress.
   const subjectId = (await getViewer())?.id ?? user.id;
+
+  const { data: subject } = await supabase
+    .from("profiles")
+    .select("created_at")
+    .eq("id", subjectId)
+    .maybeSingle();
   const { data: mine } = await supabase
     .from("submissions")
     .select("campaign_task_id, status, attempt, reject_reason")
@@ -648,7 +666,34 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     }
   }
 
-  return campaigns.map((c) => ({
+  /**
+   * The floor of this student's own pool, mirroring migration 0040: the
+   * month's start, pulled forward to the day they joined.
+   *
+   * It has to agree with `completion_leaderboard`, because this page is now
+   * what explains the percentage that function returns. A closed campaign
+   * that shut before they joined was never theirs and is not counted there,
+   * so listing it here would invent work they were never set.
+   */
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const joined = subject?.created_at ? new Date(subject.created_at) : null;
+  const reachableFrom =
+    joined && joined > monthStart ? joined.getTime() : monthStart.getTime();
+
+  const reachable = campaigns.filter((c) => {
+    if (c.status === "live") return true;
+    // The earlier of the deadline it carried and the moment it was ended —
+    // the same `least` the migration takes. A closed campaign with neither
+    // stamp stays listed, which is how the SQL reads it too.
+    const stamps = [c.ends_at, c.ended_at]
+      .filter((at): at is string => Boolean(at))
+      .map((at) => new Date(at).getTime());
+    return stamps.length === 0 || Math.min(...stamps) >= reachableFrom;
+  });
+
+  return reachable.map((c) => ({
     id: c.id,
     title: c.title,
     description: c.description,
@@ -658,6 +703,8 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     thumbnail_path: c.thumbnail_path,
     starts_at: c.starts_at,
     ends_at: c.ends_at,
+    status: c.status,
+    ended_at: c.ended_at,
     tasks: [...(c.campaign_tasks ?? [])]
       .sort((a, b) => a.order_index - b.order_index)
       .map((t) => ({

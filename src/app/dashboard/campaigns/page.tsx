@@ -174,7 +174,15 @@ export default async function CampaignsPage({
 
 /** One campaign, with its tasks and the upload button for each. */
 function CampaignBlock({ c }: { c: CampaignCardData }) {
-  const ended = timeRemaining(c.ends_at) === "Ended";
+  /**
+   * Closed is a state of the campaign, not of its deadline.
+   *
+   * Reading it off `ends_at` alone missed the campaigns an admin ends by
+   * hand: those carry no deadline at all, so a shut campaign rendered with a
+   * live-looking header and an enabled upload button the server would refuse.
+   */
+  const closed = c.status !== "live";
+  const ended = closed || timeRemaining(c.ends_at) === "Ended";
   const expectedHandle = c.expected_handle;
   const isClip = c.title.includes("CLIP");
 
@@ -200,7 +208,10 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
       variant={isClip ? "clip" : "reel"}
       title={c.title}
       description={c.description}
-      deadlineLabel={timeRemaining(c.ends_at)}
+      // "Closed" rather than a countdown or the "No deadline" chip that gets
+      // hidden: on a campaign that has shut, the one useful fact is that it
+      // has shut.
+      deadlineLabel={closed ? "Closed" : timeRemaining(c.ends_at)}
       ended={ended}
       taskCount={c.tasks.length}
       doneCount={doneCount}
@@ -328,7 +339,9 @@ function CampaignBlock({ c }: { c: CampaignCardData }) {
               isClip ? "text-brand-strong" : "text-gray-600",
             )}
           />
-          Complete the task, then upload your screenshot.
+          {closed
+            ? "This one has closed. It still counts toward your percentage."
+            : "Complete the task, then upload your screenshot."}
         </p>
         <Button
           size="sm"
