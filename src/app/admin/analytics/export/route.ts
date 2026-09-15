@@ -98,7 +98,7 @@ export async function GET(request: Request) {
   });
   const measured = new Map(ranked.map((row) => [row.id, row]));
 
-  const [profiles, conversions, ledger, submissions, responses] =
+  const [profiles, conversions, submissions, responses] =
     await Promise.all([
       readAll<Profile>(
         (from, to) =>
@@ -120,15 +120,6 @@ export async function GET(request: Request) {
             .order("id")
             .range(from, to),
         "export.conversions",
-      ),
-      readAll<{ ambassador_id: string; delta: number }>(
-        (from, to) =>
-          supabase
-            .from("point_ledger")
-            .select("ambassador_id, delta")
-            .order("id")
-            .range(from, to),
-        "export.ledger",
       ),
       readAll<{ ambassador_id: string; campaign_task_id: string; status: string }>(
         (from, to) =>
@@ -152,24 +143,21 @@ export async function GET(request: Request) {
 
   // ─── Roll the raw rows up per person ──────────────────────────────────────
 
+  // Counted conversions only. A voided one is a row the programme decided not
+  // to credit, and it is not in this file at all — it answered a question
+  // about imports that nobody opens the roster to ask.
   const confirmed = new Map<string, number>();
-  const voided = new Map<string, number>();
   const lastDownload = new Map<string, string>();
   for (const row of conversions) {
-    const bucket = row.status === "counted" ? confirmed : voided;
-    bucket.set(row.ambassador_id, (bucket.get(row.ambassador_id) ?? 0) + 1);
+    if (row.status !== "counted") continue;
+    confirmed.set(row.ambassador_id, (confirmed.get(row.ambassador_id) ?? 0) + 1);
 
-    if (row.status === "counted" && row.converted_at) {
+    if (row.converted_at) {
       const seen = lastDownload.get(row.ambassador_id);
       if (!seen || row.converted_at > seen) {
         lastDownload.set(row.ambassador_id, row.converted_at);
       }
     }
-  }
-
-  const points = new Map<string, number>();
-  for (const row of ledger) {
-    points.set(row.ambassador_id, (points.get(row.ambassador_id) ?? 0) + row.delta);
   }
 
   // Distinct tasks, not submissions. Someone who uploaded twice for one task
@@ -232,10 +220,8 @@ export async function GET(request: Request) {
     `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_INSTALLS} installs)`,
     "Approved tasks (lifetime)",
     "Confirmed downloads (lifetime)",
-    "Voided downloads",
     "Last download",
     "Valid survey responses (lifetime)",
-    "Points balance",
   ];
 
   const rows = selected.map((profile) => [
@@ -263,10 +249,8 @@ export async function GET(request: Request) {
       : "",
     approvedTasks.get(profile.id)?.size ?? 0,
     confirmed.get(profile.id) ?? 0,
-    voided.get(profile.id) ?? 0,
     lastDownload.get(profile.id) ? istDay(lastDownload.get(profile.id)!) : "",
     validResponses.get(profile.id) ?? 0,
-    points.get(profile.id) ?? 0,
   ]);
 
   // The filename carries the scope, so two downloads taken minutes apart under
