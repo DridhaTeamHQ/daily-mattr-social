@@ -1,7 +1,18 @@
 import { csvResponse } from "@/lib/admin/csv-export";
+import {
+  STIPEND_MIN_COMPLETION_PCT,
+  STIPEND_MIN_INSTALLS,
+  getCompletionByAmbassador,
+} from "@/lib/admin/completion";
+import { readPeriod, resolvePeriod } from "@/lib/admin/period";
 import { requireAdmin } from "@/lib/admin/queries";
 import { readAll } from "@/lib/admin/read-all";
-import { cohortLabel, readCohortFilters, DIMENSIONS } from "@/lib/admin/scope";
+import {
+  cohortLabel,
+  getCohort,
+  readCohortFilters,
+  DIMENSIONS,
+} from "@/lib/admin/scope";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,12 +28,22 @@ import { createClient } from "@/lib/supabase/server";
  *    Download expects batch 2, and handing them the whole programme is the
  *    export quietly answering a different question.
  *
- *  * The period — day, week, month, total — chooses A TIME WINDOW. That one is
- *    ignored on purpose. This is a roster: a person, their code, and what they
- *    have done since they joined. Slicing a roster by "this week" produces rows
- *    for people who did nothing this week, showing zeroes that read as "this
- *    ambassador has never delivered" rather than "not in the last seven days".
- *    Every figure here is lifetime, and the column names say so.
+ *  * The period — day, week, month, total — chooses A TIME WINDOW. It does not
+ *    decide WHO is in the file: every ambassador in the cohort gets a row
+ *    whether or not they did anything in the window, because this is still a
+ *    roster and a missing row reads as a missing person. It decides what the
+ *    period columns mean, and they are named for it.
+ *
+ * So each row carries both: the lifetime figures a roster is opened for, and
+ * the period figures the Analytics table beside the button is showing —
+ * total, approved, rejections, installs, completion and stipend standing.
+ * Those come from `getCompletionByAmbassador`, the same function the table
+ * renders, so the file cannot disagree with the screen it was taken from.
+ *
+ * The period columns are blank for anyone the table does not measure —
+ * suspended and invited ambassadors, who are in this file and not in that
+ * one. A zero there would read as "did nothing this month" rather than
+ * "was not being asked to".
  *
  * Suspended and invited ambassadors are included, with their status in a
  * column. The page above only counts active ones because it is measuring the
@@ -61,11 +82,21 @@ export async function GET(request: Request) {
   await requireAdmin();
 
   const url = new URL(request.url);
-  const filters = readCohortFilters(
-    Object.fromEntries(url.searchParams.entries()),
-  );
+  const params = Object.fromEntries(url.searchParams.entries());
+  const filters = readCohortFilters(params);
+  const period = resolvePeriod(readPeriod(params.period));
 
   const supabase = await createClient();
+
+  // The same rows the Analytics table ranks, keyed by id so a profile below
+  // can find its own. Cohort-scoped in there, which is why the roster filter
+  // further down has to agree with it — both go through `cohortLabel`.
+  const cohort = await getCohort(filters.city, filters.college, filters.batch);
+  const { ranked } = await getCompletionByAmbassador(supabase, {
+    cohort,
+    period,
+  });
+  const measured = new Map(ranked.map((row) => [row.id, row]));
 
   const [profiles, conversions, ledger, submissions, responses] =
     await Promise.all([
@@ -193,6 +224,12 @@ export async function GET(request: Request) {
     "Status",
     "Joined as",
     "Joined on",
+    `Tasks open to them (${period.noun})`,
+    `Approved tasks (${period.noun})`,
+    `Rejections (${period.noun})`,
+    `Installs (${period.noun})`,
+    `Completion % (${period.noun})`,
+    `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_INSTALLS} installs)`,
     "Approved tasks (lifetime)",
     "Confirmed downloads (lifetime)",
     "Voided downloads",
@@ -212,6 +249,18 @@ export async function GET(request: Request) {
     profile.status,
     profile.joined_as,
     istDay(profile.created_at),
+    measured.get(profile.id)?.total ?? "",
+    measured.get(profile.id)?.approved ?? "",
+    measured.get(profile.id)?.rejected ?? "",
+    measured.get(profile.id)?.installs ?? "",
+    measured.get(profile.id)?.completion ?? "",
+    // The word, not a boolean: a column of TRUE/FALSE in a spreadsheet needs
+    // the header read to know which way round it is.
+    measured.has(profile.id)
+      ? measured.get(profile.id)!.eligible
+        ? "Eligible"
+        : "Not met"
+      : "",
     approvedTasks.get(profile.id)?.size ?? 0,
     confirmed.get(profile.id) ?? 0,
     voided.get(profile.id) ?? 0,

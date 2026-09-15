@@ -8,6 +8,7 @@ import { ProgressHero } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
 import { getDashboard, isDemoMode } from "@/lib/queries";
+import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -32,6 +33,11 @@ const INSTALL_RANK_BADGE: Record<number, string> = {
 export default async function DashboardPage() {
   const data = await getDashboard();
   if (!data) redirect("/login");
+
+  // The same switch that shuts /dashboard/rewards also closes the install
+  // board here: "this month is settled" and "the standings still move" cannot
+  // both be true on one dashboard. See `stipend_unlock_at` and getUnlockAt.
+  const monthOpen = isUnlocked(await getUnlockAt("stipend_unlock_at"));
 
   const {
     profile,
@@ -97,6 +103,7 @@ export default async function DashboardPage() {
           nothing at all until somebody has referred an install. */}
       <InstallPodium
         rows={installPodium}
+        closed={!monthOpen}
         me={{ installs: referrals.total_confirmed, rank: installRank }}
       />
         </div>
@@ -135,7 +142,11 @@ export default async function DashboardPage() {
                 ? `Last ${formatDate(referrals.last_conversion)}`
                 : "None yet"
             }
-            badge={installRank ? INSTALL_RANK_BADGE[installRank] : undefined}
+            badge={
+              monthOpen && installRank
+                ? INSTALL_RANK_BADGE[installRank]
+                : undefined
+            }
             icon={Gift}
             tone="invite"
             info={

@@ -57,7 +57,8 @@ export default async function StipendPage({
             Stipend &amp; payouts
           </h1>
           <p className="mt-2 text-[13px] font-semibold text-ink-soft">
-            Track approved tasks and monthly stipend status.
+            Qualifying needs both: {thresholds.completionPct}% of tasks
+            approved and {thresholds.downloads} downloads.
           </p>
         </div>
 
@@ -166,6 +167,21 @@ export default async function StipendPage({
                       row.approvedTasks,
                   )
                 : 0;
+              const downloadsNeeded = Math.max(
+                0,
+                thresholds.downloads - row.downloads,
+              );
+              // Qualifying is an and, so the shortfall has to name whichever
+              // half is missing. Saying "3 more approvals" to somebody who has
+              // no installs sends them to do the wrong work.
+              const shortfall = [
+                approvalsNeeded > 0
+                  ? `${formatNumber(approvalsNeeded)} more approval${approvalsNeeded === 1 ? "" : "s"}`
+                  : null,
+                downloadsNeeded > 0
+                  ? `${formatNumber(downloadsNeeded)} more download${downloadsNeeded === 1 ? "" : "s"}`
+                  : null,
+              ].filter(Boolean);
 
               return (
                 <li key={row.ambassador_id} className="p-4">
@@ -209,7 +225,7 @@ export default async function StipendPage({
                     )}
                   </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px_170px]">
                     <div>
                       <div className="flex items-baseline justify-between text-[12px] font-bold">
                         <span className="text-ink-soft">Completion</span>
@@ -235,8 +251,8 @@ export default async function StipendPage({
                       {row.totalTasks > 0 ? (
                         <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
                           {row.met
-                            ? "Completion recorded."
-                            : `${formatNumber(approvalsNeeded)} more approval${approvalsNeeded === 1 ? "" : "s"} needed.`}
+                            ? "Completion and downloads both recorded."
+                            : `${shortfall.join(" and ")} needed.`}
                         </p>
                       ) : (
                         <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
@@ -253,7 +269,27 @@ export default async function StipendPage({
                         {formatNumber(row.approvedTasks)}/{formatNumber(row.totalTasks)}
                       </p>
                       <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
-                        Tasks approved out of the ones assigned this month
+                        Approved out of the tasks assigned this month
+                      </p>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "rounded-xl border px-3.5 py-3",
+                        row.downloads >= thresholds.downloads
+                          ? "border-ok/30 bg-ok-tint/40"
+                          : "border-gray-200 bg-gray-50",
+                      )}
+                    >
+                      <p className="text-[11px] font-extrabold uppercase tracking-wider text-ink-soft">
+                        Downloads
+                      </p>
+                      <p className="mt-1 text-[22px] font-black text-ink">
+                        {formatNumber(row.downloads)}/
+                        {formatNumber(thresholds.downloads)}
+                      </p>
+                      <p className="mt-1 text-[11.5px] font-semibold text-ink-faint">
+                        Counted installs from their code this month
                       </p>
                     </div>
                   </div>

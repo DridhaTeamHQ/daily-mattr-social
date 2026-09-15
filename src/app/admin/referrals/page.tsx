@@ -6,13 +6,14 @@ import Link from "next/link";
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { DownloadsCell } from "@/components/downloads-cell";
 import { ParamSelect } from "@/components/param-select";
-import { ReferralLinkLock } from "@/components/referral-link-lock";
+import { FeatureLock } from "@/components/feature-lock";
 import { SearchBox } from "@/components/search-box";
 import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
+import { setReferralLinkUnlock, setStipendUnlock } from "@/lib/admin/actions";
 import { getReferralSummary } from "@/lib/admin/queries";
 import { UNASSIGNED, cohortLabel } from "@/lib/admin/scope";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
@@ -41,6 +42,11 @@ export default async function AdminInstallsPage({
       getReferralSummary(),
       getUnlockAt("referral_link_unlock_at"),
     ]);
+
+  // The second switch on this page, and deliberately a separate row: these
+  // two open on different days for different reasons, and one control that
+  // moved both would eventually move the wrong one.
+  const stipendUnlockAt = await getUnlockAt("stipend_unlock_at");
 
   // Batches are canonicalised the same way the analytics filters do it, so
   // "batch a", "Batch A" and "A" on three profiles are one choice here and
@@ -146,9 +152,26 @@ export default async function AdminInstallsPage({
 
       {/* Above the numbers on purpose: it governs what ambassadors can see, so
           it is not a setting buried under a table of results. */}
-      <ReferralLinkLock
+      <FeatureLock
+        title="Share links"
+        openCopy="Open. Every ambassador can see their link and the shareable card."
+        lockedCopy="Locked. Ambassadors see their referral code and a note saying links are not open yet."
+        footnote="The code itself always works — this only controls the link and the share card. Their install count is never hidden."
+        scheduleLabel="Or open it automatically at"
+        onSet={setReferralLinkUnlock}
         unlockAt={linkUnlockAt ? linkUnlockAt.toISOString() : null}
         open={isUnlocked(linkUnlockAt)}
+      />
+
+      <FeatureLock
+        title="Stipend visibility"
+        openCopy="Open. Every ambassador can see this month's stipend and where they stand against it."
+        lockedCopy="Locked. Ambassadors see a note on their rewards page saying the stipend is not open yet."
+        footnote="Tasks and installs keep counting either way — this only controls whether students can see the figure before the month is settled."
+        scheduleLabel="Or show it automatically at"
+        onSet={setStipendUnlock}
+        unlockAt={stipendUnlockAt ? stipendUnlockAt.toISOString() : null}
+        open={isUnlocked(stipendUnlockAt)}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

@@ -5,15 +5,15 @@ import { Link2, Lock, LockOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { setReferralLinkUnlock } from "@/lib/admin/actions";
 import { Card } from "@/components/ui/card";
 
 /**
- * The switch for the ambassador share link and share card.
+ * The switch for a finished feature that is waiting on a date.
  *
- * The feature is built; what it waits for is the app being live in the stores.
- * That date moves, and it should not take a deploy to honour — so the state
- * lives in `app_settings` and this is the control.
+ * Two of these now: the ambassador share link, which waits on the app being
+ * live in the stores, and the month's stipend, which waits on the team having
+ * settled it. In both cases the date moves and should not take a deploy to
+ * honour — so the state is a row in `app_settings` and this is the control.
  *
  * Three things you can do, because "unlock it" turned out to mean two
  * different things: open it right now, or set the moment it opens by itself.
@@ -24,12 +24,38 @@ import { Card } from "@/components/ui/card";
  * their own clock and the browser hands us a real instant. It is submitted
  * explicitly rather than on change — a half-typed year is a date in 2002, and
  * an unlock that fires the moment you tab through the field is not a schedule.
+ *
+ * Every word on the card is a prop. The two locks read very differently — one
+ * is about a link, the other about money — and a shared component that wrote
+ * its own copy would have to say something vague enough to fit both.
  */
-export function ReferralLinkLock({
+export function FeatureLock({
+  title,
+  openCopy,
+  lockedCopy,
+  footnote,
+  scheduleLabel,
+  onSet,
   unlockAt,
   open,
 }: {
-  /** ISO instant the link opens, or null when nothing is scheduled. */
+  /** The card's heading — the thing being locked, e.g. "Share links". */
+  title: string;
+  /** What being open means, in the admin's terms. */
+  openCopy: string;
+  /** What being locked means, and what students see instead. */
+  lockedCopy: string;
+  /** The caveat under the copy: what the lock does *not* touch. */
+  footnote: string;
+  /** Verb for the scheduling row, e.g. "Or open it automatically at". */
+  scheduleLabel: string;
+  /**
+   * The server action that writes the date. Passed in rather than chosen
+   * here from a key, so the two settings keep their own audit entries and
+   * their own revalidation — this component never learns what it switches.
+   */
+  onSet: (at: Date | null) => Promise<{ ok: boolean; message: string }>;
+  /** ISO instant the feature opens, or null when nothing is scheduled. */
   unlockAt: string | null;
   /** Whether it is open right now, decided on the server. */
   open: boolean;
@@ -39,7 +65,7 @@ export function ReferralLinkLock({
 
   function run(at: Date | null) {
     startTransition(async () => {
-      const result = await setReferralLinkUnlock(at);
+      const result = await onSet(at);
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
     });
@@ -79,13 +105,9 @@ export function ReferralLinkLock({
           </div>
 
           <div>
-            <h2 className="display text-[16px] text-ink">
-              Share links
-            </h2>
+            <h2 className="display text-[16px] text-ink">{title}</h2>
             <p className="mt-1 max-w-prose text-[12.5px] text-ink-soft">
-              {open
-                ? "Open. Every ambassador can see their link and the shareable card."
-                : "Locked. Ambassadors see their referral code and a note saying links are not open yet."}
+              {open ? openCopy : lockedCopy}
               {!open && unlockAt && (
                 <>
                   {" "}
@@ -97,10 +119,7 @@ export function ReferralLinkLock({
                 </>
               )}
             </p>
-            <p className="mt-1.5 text-[12px] text-ink-faint">
-              The code itself always works — this only controls the link and the
-              share card.
-            </p>
+            <p className="mt-1.5 text-[12px] text-ink-faint">{footnote}</p>
           </div>
         </div>
 
@@ -124,7 +143,7 @@ export function ReferralLinkLock({
       <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-4">
         <label className="text-[12px] font-extrabold text-ink-soft">
           <span className="mb-1 block uppercase tracking-wide">
-            Or open it automatically at
+            {scheduleLabel}
           </span>
           <input
             type="datetime-local"

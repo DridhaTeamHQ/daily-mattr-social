@@ -1,3 +1,4 @@
+import Link from "next/link";
 import * as React from "react";
 
 import { cn, formatNumber } from "@/lib/utils";
@@ -52,6 +53,35 @@ export function ChartCard({
 }
 
 /**
+ * A bar row, as a link when the caller gave it somewhere to go.
+ *
+ * The accessible name is the label alone: the figure and the bar beside it are
+ * already announced by the row's own text and its `role="img"`, and repeating
+ * them in the link name reads the number twice.
+ */
+function Row({
+  href,
+  label,
+  children,
+}: {
+  href?: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  if (!href) return <>{children}</>;
+
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className="group block rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ink"
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
  * Horizontal bars.
  *
  * Horizontal because the labels are names and survey titles — rotated x-axis
@@ -76,6 +106,14 @@ export function BarList({
     value: number;
     sub?: string;
     color?: string;
+    /**
+     * Where the row goes when it is clicked — the thing the bar is about, so
+     * a figure that raises a question can be opened rather than copied into
+     * the search box. Rows without one stay plain text; a list is allowed to
+     * be a mix, and nothing about the bar changes except that it becomes a
+     * link.
+     */
+    href?: string;
   }[];
   color?: SeriesColor;
   unit?: string;
@@ -103,40 +141,55 @@ export function BarList({
           // fresh on the server for every render and hold no focus or input
           // state, so there is nothing for an index key to corrupt.
           <li key={row.id ?? index}>
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="truncate text-[13px] font-extrabold text-ink">
-                {row.label}
-              </span>
-              {/* Direct label on every bar — the value is never something you
-                  have to estimate against an axis. */}
-              <span className="tabular shrink-0 text-[13px] font-extrabold text-ink">
-                {formatNumber(row.value)}
-                {unit}
-              </span>
-            </div>
+            {/* One link around the whole row, not a separate "view" control:
+                the label, the figure and the bar are all the same subject, and
+                a target the width of the card is easier to hit than a word at
+                the end of it. `Fragment` when there is nowhere to go, so a
+                plain list renders exactly the markup it always did. */}
+            <Row href={row.href} label={row.label}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span
+                  className={cn(
+                    "truncate text-[13px] font-extrabold text-ink",
+                    row.href && "group-hover:underline",
+                  )}
+                >
+                  {row.label}
+                </span>
+                {/* Direct label on every bar — the value is never something
+                    you have to estimate against an axis. */}
+                <span className="tabular shrink-0 text-[13px] font-extrabold text-ink">
+                  {formatNumber(row.value)}
+                  {unit}
+                </span>
+              </div>
 
-            {row.sub && (
-              <p className="truncate text-[11.5px] font-semibold text-ink-soft">
-                {row.sub}
-              </p>
-            )}
+              {row.sub && (
+                <p className="truncate text-[11.5px] font-semibold text-ink-soft">
+                  {row.sub}
+                </p>
+              )}
 
-            <div
-              className="mt-1.5 h-4 overflow-hidden rounded-full border-[3px] border-ink bg-canvas-sunk"
-              role="img"
-              aria-label={`${row.label}: ${row.value}${unit}`}
-            >
               <div
                 className={cn(
-                  "h-full rounded-r-full transition-[width] duration-500 ease-out",
-                  pct < 100 && "border-r-[3px] border-ink",
+                  "mt-1.5 h-4 overflow-hidden rounded-full border-[3px] border-ink bg-canvas-sunk",
+                  row.href && "group-hover:border-brand",
                 )}
-                style={{
-                  width: `${pct}%`,
-                  backgroundColor: row.color ?? SERIES[color],
-                }}
-              />
-            </div>
+                role="img"
+                aria-label={`${row.label}: ${row.value}${unit}`}
+              >
+                <div
+                  className={cn(
+                    "h-full rounded-r-full transition-[width] duration-500 ease-out",
+                    pct < 100 && "border-r-[3px] border-ink",
+                  )}
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor: row.color ?? SERIES[color],
+                  }}
+                />
+              </div>
+            </Row>
           </li>
         );
       })}

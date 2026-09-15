@@ -42,6 +42,8 @@ export type Database = {
           must_change_password: boolean;
           created_at: string;
           updated_at: string;
+          /** When they accepted the invite; null while it is unopened. */
+          activated_at: string | null;
           city: string | null;
           batch: string | null;
           joined_as: Enums<"joined_as">;
@@ -61,6 +63,7 @@ export type Database = {
           must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
+          activated_at?: string | null;
           city?: string | null;
           batch?: string | null;
           joined_as?: Enums<"joined_as">;
@@ -80,6 +83,7 @@ export type Database = {
           must_change_password?: boolean;
           created_at?: string;
           updated_at?: string;
+          activated_at?: string | null;
           city?: string | null;
           batch?: string | null;
           joined_as?: Enums<"joined_as">;
@@ -1336,6 +1340,7 @@ export type Database = {
           total_tasks: number;
           approved_tasks: number;
           completion_pct: number;
+          downloads: number;
           met: boolean;
           at_risk: boolean;
           total_inr: number;
@@ -1350,6 +1355,7 @@ export type Database = {
           total_tasks: number;
           approved_tasks: number;
           completion_pct: number;
+          downloads: number;
           met: boolean;
           total_inr: number;
           paid_status: string;

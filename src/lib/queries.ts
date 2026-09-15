@@ -643,7 +643,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
 
   const { data: subject } = await supabase
     .from("profiles")
-    .select("created_at")
+    .select("created_at, activated_at")
     .eq("id", subjectId)
     .maybeSingle();
   const { data: mine } = await supabase
@@ -667,8 +667,12 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   }
 
   /**
-   * The floor of this student's own pool, mirroring migration 0040: the
-   * month's start, pulled forward to the day they joined.
+   * The floor of this student's own pool, mirroring migration 0041: the
+   * month's start, pulled forward to the day they accepted their invite.
+   *
+   * `activated_at` rather than `created_at`, which dates the invite an admin
+   * sent and not the day the student opened it; it is null only while the
+   * invite is still unopened, and then the invite date is all there is.
    *
    * It has to agree with `completion_leaderboard`, because this page is now
    * what explains the percentage that function returns. A closed campaign
@@ -678,7 +682,8 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
-  const joined = subject?.created_at ? new Date(subject.created_at) : null;
+  const joinedStamp = subject?.activated_at ?? subject?.created_at ?? null;
+  const joined = joinedStamp ? new Date(joinedStamp) : null;
   const reachableFrom =
     joined && joined > monthStart ? joined.getTime() : monthStart.getTime();
 

@@ -28,6 +28,8 @@ export type StipendMonth = {
   totalTasks: number;
   approvedTasks: number;
   completionPct: number;
+  /** Counted installs from their code in that month. */
+  downloads: number;
   met: boolean;
   totalInr: number;
   paidStatus: string;
@@ -35,6 +37,8 @@ export type StipendMonth = {
 
 export type ProgrammeTermsView = {
   completionPct: number;
+  /** Counted installs needed alongside the completion bar. Both are required. */
+  downloads: number;
   amountInr: number;
   activeDays: number;
   activityWindow: number;
@@ -85,6 +89,7 @@ function label(period: string): string {
 const DEMO_STIPEND_PROGRESS: StipendProgress = {
   thresholds: {
     completionPct: 80,
+    downloads: 15,
     amountInr: 3000,
     activeDays: 8,
     activityWindow: 10,
@@ -95,6 +100,7 @@ const DEMO_STIPEND_PROGRESS: StipendProgress = {
     totalTasks: 10,
     approvedTasks: 8,
     completionPct: 80,
+    downloads: 17,
     met: true,
     totalInr: 3000,
     paidStatus: "none",
@@ -106,6 +112,7 @@ const DEMO_STIPEND_PROGRESS: StipendProgress = {
       totalTasks: 9,
       approvedTasks: 7,
       completionPct: 78,
+      downloads: 12,
       met: false,
       totalInr: 0,
       paidStatus: "none",
@@ -116,6 +123,7 @@ const DEMO_STIPEND_PROGRESS: StipendProgress = {
       totalTasks: 8,
       approvedTasks: 8,
       completionPct: 100,
+      downloads: 21,
       met: true,
       totalInr: 3000,
       paidStatus: "paid",
@@ -133,6 +141,7 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
     supabase.rpc("my_stipend_progress", { months_back: 6 }),
     getSettings(
       "stipend_min_completion_pct",
+      "stipend_min_downloads",
       "stipend_amount_inr",
       "activity_min_days",
       "activity_window_days",
@@ -153,6 +162,7 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
     totalTasks: count(row.total_tasks),
     approvedTasks: count(row.approved_tasks),
     completionPct: count(row.completion_pct),
+    downloads: count(row.downloads),
     met: row.met,
     totalInr: count(row.total_inr),
     paidStatus: row.paid_status,
@@ -161,6 +171,7 @@ export const getStipendProgress = cache(async (): Promise<StipendProgress> => {
   return {
     thresholds: {
       completionPct: thresholds.stipend_min_completion_pct,
+      downloads: thresholds.stipend_min_downloads,
       amountInr: thresholds.stipend_amount_inr,
       activeDays: thresholds.activity_min_days,
       activityWindow: thresholds.activity_window_days,

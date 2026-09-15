@@ -36,6 +36,12 @@ export default async function ReferralsPage() {
   const linkUnlockAt = await getUnlockAt("referral_link_unlock_at");
   const linkOpen = isUnlocked(linkUnlockAt);
 
+  // The month switch. It shuts the rewards page, closes the install podium on
+  // the dashboard, and pauses sharing here — one month is either being counted
+  // or it is not, and the pages cannot disagree about which.
+  const monthUnlockAt = await getUnlockAt("stipend_unlock_at");
+  const stipendOpen = isUnlocked(monthUnlockAt);
+
   return (
     <div className="stagger space-y-6">
       {/* Header Banner - Soft Light Blue */}
@@ -55,11 +61,13 @@ export default async function ReferralsPage() {
             </div>
           </div>
 
-          <Button asChild variant="outline-blue" className="shrink-0">
-            <Link href="/dashboard/rewards">
-              View stipend progress
-            </Link>
-          </Button>
+          {stipendOpen && (
+            <Button asChild variant="outline-blue" className="shrink-0">
+              <Link href="/dashboard/rewards">
+                View stipend progress
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -95,7 +103,29 @@ export default async function ReferralsPage() {
           load. The code above still works while this is shut, and the copy
           says so — a student reading "not open yet" needs to know they have
           not been left with nothing to share. */}
-      {linkOpen ? (
+      {linkOpen && !stipendOpen ? (
+        /* Sharing is paused for the month rather than shut for good, and the
+           two are different enough to be worth different words. "Not open
+           yet" is about a feature that has never run; this is about one that
+           is between months. The code stays on the page above either way. */
+        <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
+          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400">
+            <Lock className="size-5" aria-label="Paused" />
+          </div>
+          <div>
+            <p className="text-[11px] font-extrabold tracking-wider text-gray-500 uppercase">
+              Your link
+            </p>
+            <p className="mt-0.5 text-[13px] font-semibold text-gray-500 sm:text-sm">
+              Sharing is paused right now —{" "}
+              {monthUnlockAt
+                ? `it opens again on ${formatDate(monthUnlockAt)}.`
+                : "it will open again soon."}{" "}
+              
+            </p>
+          </div>
+        </div>
+      ) : linkOpen ? (
         <ReferralLinkCard
           code={referrals.code}
           playStoreUrl={playStoreUrl}

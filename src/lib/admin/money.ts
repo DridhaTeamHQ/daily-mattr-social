@@ -51,6 +51,8 @@ export type EligibilityRow = {
   totalTasks: number;
   approvedTasks: number;
   completionPct: number;
+  /** Counted installs from their code in the month. */
+  downloads: number;
   met: boolean;
   at_risk: boolean;
   /** The flat monthly stipend once the completion threshold is met. */
@@ -68,6 +70,8 @@ export type StipendPeriod = {
   label: string;
   thresholds: {
     completionPct: number;
+    /** Counted installs needed alongside the completion bar. Both required. */
+    downloads: number;
     amountInr: number;
     activeDays: number;
     activityWindow: number;
@@ -96,6 +100,7 @@ export const getStipendPeriod = cache(
       supabase.rpc("stipend_eligibility", { period_start: month }),
       getSettings(
         "stipend_min_completion_pct",
+        "stipend_min_downloads",
         "stipend_amount_inr",
         "activity_min_days",
         "activity_window_days",
@@ -120,6 +125,7 @@ export const getStipendPeriod = cache(
       totalTasks: Number(r.total_tasks),
       approvedTasks: Number(r.approved_tasks),
       completionPct: Number(r.completion_pct),
+      downloads: Number(r.downloads),
       met: r.met,
       at_risk: r.at_risk,
       totalInr: Number(r.total_inr),
@@ -135,6 +141,7 @@ export const getStipendPeriod = cache(
       label: monthLabel(month),
       thresholds: {
         completionPct: settings.stipend_min_completion_pct,
+        downloads: settings.stipend_min_downloads,
         amountInr: settings.stipend_amount_inr,
         activeDays: settings.activity_min_days,
         activityWindow: settings.activity_window_days,

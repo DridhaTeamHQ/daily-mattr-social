@@ -1,25 +1,31 @@
 import { redirect } from "next/navigation";
-import { BadgeIndianRupee, CheckCircle2, Trophy } from "lucide-react";
+import { BadgeIndianRupee, CheckCircle2, Lock, Trophy } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { getDashboard, getMyAchievements } from "@/lib/queries";
 import { getStipendProgress } from "@/lib/rewards";
+import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { formatDate, formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "Reward Structure" };
 
 export default async function RewardsPage() {
-  const [dashboard, stipend, achievements] = await Promise.all([
+  // The stipend is computed live, so it is right the moment a submission is
+  // approved — which is why it has a switch. `stipend_unlock_at` decides, the
+  // same mechanism the share link uses; see getUnlockAt.
+  const [dashboard, stipend, achievements, stipendUnlockAt] = await Promise.all([
     getDashboard(),
     getStipendProgress(),
     getMyAchievements(),
+    getUnlockAt("stipend_unlock_at"),
   ]);
   if (!dashboard) redirect("/login?next=/dashboard/rewards");
 
   const month = stipend.current;
   const met = month?.met ?? false;
+  const stipendOpen = isUnlocked(stipendUnlockAt);
 
   return (
     <div className="stagger space-y-4">
@@ -27,28 +33,66 @@ export default async function RewardsPage() {
         icon={BadgeIndianRupee}
         tone="brand"
         title="Reward Structure"
-        description="Your monthly stipend is based on approved-task completion."
+        description={
+          stipendOpen
+            ? "Your monthly stipend is based on approved-task completion."
+            : "This month's stipend is still being settled by the team."
+        }
         variant="outline"
         className="border-gray-200 bg-gray-50"
       />
 
       {/* Two tiles, no captions. The approved/total count was on all three of
           them — as the headline of one and the caption of another — and the
-          panel below repeats it a third time as the formula it feeds. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Stat
-          label="Completion"
-          value={`${formatNumber(month?.completionPct ?? 0)}%`}
-          icon={CheckCircle2}
-          tone="rank"
-        />
-        <Stat
-          label="Stipend"
-          value={met ? `Rs ${formatNumber(stipend.thresholds.amountInr)}` : "-"}
-          icon={BadgeIndianRupee}
-          tone="invite"
-        />
-      </div>
+          panel below repeats it a third time as the formula it feeds.
+
+          Shut, they are replaced rather than blanked: a tile reading "-" is
+          what this page shows somebody who has not qualified, and a student
+          must not read "the team has not settled the month" as "you missed
+          it". The work behind the figure carries on being counted, and the
+          note says so, because that is the question being locked out raises. */}
+      {stipendOpen ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Stat
+            label="Completion"
+            value={`${formatNumber(month?.completionPct ?? 0)}%`}
+            icon={CheckCircle2}
+            tone="rank"
+          />
+          <Stat
+            label="Stipend"
+            value={met ? `Rs ${formatNumber(stipend.thresholds.amountInr)}` : "-"}
+            icon={BadgeIndianRupee}
+            tone="invite"
+          />
+        </div>
+      ) : (
+        <Card>
+          <CardBody>
+            <div className="flex items-start gap-4">
+              <span
+                aria-hidden
+                className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-400"
+              >
+                <Lock className="size-5" />
+              </span>
+              <div>
+                <h2 className="display text-[16px] text-ink">Stipend</h2>
+                <p className="mt-1 text-[13px] leading-relaxed font-semibold text-ink-soft">
+                  {/* Naming the date when there is one — "opens soon" with no
+                      date is a promise students stop believing the second
+                      time they read it. */}
+                  {stipendUnlockAt
+                    ? `This month's stipend opens on ${formatDate(stipendUnlockAt)}.`
+                    : "This month's stipend is not open yet."}{" "}
+                  Keep completing tasks — every one of them still counts
+                  towards it.
+                </p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* ─── Achievements ──────────────────────────────────────────────────
           Always on the page, empty or not. Hidden-until-populated meant a

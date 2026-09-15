@@ -1,4 +1,4 @@
-import { Crown, Trophy } from "lucide-react";
+import { Crown, Lock, Trophy } from "lucide-react";
 
 import type { InstallPodiumRow } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -58,9 +58,15 @@ export type InstallPodiumMe = {
 export function InstallPodium({
   rows,
   me,
+  closed = false,
 }: {
   rows: InstallPodiumRow[];
   me: InstallPodiumMe;
+  /**
+   * The month is shut and the standings are not being shown. The section
+   * stays — see below — but the names and blocks do not.
+   */
+  closed?: boolean;
 }) {
   // Nothing to celebrate until somebody has referred an install. An empty
   // podium is three grey blocks asking to be filled, which is a worse look
@@ -86,21 +92,43 @@ export function InstallPodium({
 
   return (
     <section>
-      <div className="flex items-center gap-2">
-        <Trophy className="size-4 text-amber-500" aria-hidden />
-        <h2 className="text-[13px] font-extrabold tracking-wide text-ink uppercase">
-          Top referrers
-        </h2>
-      </div>
-      <p className="mt-1 text-[12.5px] font-medium text-gray-500">
-        Most app installs brought in so far.
-      </p>
+      <Header />
 
       {/* No bottom padding on the podium column: the blocks are meant to reach
           the card's edge and stand on it. `overflow-hidden` keeps their corners
           — and the confetti — inside the radius. */}
       <div className="relative mt-3 overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-b from-amber-50/70 via-white to-gray-50 shadow-sm">
         {mine ? <Confetti /> : null}
+
+        {/* Closed, and still shown — inside the card, as the banner over the
+            standings it describes rather than a separate notice above them.
+            The board is the reward, and taking it away the moment the month
+            ends removes it from the three people who earned it on the day
+            they earned it. This says the numbers have stopped moving; the
+            podium below says who they stopped on.
+
+            `relative` so it sits above the confetti layer, and a translucent
+            white ground so the card's amber still reads through it. */}
+        {closed && (
+          <div className="relative flex items-start gap-3 border-b border-amber-100/80 bg-white/70 px-4 py-3 sm:px-6">
+            <span
+              aria-hidden
+              className="grid size-8 shrink-0 place-items-center rounded-lg bg-white text-gray-400 shadow-xs"
+            >
+              <Lock className="size-4" />
+            </span>
+            <div className="text-[12.5px] leading-relaxed font-semibold text-gray-500">
+              <p className="font-extrabold text-ink">
+                And that’s a wrap for this month! 🎉 The leaderboard is
+                officially LOCKED - these are the final standings!
+              </p>
+              <p className="mt-0.5">
+                But don’t slow down just yet!💪 The board will reopen again
+                soon, and your installs wont change or will be reset!
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="relative flex flex-col sm:flex-row sm:items-stretch">
           {/* ─── The podium ─────────────────────────────────────────────── */}
@@ -367,3 +395,20 @@ const BLOCK_HEIGHT: Record<number, string> = {
 /** Blocks rise third, second, first; the faces land just behind each block. */
 const GROW_DELAY: Record<number, number> = { 1: 320, 2: 160, 3: 0 };
 const POP_DELAY: Record<number, number> = { 1: 520, 2: 360, 3: 200 };
+
+/** The section's heading, identical whether the board is open or shut. */
+function Header() {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <Trophy className="size-4 text-amber-500" aria-hidden />
+        <h2 className="text-[13px] font-extrabold tracking-wide text-ink uppercase">
+          Top referrers
+        </h2>
+      </div>
+      <p className="mt-1 text-[12.5px] font-medium text-gray-500">
+        Most app installs brought in so far.
+      </p>
+    </>
+  );
+}

@@ -1253,6 +1253,70 @@ export async function setReferralLinkUnlock(
   }
 }
 
+/**
+ * Open or shut this month's stipend for students.
+ *
+ * The figure is computed live and is right the moment a submission is
+ * approved, which is exactly why it needs a switch: a student watching it move
+ * mid-month reads every change as a promise, and the team has not finished
+ * deciding the month until it has. Locked, /dashboard/rewards says so and says
+ * when; the arithmetic underneath carries on regardless.
+ *
+ * Same shape as `setReferralLinkUnlock` — null to lock, a past instant to open
+ * now, a future one to open by itself — and a separate key so the two can
+ * never be moved by accident together.
+ */
+export async function setStipendUnlock(
+  at: Date | null,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdmin();
+
+    const value = at ? at.toISOString() : "";
+
+    const { error } = await createAdminClient()
+      .from("app_settings")
+      .upsert(
+        { key: "stipend_unlock_at", value: value as never },
+        { onConflict: "key" },
+      );
+    if (error) throw error;
+
+    await audit(actorId, "settings.stipend_unlock", "setting", "stipend_unlock_at", {
+      unlock_at: value || null,
+    });
+
+    // The admin card that shows the state, and every student page the lock
+    // reaches: the rewards page itself, the referrals page whose button links
+    // to it, and the dashboard, where it closes the install podium and the
+    // placing on the Installs tile.
+    await invalidateAdminCache();
+    revalidatePath("/admin/referrals");
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/rewards");
+    revalidatePath("/dashboard/referrals");
+
+    if (!at) return { ok: true, message: "Stipend is hidden from students" };
+
+    return {
+      ok: true,
+      message:
+        at.getTime() <= Date.now()
+          ? "Stipend is visible to students"
+          : `Stipend opens on ${at.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZone: "Asia/Kolkata",
+            })}`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
 export async function setCampaignStatus(
