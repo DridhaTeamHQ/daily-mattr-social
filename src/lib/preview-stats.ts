@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getActiveVersion } from "@/lib/programme-version";
 import type { createClient } from "@/lib/supabase/server";
 import type { SurveyStat } from "@/lib/queries";
 
@@ -28,10 +29,13 @@ export async function previewSurveyStats(
   supabase: Client,
   ambassadorId: string,
 ): Promise<SurveyStat[]> {
+  const version = await getActiveVersion();
+
   const { data: links } = await supabase
     .from("survey_links")
     .select("id, slug, click_count, survey_id, surveys!inner(id, title, status, created_at)")
-    .eq("ambassador_id", ambassadorId);
+    .eq("ambassador_id", ambassadorId)
+    .eq("surveys.version", version);
 
   // Live surveys only, exactly as the RPC's `s.status = 'live'` does.
   const live = (links ?? []).filter(
@@ -50,7 +54,8 @@ export async function previewSurveyStats(
       .from("point_ledger")
       .select("delta, source_id")
       .eq("ambassador_id", ambassadorId)
-      .eq("reason", "survey_response"),
+      .eq("reason", "survey_response")
+      .eq("version", version),
   ]);
 
   // Which survey each response belongs to, so ledger rows can be attributed.
@@ -110,16 +115,20 @@ export async function previewReferralStats(
   points_earned: number;
   last_conversion: string | null;
 }> {
+  const version = await getActiveVersion();
+
   const [{ data: conversions }, { data: ledger }] = await Promise.all([
     supabase
       .from("referral_conversions")
       .select("status, converted_at")
-      .eq("ambassador_id", ambassadorId),
+      .eq("ambassador_id", ambassadorId)
+      .eq("version", version),
     supabase
       .from("point_ledger")
       .select("delta")
       .eq("ambassador_id", ambassadorId)
-      .eq("reason", "referral"),
+      .eq("reason", "referral")
+      .eq("version", version),
   ]);
 
   const counted = (conversions ?? []).filter((c) => c.status === "counted");

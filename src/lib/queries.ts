@@ -4,6 +4,7 @@ import { cache } from "react";
 import { redisCache } from "@/lib/cache/redis";
 
 import { earningRoute } from "@/lib/admin/participation";
+import { getActiveVersion } from "@/lib/programme-version";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
@@ -292,6 +293,7 @@ async function getInstallBoard(subjectId: string): Promise<{
 
   try {
     const db = createAdminClient();
+    const version = await getActiveVersion();
 
     const [profiles, conversionCounts] = await Promise.all([
       db
@@ -299,11 +301,15 @@ async function getInstallBoard(subjectId: string): Promise<{
         .select("id, full_name")
         .eq("role", "ambassador")
         .eq("status", "active"),
-      redisCache.remember("install-counts", 30, async () => {
+      // The run is part of the cache key, not just the query. Sharing one key
+      // across runs would serve the previous programme's podium for the first
+      // thirty seconds of the new one.
+      redisCache.remember(`install-counts:v${version}`, 30, async () => {
         const conversions = await db
           .from("referral_conversions")
           .select("ambassador_id")
-          .eq("status", "counted");
+          .eq("status", "counted")
+          .eq("version", version);
         if (conversions.error) throw conversions.error;
         const totals = new Map<string, number>();
         for (const row of conversions.data ?? []) {
@@ -399,6 +405,10 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
   const subjectId = viewer?.id ?? user.id;
   const preview = viewer?.isPreview ?? false;
 
+  // A student is always shown the run that is open. There is no switcher on
+  // this side: an earlier run is not their score and not their work.
+  const version = await getActiveVersion();
+
   const [
     profileRes,
     completionBoardRes,
@@ -431,6 +441,7 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         .from("point_ledger")
         .select("id, delta, reason, note, created_at")
         .eq("ambassador_id", subjectId)
+        .eq("version", version)
         .order("created_at", { ascending: false })
         .limit(8),
       preview
@@ -538,6 +549,7 @@ export const getMyAchievements = cache(async (): Promise<MyAchievement[]> => {
     .from("achievements")
     .select("id, title, note, awarded_at")
     .eq("ambassador_id", subjectId)
+    .eq("version", await getActiveVersion())
     .order("awarded_at", { ascending: false });
 
   return data ?? [];
@@ -591,7 +603,8 @@ export const getSurveyMeta = cache(
     const { data } = await supabase
       .from("surveys")
       .select("id, created_at, audience, response_cap")
-      .eq("status", "live");
+      .eq("status", "live")
+      .eq("version", await getActiveVersion());
 
     return new Map(
       (data ?? []).map((survey) => [
@@ -621,6 +634,8 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   // passes, so it is the one that should notice.
   await closeExpiredCampaigns();
 
+  const version = await getActiveVersion();
+
   const { data: campaigns } = await supabase
     .from("campaigns")
     // Must stay a single string literal — postgrest-js infers the row shape
@@ -633,6 +648,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     // completion denominator — an ambassador read "All done" on every card
     // and 91% on the leaderboard, with the missing task nowhere on screen.
     .in("status", ["live", "ended", "archived"])
+    .eq("version", version)
     .order("starts_at", { ascending: false });
 
   if (!campaigns?.length) return [];
@@ -650,6 +666,7 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
     .from("submissions")
     .select("campaign_task_id, status, attempt, reject_reason")
     .eq("ambassador_id", subjectId)
+    .eq("version", version)
     .order("attempt", { ascending: false });
 
   // Highest attempt wins — that's the one the student is looking at.
@@ -963,7 +980,8 @@ const getLeaderboardBySource = cache(
 
     let ledgerQuery = db
       .from("point_ledger")
-      .select("ambassador_id, delta, reason, source_type");
+      .select("ambassador_id, delta, reason, source_type")
+      .eq("version", await getActiveVersion());
 
     if (since) ledgerQuery = ledgerQuery.gte("created_at", since.toISOString());
 

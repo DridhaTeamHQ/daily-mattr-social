@@ -128,7 +128,7 @@ export function InstallPodium({
               </p>
             </div>
           </div>
-        )}
+        )}  
 
         <div className="relative flex flex-col sm:flex-row sm:items-stretch">
           {/* ─── The podium ─────────────────────────────────────────────── */}

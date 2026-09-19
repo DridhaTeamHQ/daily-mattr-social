@@ -21,20 +21,43 @@ const AVATAR_COLORS = ["bg-brand-tint", "bg-gray-100", "bg-red-50"];
  */
 const LIMIT = 1000;
 
+/** What an ambassador with no batch set sees under their name. */
+const NO_BATCH = "No batch yet";
+
 export default async function LeaderboardPage() {
+  /**
+   * One batch, always.
+   *
+   * `completion_leaderboard` decides who is on this board and migration 0049
+   * makes that decision absolute: a student sees their own batch and nobody
+   * else, and an ambassador whose batch has never been set is ranked against
+   * the others who have none rather than against the whole programme. So the
+   * page filters nothing and re-ranks nothing — every row it is handed
+   * belongs here, already in order, already carrying the placing it earned
+   * inside that batch.
+   */
   const rows = await getCompletionLeaderboard(LIMIT);
   const me = rows.find((row) => row.is_me);
 
   /**
    * Whose board this is.
    *
-   * The database scopes the rows to the viewer's batch, so the page does not
-   * filter anything — it only has to say so. Read off the viewer's own row
-   * rather than their profile, because it is the same value the scoping used;
-   * an ambassador with no batch gets everybody, and the heading then says
-   * nothing about batches rather than something untrue.
+   * Read off the viewer's own row rather than their profile, because it is
+   * the same value the scoping used. Null when they have no batch, and the
+   * heading then says nothing about batches rather than something untrue.
    */
-  const batch = me?.batch ?? null;
+  const batch = me?.batch?.trim() || null;
+
+  /**
+   * Has anybody scored yet?
+   *
+   * On the first days of a season nobody has, everyone sits on nought, and
+   * `rank()` correctly gives all of them first place. Correct and unreadable:
+   * a column of identical gold medals looks like a broken page, and it hands
+   * out a placing nobody has earned. Until somebody is above zero the board
+   * shows names without positions and says why underneath.
+   */
+  const scored = rows.some((row) => row.completion_pct > 0);
 
   return (
     <div className="stagger space-y-4">
@@ -70,9 +93,25 @@ export default async function LeaderboardPage() {
         {batch && ` Everyone in ${batch} is on this board — all ${rows.length} of them.`}
         {/* Their own placing, said once at the top. On a board of forty-one
             the row highlighted in brand blue is somewhere down the page, and
-            a number here saves scrolling for it. */}
-        {me && ` You're #${me.position}.`}
+            a number here saves scrolling for it. Suppressed before anybody
+            has scored, when there is no placing worth quoting. */}
+        {scored && me && ` You're #${me.position}.`}
       </p>
+
+      {/* ─── A board of four strangers needs explaining ──────────────────────
+          Everyone is ranked inside their own batch, and somebody whose batch
+          has never been set therefore lands with the other ambassadors who
+          have none. That is the honest grouping — they were all set the same
+          work — but without a word it reads as a broken board with most of
+          the programme missing. So it says what happened and who can fix it,
+          rather than leaving them to guess. */}
+      {!batch && rows.length > 0 && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
+          Your batch hasn&apos;t been set yet, so you&apos;re ranked with the
+          other ambassadors who are waiting on one. Ask an admin to add your
+          batch and you&apos;ll move onto its board.
+        </p>
+      )}
 
       <Card>
         {rows.length === 0 ? (
@@ -84,7 +123,7 @@ export default async function LeaderboardPage() {
         ) : (
           <ul className="divide-y divide-gray-100">
             {rows.map((row, index) => {
-              const isTop3 = row.position <= 3;
+              const isTop3 = scored && row.position <= 3;
               const avatarBg = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
               return (
@@ -103,7 +142,9 @@ export default async function LeaderboardPage() {
                       <div className={cn("absolute -bottom-1.5 h-3 w-5 opacity-80", MEDAL_COLORS[row.position - 1].split(" ")[0])} style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 70%, 0 100%)" }} />
                     </div>
                   ) : (
-                    <div className="flex size-8 shrink-0 items-center justify-center text-[14px] font-bold text-ink-soft">{row.position}</div>
+                    <div className="flex size-8 shrink-0 items-center justify-center text-[14px] font-bold text-ink-soft">
+                      {scored ? row.position : "—"}
+                    </div>
                   )}
 
                   <span aria-hidden className={cn("grid size-10 shrink-0 place-items-center rounded-full text-[12.5px] font-extrabold text-ink", avatarBg)}>
@@ -115,11 +156,24 @@ export default async function LeaderboardPage() {
                       {row.full_name}
                       {row.is_me && <span className="rounded-full border border-brand/35 bg-brand-tint px-2 py-0.5 text-[10px] font-bold uppercase text-brand-press">You</span>}
                     </p>
-                    {/* The batch, not the college. On a board of one batch the
-                        college was the only thing that differed between rows
-                        and it says nothing about the ranking; the batch is
-                        what the board is now about. */}
-                    {row.batch && <p className="truncate text-[12px] font-medium text-ink-soft">{row.batch}</p>}
+                    {/* The batch, on every row, the way it has always read.
+                        The college used to sit here and says nothing about the
+                        ranking; the batch is what the board is about.
+
+                        Printed even when there isn't one, rather than leaving
+                        the line blank: on a board where nobody has a batch,
+                        an empty second line under every name looks like the
+                        field failed to load, and this is the one board where
+                        the missing batch is the reason these particular
+                        people are grouped together. */}
+                    <p
+                      className={cn(
+                        "truncate text-[12px] font-medium",
+                        row.batch?.trim() ? "text-ink-soft" : "text-ink-faint",
+                      )}
+                    >
+                      {row.batch?.trim() || NO_BATCH}
+                    </p>
                   </div>
 
                   <div className="shrink-0 text-right">
@@ -139,6 +193,16 @@ export default async function LeaderboardPage() {
           </ul>
         )}
       </Card>
+
+      {/* Said once, under the board, rather than as a badge on every row.
+          Nobody has completed anything yet, so there is nothing to rank and
+          the positions are deliberately blank. */}
+      {rows.length > 0 && !scored && (
+        <p className="px-1 text-[12.5px] font-semibold text-ink-soft">
+          Nobody has an approved task yet this month, so there are no placings
+          to show. The first person to finish one takes the top spot.
+        </p>
+      )}
     </div>
   );
 }

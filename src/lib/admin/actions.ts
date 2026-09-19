@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import { sendAmbassadorWelcomeEmail } from "@/lib/ambassador-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
-import { assertAdmin, fail } from "@/lib/admin/guards";
+import { assertAdminWrite, fail } from "@/lib/admin/guards";
+import { readAll } from "@/lib/admin/read-all";
+import { getActiveVersion } from "@/lib/programme-version";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
@@ -24,7 +26,9 @@ import type { Enums } from "@/lib/database.types";
  * `audit_log` have no INSERT policy for `authenticated` at all, by design —
  * the client must never be able to mint points.
  *
- * Because that client bypasses RLS, every action starts with `assertAdmin()`.
+ * Because that client bypasses RLS, every action starts with `assertAdminWrite()`,
+ * which also refuses while the console is looking at an earlier run of the
+ * programme — history is readable, not editable.
  * That check is the only thing standing between a signed-in student and the
  * ledger, so it is not optional and it is not "belt and braces".
  */
@@ -147,7 +151,7 @@ export async function approveSubmission(
   note?: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const result = await approveOne(createAdminClient(), actorId, submissionId, note);
 
     if (!result.ok) throw new Error(result.reason);
@@ -191,7 +195,7 @@ export async function approveAllSubmissions(
   campaignId?: string | null,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     // Submissions point at a task, not a campaign, so the scope resolves
@@ -212,6 +216,10 @@ export async function approveAllSubmissions(
       .from("submissions")
       .select("id")
       .in("status", ["pending", "needs_review"])
+      // The run the console is on, which the write guard has already checked
+      // is the open one. Without it "Approve all 4" could sweep up anything
+      // an earlier run left undecided.
+      .eq("version", await getActiveVersion())
       .order("uploaded_at", { ascending: true });
 
     if (taskIds) query = query.in("campaign_task_id", taskIds);
@@ -302,7 +310,7 @@ export async function approveSubmissions(
   submissionIds: string[],
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
     const { ids, skipped } = await openSubset(db, submissionIds);
 
@@ -419,7 +427,7 @@ export async function rejectSubmission(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const trimmed = reason.trim();
 
     const result = await rejectOne(
@@ -453,7 +461,7 @@ export async function rejectSubmissions(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const trimmed = reason.trim();
 
     const db = createAdminClient();
@@ -499,7 +507,7 @@ export async function revokeSubmission(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: submission, error } = await db
@@ -586,7 +594,7 @@ export async function updateAmbassadorSegments(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const fullName = String(formData.get("full_name") ?? "").trim();
@@ -698,7 +706,7 @@ export async function setAmbassadorStatus(
   reason?: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const note = (reason ?? "").trim();
@@ -752,7 +760,7 @@ export async function adjustPoints(
   note: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     if (!Number.isInteger(delta) || delta === 0) {
       return { ok: false, message: "Enter a non-zero whole number." };
@@ -823,7 +831,7 @@ export async function createAmbassador(
   formData: FormData,
 ): Promise<CreatedAmbassador> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const fullName = String(formData.get("full_name") ?? "").trim();
@@ -964,7 +972,7 @@ export async function resetAmbassadorPassword(
   password: string,
 ): Promise<CreatedAmbassador> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     if (password.length < 8) {
       return { ok: false, message: "Temporary password must be at least 8 characters." };
@@ -1045,7 +1053,7 @@ export async function setReferralCount(
   count: number,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     if (!Number.isInteger(count) || count < 0 || count > 10_000) {
       return { ok: false, message: "Enter a whole number of downloads." };
@@ -1060,11 +1068,18 @@ export async function setReferralCount(
       .maybeSingle();
     if (!profile) return { ok: false, message: "That ambassador no longer exists." };
 
+    // This run's installs only. The number an admin types is the number they
+    // are looking at on this run's page, so the rows added or voided to reach
+    // it have to be this run's too — otherwise setting a new ambassador to 5
+    // would start by voiding five of last run's confirmed downloads.
+    const version = await getActiveVersion();
+
     const { data: existing } = await db
       .from("referral_conversions")
       .select("id, source, converted_at")
       .eq("ambassador_id", profileId)
       .eq("status", "counted")
+      .eq("version", version)
       .order("converted_at", { ascending: false });
 
     const counted = existing ?? [];
@@ -1210,7 +1225,7 @@ export async function setReferralLinkUnlock(
   at: Date | null,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const value = at ? at.toISOString() : "";
 
@@ -1270,7 +1285,7 @@ export async function setStipendUnlock(
   at: Date | null,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const value = at ? at.toISOString() : "";
 
@@ -1319,12 +1334,154 @@ export async function setStipendUnlock(
 
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
+/**
+ * Nudges the active ambassadors who have submitted nothing to this campaign.
+ *
+ * ─── The list is recomputed here, never passed in ──────────────────────────
+ *
+ * The page already knows who has not started — it is rendering their names —
+ * and it would be one line to send those ids along with the click. It does
+ * not, because a list of recipients arriving from a browser is a list a
+ * browser can change, and what it would buy is one query. So the ids are
+ * derived again from the same tables the card was drawn from. In the worst
+ * case the button reaches somebody who submitted in the seconds since the
+ * page was rendered, and the message it sends them is a mild one.
+ *
+ * ─── Who is deliberately left out ──────────────────────────────────────────
+ *
+ * Only active ambassadors, and only those with no submission at all against
+ * this campaign — whatever its status. Somebody whose upload was rejected has
+ * started; they need a different conversation, and telling them they have not
+ * begun would be wrong to their face. Suspended and invited accounts are not
+ * being asked for work and are not told they are behind on it.
+ *
+ * ─── Why it refuses on anything but a live campaign ────────────────────────
+ *
+ * The notification sends them to a page where the upload button is refused —
+ * `uploadSubmission` checks the campaign is live — so a reminder about an
+ * ended campaign is an instruction to do something impossible. Refusing is
+ * kinder than sending forty people on a wasted trip.
+ */
+export async function remindUntouched(
+  campaignId: string,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const db = createAdminClient();
+    const version = await getActiveVersion();
+
+    const { data: campaign } = await db
+      .from("campaigns")
+      .select("id, title, status, version")
+      .eq("id", campaignId)
+      .maybeSingle();
+
+    if (!campaign) {
+      return { ok: false, message: "That campaign no longer exists." };
+    }
+
+    // The write guard already refused an admin reading an earlier run. This
+    // is the other half: a campaign belonging to an earlier run, opened by
+    // its own link while the console is on the current one.
+    if (campaign.version !== version) {
+      return {
+        ok: false,
+        message:
+          "That campaign belongs to an earlier run of the programme. Its ambassadors are not being asked for this work any more.",
+      };
+    }
+
+    if (campaign.status !== "live") {
+      return {
+        ok: false,
+        message:
+          campaign.status === "draft"
+            ? "Publish it first — nobody can submit to a draft."
+            : "That campaign has ended, so there is nothing they could do about it. Re-open it first.",
+      };
+    }
+
+    const { data: tasks } = await db
+      .from("campaign_tasks")
+      .select("id")
+      .eq("campaign_id", campaignId);
+
+    const taskIds = (tasks ?? []).map((task) => task.id);
+    if (taskIds.length === 0) {
+      return { ok: false, message: "That campaign has no tasks yet." };
+    }
+
+    const [cohort, submissions] = await Promise.all([
+      readAll<{ id: string; full_name: string }>(
+        (from, to) =>
+          db
+            .from("profiles")
+            .select("id, full_name")
+            .eq("role", "ambassador")
+            .eq("status", "active")
+            .order("id")
+            .range(from, to),
+        "remindUntouched.cohort",
+      ),
+      readAll<{ ambassador_id: string }>(
+        (from, to) =>
+          db
+            .from("submissions")
+            .select("ambassador_id")
+            .in("campaign_task_id", taskIds)
+            .order("id")
+            .range(from, to),
+        "remindUntouched.submissions",
+      ),
+    ]);
+
+    const started = new Set(submissions.map((row) => row.ambassador_id));
+    const behind = cohort.filter((person) => !started.has(person.id));
+
+    if (behind.length === 0) {
+      return {
+        ok: false,
+        message: "Everyone has started this one — there is nobody to remind.",
+      };
+    }
+
+    await notifyMany(
+      behind.map((person) => person.id),
+      {
+        type: "reminder",
+        title: "Still to do",
+        // Names the campaign, because a student holding four open tasks
+        // cannot act on "you have work outstanding".
+        body: `${campaign.title} is still waiting on you. Open it and send your proof.`,
+        href: "/dashboard/campaigns",
+        meta: { campaignId, reminder: true },
+      },
+    );
+
+    await audit(actorId, "campaign.remind", "campaign", campaignId, {
+      sent: behind.length,
+      title: campaign.title,
+    });
+
+    await invalidateAdminCache();
+    revalidatePath(`/admin/campaigns/${campaignId}`);
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      message: `Reminded ${behind.length} ambassador${behind.length === 1 ? "" : "s"}.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function setCampaignStatus(
   campaignId: string,
   status: Enums<"campaign_status">,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const { error } = await supabase
@@ -1364,7 +1521,7 @@ export async function setCampaignStatus(
 
 export async function createCampaign(formData: FormData): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const title = String(formData.get("title") ?? "").trim();
@@ -1544,7 +1701,7 @@ export async function createSurvey(input: {
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult & { surveyId?: string }> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const title = input.title.trim();
@@ -1667,7 +1824,7 @@ export async function setSurveyStatus(
   status: Enums<"survey_status">,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const supabase = await createClient();
 
     const { error } = await supabase
@@ -1727,7 +1884,7 @@ export async function setSurveyStatus(
 
 export async function issueSurveyLinks(surveyId: string): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const { data: created, error } = await createAdminClient().rpc(
       "ensure_survey_links",

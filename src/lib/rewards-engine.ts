@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
+import { getActiveVersion } from "@/lib/programme-version";
 import { notify } from "@/lib/notifications";
 
 /**
@@ -31,6 +32,11 @@ export async function awardReferralBonus(
   actorId: string | null,
 ): Promise<number> {
   const db = createAdminClient();
+  // Both halves of the reconciliation — what is owed and what has been paid —
+  // are this run's. Counting an earlier run's installs would owe a bonus for
+  // work that is not in this run's total, and reading its ledger rows as
+  // "already paid" would suppress the bonus this run has genuinely earned.
+  const version = await getActiveVersion();
 
   const [settings, { count }] = await Promise.all([
     getSettings(
@@ -42,7 +48,8 @@ export async function awardReferralBonus(
       .from("referral_conversions")
       .select("id", { count: "exact", head: true })
       .eq("ambassador_id", ambassadorId)
-      .eq("status", "counted"),
+      .eq("status", "counted")
+      .eq("version", version),
   ]);
 
   const downloads = count ?? 0;
@@ -86,7 +93,8 @@ export async function awardReferralBonus(
     .from("point_ledger")
     .select("delta")
     .eq("ambassador_id", ambassadorId)
-    .eq("source_type", "referral_multiplier");
+    .eq("source_type", "referral_multiplier")
+    .eq("version", version);
 
   const already = (paid ?? []).reduce((sum, row) => sum + row.delta, 0);
   const delta = owed - already;
@@ -162,10 +170,13 @@ export async function awardStreakBonus(
 
   if (needed <= 0 || points <= 0) return 0;
 
+  const version = await getActiveVersion();
+
   const { data: earned } = await db
     .from("point_ledger")
     .select("created_at")
     .eq("ambassador_id", ambassadorId)
+    .eq("version", version)
     .gt("delta", 0)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -192,6 +203,7 @@ export async function awardStreakBonus(
     .select("id")
     .eq("source_type", "streak_bonus")
     .eq("source_id", sourceId)
+    .eq("version", version)
     .maybeSingle();
 
   if (existing) return 0;

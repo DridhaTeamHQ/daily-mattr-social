@@ -8,6 +8,7 @@ import { ProgressHero } from "@/components/points-hero";
 import { Stat } from "@/components/ui/stat";
 import { markActiveToday } from "@/lib/activity";
 import { getDashboard, isDemoMode } from "@/lib/queries";
+import { getNewSeasonNotice } from "@/lib/programme-version";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
@@ -31,7 +32,10 @@ const INSTALL_RANK_BADGE: Record<number, string> = {
 };
 
 export default async function DashboardPage() {
-  const data = await getDashboard();
+  const [data, season] = await Promise.all([
+    getDashboard(),
+    getNewSeasonNotice(),
+  ]);
   if (!data) redirect("/login");
 
   // The same switch that shuts /dashboard/rewards also closes the install
@@ -78,11 +82,45 @@ export default async function DashboardPage() {
         <h1 className="text-[28px] font-black leading-tight tracking-tight text-ink sm:text-[34px]">
           Hey <span className="text-brand-strong">{firstName}</span>
         </h1>
-        <p className="mt-1 text-[13.5px] font-semibold text-gray-500">
-          {isNewcomer
-            ? "Ready to make an impact? Complete your first task to start your monthly progress."
-            : "Welcome back! Keep completing tasks to move up the ranking."}
-        </p>
+
+        {/* ─── Why a season line goes here ────────────────────────────────
+            A student who finished last season at 90% opens this page after a
+            restart and finds 0%, no rank and no streak of work behind them.
+            Without a word of explanation the only available reading is that
+            something is broken, or that their work was thrown away — and
+            neither is true.
+
+            So for the first fortnight of a new season the greeting says what
+            happened, in the same spot the encouragement usually sits. It goes
+            to everybody, not just newcomers: the people who need it most are
+            precisely the ones who had a score to lose. `getNewSeasonNotice`
+            returns null on the first season ever and once the window closes,
+            and the ordinary copy comes back by itself. */}
+        {season ? (
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] font-semibold text-gray-500">
+            <span className="rounded-full bg-brand-tint px-2 py-0.5 text-[11px] font-extrabold tracking-wide text-brand-press uppercase">
+              New season
+            </span>
+            <span>
+              {season.label}{" "}
+              {season.days === 0
+                ? "started today"
+                : season.days === 1
+                  ? "started yesterday"
+                  : `started ${season.days} days ago`}
+              . Everyone is back to zero, so the ranking is wide open —
+              {isNewcomer
+                ? " complete a task to get on the board."
+                : " your next task starts the climb again."}
+            </span>
+          </p>
+        ) : (
+          <p className="mt-1 text-[13.5px] font-semibold text-gray-500">
+            {isNewcomer
+              ? "Ready to make an impact? Complete your first task to start your monthly progress."
+              : "Welcome back! Keep completing tasks to move up the ranking."}
+          </p>
+        )}
       </header>
       
 

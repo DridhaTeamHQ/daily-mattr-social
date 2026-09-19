@@ -7,6 +7,7 @@ import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { earningRoute } from "@/lib/admin/participation";
 import { readAll } from "@/lib/admin/read-all";
 import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
+import { getViewingVersion } from "@/lib/programme-version";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -18,6 +19,12 @@ import type { Enums, Tables } from "@/lib/database.types";
  * authorization on a miss. The cached client additionally checks the current
  * admin role/status before every render, including cache hits. `requireAdmin()`
  * keeps its uncached client to provide redirects without trusting cache data.
+ *
+ * Every figure below is scoped to one run of the programme, resolved here
+ * rather than passed in — see `src/lib/programme-version.ts` for why a
+ * forgotten version filter is the kind of mistake that does not announce
+ * itself. `getViewingVersion()` is the open run unless an admin has pointed
+ * the console at an earlier one.
  */
 
 export async function requireAdmin(): Promise<Tables<"profiles">> {
@@ -55,7 +62,11 @@ export type AdminOverview = {
 
 export async function getOverview(): Promise<AdminOverview> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
+  // Ambassadors are the one count here that is not versioned: the same
+  // students carry across a restart, keeping their logins and their codes.
+  // Everything else on this page is a result, and results begin again.
   const [profiles, submissions, campaigns, surveys, ledger, responses, refs] =
     await Promise.all([
       readAll<{ role: string; status: string }>(
@@ -69,24 +80,36 @@ export async function getOverview(): Promise<AdminOverview> {
       ),
       readAll<{ status: string }>(
         (from, to) =>
-          supabase.from("submissions").select("status").order("id").range(from, to),
+          supabase
+            .from("submissions")
+            .select("status")
+            .eq("version", version)
+            .order("id")
+            .range(from, to),
         "overview.submissions",
       ),
-      supabase.from("campaigns").select("status"),
-      supabase.from("surveys").select("status"),
+      supabase.from("campaigns").select("status").eq("version", version),
+      supabase.from("surveys").select("status").eq("version", version),
       readAll<{ delta: number }>(
         (from, to) =>
-          supabase.from("point_ledger").select("delta").order("id").range(from, to),
+          supabase
+            .from("point_ledger")
+            .select("delta")
+            .eq("version", version)
+            .order("id")
+            .range(from, to),
         "overview.ledger",
       ),
       supabase
         .from("survey_responses")
         .select("id", { count: "exact", head: true })
-        .eq("status", "valid"),
+        .eq("status", "valid")
+        .eq("version", version),
       supabase
         .from("referral_conversions")
         .select("id", { count: "exact", head: true })
-        .eq("status", "counted"),
+        .eq("status", "counted")
+        .eq("version", version),
     ]);
 
   const amb = profiles.filter((p) => p.role === "ambassador");
@@ -141,6 +164,7 @@ export type AmbassadorRow = {
 
 export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   const [profiles, ledger] = await Promise.all([
     readAll<Omit<AmbassadorRow, "points">>(
@@ -166,6 +190,7 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
         supabase
           .from("point_ledger")
           .select("ambassador_id, delta")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "ambassadors.ledger",
@@ -264,6 +289,7 @@ export async function getReviewQueue(
   campaignId?: string,
 ): Promise<ReviewItem[]> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   // Submissions point at a task, not at a campaign, so the campaign has to be
   // resolved to its tasks first. A campaign with no tasks has no submissions
@@ -283,6 +309,7 @@ export async function getReviewQueue(
     .select(
       "id, status, attempt, uploaded_at, screenshot_path, proof_url, proof_text, checks, ai_confidence, ai_model, reject_reason, ambassador_id, campaign_task_id, profiles!submissions_ambassador_id_fkey(id, full_name, college), campaign_tasks(id, type, points, label_override, platform, task_library(label, platform), campaigns(id, title, expected_handle))",
     )
+    .eq("version", version)
     .order("uploaded_at", { ascending: true });
 
   if (status === "open") {
@@ -385,6 +412,7 @@ export type AdminCampaign = Tables<"campaigns"> & {
 
 export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   // Before the read, not after: a campaign whose deadline passed an hour ago
   // has to come back from this query as ended, not as live with an "Ended"
@@ -395,8 +423,12 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
     supabase
       .from("campaigns")
       .select("*, campaign_tasks(*, task_library(label, platform))")
+      .eq("version", version)
       .order("created_at", { ascending: false }),
-    supabase.from("submissions").select("campaign_task_id, status, ambassador_id"),
+    supabase
+      .from("submissions")
+      .select("campaign_task_id, status, ambassador_id")
+      .eq("version", version),
     // Ids, not a count: an approval from somebody since suspended must not
     // push the "done" figure above the number of people being counted.
     readAll<{ id: string }>(
@@ -480,13 +512,25 @@ export type AdminSurvey = Tables<"surveys"> & {
 
 export async function getAdminSurveys(): Promise<AdminSurvey[]> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   const [{ data: surveys }, { data: questions }, { data: links }, { data: responses }] =
     await Promise.all([
-      supabase.from("surveys").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("surveys")
+        .select("*")
+        .eq("version", version)
+        .order("created_at", { ascending: false }),
       supabase.from("survey_questions").select("survey_id"),
+      // Questions and links are keyed by survey, and the surveys they belong
+      // to are already filtered above — a tally against a survey that is not
+      // in the list is read by nothing.
       supabase.from("survey_links").select("survey_id"),
-      supabase.from("survey_responses").select("survey_id").eq("status", "valid"),
+      supabase
+        .from("survey_responses")
+        .select("survey_id")
+        .eq("status", "valid")
+        .eq("version", version),
     ]);
 
   const tally = (rows: { survey_id: string }[] | null) => {
@@ -558,30 +602,55 @@ export type ReferralSummary = {
  */
 export async function getReferralSummary(): Promise<ReferralSummary> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
-  const [{ data: profiles }, { data: conversions }, { data: ledger }] =
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, full_name, email, college, batch, referral_code, status")
-        .eq("role", "ambassador")
-        .order("full_name", { ascending: true }),
-      supabase
-        .from("referral_conversions")
-        .select("ambassador_id, status, converted_at"),
-      // Not `.eq("reason", "referral")`: a reversal is written with reason
-      // 'revoke', so filtering on the label counted every credit and dropped
-      // every row that took one back. See earningRoute.
-      supabase
-        .from("point_ledger")
-        .select("ambassador_id, delta, reason, source_type"),
-    ]);
+  // Both of the row-per-event tables are paged. PostgREST stops at a thousand
+  // rows and says nothing about it, and the ledger is already past that: at
+  // 1,611 rows a plain select was dropping a third of it, so "Points paid"
+  // was short for whoever fell after the cut. `referral_conversions` gets a
+  // row per install and is on the same road — 867 today against a programme
+  // target of 10,000. See read-all.ts.
+  const [{ data: profiles }, conversions, ledger] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, college, batch, referral_code, status")
+      .eq("role", "ambassador")
+      .order("full_name", { ascending: true }),
+    readAll<{ ambassador_id: string; status: string; converted_at: string }>(
+      (from, to) =>
+        supabase
+          .from("referral_conversions")
+          .select("ambassador_id, status, converted_at")
+          .eq("version", version)
+          .order("id")
+          .range(from, to),
+      "referrals.conversions",
+    ),
+    // Not `.eq("reason", "referral")`: a reversal is written with reason
+    // 'revoke', so filtering on the label counted every credit and dropped
+    // every row that took one back. See earningRoute.
+    readAll<{
+      ambassador_id: string;
+      delta: number;
+      reason: string;
+      source_type: string | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("point_ledger")
+          .select("ambassador_id, delta, reason, source_type")
+          .eq("version", version)
+          .order("id")
+          .range(from, to),
+      "referrals.ledger",
+    ),
+  ]);
 
   const counted = new Map<string, number>();
   const voided = new Map<string, number>();
   const last = new Map<string, string>();
 
-  for (const c of conversions ?? []) {
+  for (const c of conversions) {
     const bucket = c.status === "counted" ? counted : voided;
     bucket.set(c.ambassador_id, (bucket.get(c.ambassador_id) ?? 0) + 1);
 
@@ -592,7 +661,7 @@ export async function getReferralSummary(): Promise<ReferralSummary> {
   }
 
   const paid = new Map<string, number>();
-  for (const l of ledger ?? []) {
+  for (const l of ledger) {
     if (earningRoute(l) !== "referral") continue;
     paid.set(l.ambassador_id, (paid.get(l.ambassador_id) ?? 0) + l.delta);
   }
@@ -852,6 +921,7 @@ export async function getAnalytics(
   scope: CohortIds = null,
 ): Promise<Analytics> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
   const [ledgerRows, subsRows, profileRows, surveysRes, responseRows] =
@@ -866,6 +936,7 @@ export async function getAnalytics(
           supabase
             .from("point_ledger")
             .select("ambassador_id, delta, reason, created_at")
+            .eq("version", version)
             .gte("created_at", since)
             .order("id")
             .range(from, to),
@@ -876,6 +947,7 @@ export async function getAnalytics(
           supabase
             .from("submissions")
             .select("ambassador_id, status")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "analytics.submissions",
@@ -890,12 +962,13 @@ export async function getAnalytics(
             .range(from, to),
         "analytics.profiles",
       ),
-      supabase.from("surveys").select("id, title"),
+      supabase.from("surveys").select("id, title").eq("version", version),
       readAll<{ ambassador_id: string; survey_id: string; status: string }>(
         (from, to) =>
           supabase
             .from("survey_responses")
             .select("ambassador_id, survey_id, status")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "analytics.responses",
@@ -1106,6 +1179,7 @@ export async function getAmbassadorDetail(
   days = 30,
 ): Promise<AmbassadorDetail | null> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -1129,6 +1203,7 @@ export async function getAmbassadorDetail(
       .from("point_ledger")
       .select("id, delta, reason, source_type, note, created_at")
       .eq("ambassador_id", profileId)
+      .eq("version", version)
       .order("created_at", { ascending: false }),
     // Everyone's totals, so this person's rank is a real position in the
     // cohort rather than a number that only makes sense on its own. Paged:
@@ -1139,6 +1214,7 @@ export async function getAmbassadorDetail(
         supabase
           .from("point_ledger")
           .select("ambassador_id, delta")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "ambassadorDetail.allLedger",
@@ -1154,27 +1230,34 @@ export async function getAmbassadorDetail(
           .range(from, to),
       "ambassadorDetail.cohort",
     ),
+    // `surveys!inner` so the run filter can reach the parent: a link belongs
+    // to a survey and has no version of its own to filter on.
     supabase
       .from("survey_links")
-      .select("id, slug, click_count, surveys(id, title)")
-      .eq("ambassador_id", profileId),
+      .select("id, slug, click_count, surveys!inner(id, title)")
+      .eq("ambassador_id", profileId)
+      .eq("surveys.version", version),
     supabase
       .from("survey_responses")
       .select("survey_id, status")
-      .eq("ambassador_id", profileId),
+      .eq("ambassador_id", profileId)
+      .eq("version", version),
     supabase
       .from("submissions")
       .select("id, status, uploaded_at, campaign_tasks(type, points, label_override, platform, task_library(label, platform), campaigns(title))")
       .eq("ambassador_id", profileId)
+      .eq("version", version)
       .order("uploaded_at", { ascending: false }),
     supabase
       .from("referral_conversions")
       .select("status, converted_at")
-      .eq("ambassador_id", profileId),
+      .eq("ambassador_id", profileId)
+      .eq("version", version),
     supabase
       .from("achievements")
       .select("id, title, note, awarded_at")
       .eq("ambassador_id", profileId)
+      .eq("version", version)
       .order("awarded_at", { ascending: false }),
   ]);
 
@@ -1352,6 +1435,7 @@ export async function getCampaignDetail(
   days = 30,
 ): Promise<CampaignDetail | null> {
   const supabase = await createClient();
+  const version = await getViewingVersion();
 
   const { data: campaign } = await supabase
     .from("campaigns")
@@ -1400,6 +1484,7 @@ export async function getCampaignDetail(
           .from("point_ledger")
           .select("ambassador_id, delta, source_id, source_type")
           .eq("source_type", "submission")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "campaignDetail.ledger",

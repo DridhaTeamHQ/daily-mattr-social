@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
-import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
+import { assertAdminWrite, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeRatingLabels } from "@/lib/question-types";
 import type { Enums } from "@/lib/database.types";
@@ -24,7 +24,7 @@ export async function updateCampaign(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     const title = String(formData.get("title") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
@@ -87,7 +87,7 @@ export async function archiveCampaign(
   archived: boolean,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
     const db = createAdminClient();
 
     const { error } = await db
@@ -111,7 +111,7 @@ export async function updateSurvey(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     const title = String(formData.get("title") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
@@ -168,7 +168,7 @@ export async function setResponseStatus(
   reason?: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: response } = await db
@@ -244,7 +244,7 @@ export async function addAchievement(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const title = String(formData.get("title") ?? "").trim();
     const note = String(formData.get("note") ?? "").trim();
@@ -287,7 +287,7 @@ export async function deleteAchievement(
   ambassadorId: string,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     const { error } = await createAdminClient()
       .from("achievements")
@@ -324,7 +324,7 @@ export async function deleteAchievement(
  */
 export async function deleteCampaign(campaignId: string): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: campaign } = await db
@@ -450,7 +450,7 @@ export async function deleteCampaign(campaignId: string): Promise<ActionResult> 
  */
 export async function deleteSurvey(surveyId: string): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: survey } = await db
@@ -584,7 +584,7 @@ export async function updateSurveyQuestions(
   edits: QuestionEdit[],
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: existing } = await db

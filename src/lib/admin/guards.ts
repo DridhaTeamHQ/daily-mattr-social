@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { getActiveVersion, getViewingVersion } from "@/lib/programme-version";
 
 /**
  * Shared guards and error shaping for admin actions.
@@ -41,6 +42,39 @@ export async function assertAdmin(): Promise<string> {
     throw new Error("Not authorised");
   }
   return user.id;
+}
+
+/**
+ * Throws unless the caller is an active admin *and* the console is pointed at
+ * the run that is open. Returns their id.
+ *
+ * Every admin mutation goes through this rather than `assertAdmin` alone.
+ * Reads may look at an earlier run — that is the whole point of keeping it —
+ * but writes may not, and the reason is that a write while looking backwards
+ * would not even do what the screen implied. A new row's run comes from the
+ * database default, which is always the open one, so voiding an install from
+ * V1's installs page would read V1's numbers, decide how many rows to change,
+ * and then write the difference into V2. Refusing is the only honest outcome.
+ *
+ * `assertAdmin` is deliberately left alone: the cached read client calls it
+ * before every render, and adding this check there would make looking at an
+ * earlier run impossible rather than read-only.
+ */
+export async function assertAdminWrite(): Promise<string> {
+  const actorId = await assertAdmin();
+
+  const [viewing, active] = await Promise.all([
+    getViewingVersion(),
+    getActiveVersion(),
+  ]);
+
+  if (viewing !== active) {
+    throw new Error(
+      "You are looking at an earlier run of the programme, which is read-only. Switch back to the current one to make changes.",
+    );
+  }
+
+  return actorId;
 }
 
 export function fail(err: unknown): ActionResult {

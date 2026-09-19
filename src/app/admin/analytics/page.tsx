@@ -28,7 +28,7 @@ import {
 import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import {
   STIPEND_MIN_COMPLETION_PCT,
-  STIPEND_MIN_INSTALLS,
+  STIPEND_MIN_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
 import { formatNumber, initials } from "@/lib/utils";
@@ -94,10 +94,11 @@ export default async function AnalyticsPage({
         <div>
           <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            Task completion {period.noun} across{" "}
+            Tasks done or missed since each ambassador joined, across{" "}
             {cohort.active
               ? `${formatNumber(cohort.matched)} of ${formatNumber(cohort.total)} active ambassadors.`
-              : "active ambassadors."}
+              : "active ambassadors."}{" "}
+            Review and approval rates are {period.noun}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -154,9 +155,9 @@ export default async function AnalyticsPage({
           tone="brand"
         />
         <Stat
-          label="Active tasks"
+          label="Tasks published"
           value={taskTotal}
-          sub={`${activeCampaigns.length} campaign${activeCampaigns.length === 1 ? "" : "s"} ${period.noun}`}
+          sub={`Across ${activeCampaigns.length} campaign${activeCampaigns.length === 1 ? "" : "s"}`}
           icon={ListChecks}
           tone="reel"
         />
@@ -180,7 +181,7 @@ export default async function AnalyticsPage({
         <Card>
           <EmptyState
             icon={ListChecks}
-            title={`No active tasks ${period.noun}`}
+            title="No tasks published yet"
             description="Publish a campaign task to start tracking completion percentages."
           />
         </Card>
@@ -193,7 +194,7 @@ export default async function AnalyticsPage({
             data={campaignPerformance}
             unit="%"
             color="teal"
-            emptyMessage={`No active tasks ${period.noun}.`}
+            emptyMessage="No tasks published yet."
           />
         </ChartCard>
       )}
@@ -259,7 +260,7 @@ export default async function AnalyticsPage({
                   <th className="px-4 py-2.5 text-right font-medium">
                     Rejections
                   </th>
-                  <th className="px-4 py-2.5 text-right font-medium">Installs</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Downloads</th>
                   {/* The rule lives on the column it governs rather than in
                       a caption over the table: "Eligible" and "Needs 4 more
                       tasks" are the only cells anyone has to interpret, and
@@ -270,11 +271,12 @@ export default async function AnalyticsPage({
                       <InfoDot label="How stipend eligibility is decided">
                         <p className="font-extrabold">Stipend eligibility</p>
                         <p className="mt-1 font-semibold">
-                          An ambassador qualifies {period.noun} with{" "}
-                          {STIPEND_MIN_COMPLETION_PCT}% of their tasks approved
-                          and {STIPEND_MIN_INSTALLS} counted installs. Both are
-                          needed — one without the other is not a qualifying
-                          month.
+                          An ambassador qualifies with{" "}
+                          {STIPEND_MIN_COMPLETION_PCT}% of the tasks they could
+                          reach since joining approved, and{" "}
+                          {STIPEND_MIN_DOWNLOADS} counted downloads against
+                          their code. Both are needed — one without the other
+                          is not a qualifying month.
                         </p>
                       </InfoDot>
                     </span>
@@ -338,21 +340,23 @@ export default async function AnalyticsPage({
                         : "—"}
                     </td>
 
-                    {/* Counted installs from their referral code this period.
-                        Bold once it clears the stipend bar, so the column can
-                        be read down for who is there and who is short. */}
+                    {/* Counted downloads against their referral code — the
+                        same figure /admin/referrals prints, so the two pages
+                        cannot show one ambassador two numbers. Bold once it
+                        clears the stipend bar, so the column can be read down
+                        for who is there and who is short. */}
                     <td
                       className={`tabular px-4 py-3 text-right text-[13px] ${
-                        ambassador.installs >= STIPEND_MIN_INSTALLS
+                        ambassador.downloads >= STIPEND_MIN_DOWNLOADS
                           ? "font-bold text-ink"
                           : "text-ink-soft"
                       }`}
                     >
-                      {formatNumber(ambassador.installs)}
+                      {formatNumber(ambassador.downloads)}
                     </td>
 
                     {/* Yes or no, and the gap when it is no. "Needs 7 more
-                        installs" is something an admin can act on this week;
+                        downloads" is something an admin can act on this week;
                         a bare "No" only says to go and work out why. */}
                     <td className="px-4 py-3 text-[12px]">
                       {ambassador.eligible ? (
@@ -361,8 +365,8 @@ export default async function AnalyticsPage({
                         <span className="font-bold text-ink-faint">
                           Needs{" "}
                           {[
-                            ambassador.installsShort > 0
-                              ? `${formatNumber(ambassador.installsShort)} more ${ambassador.installsShort === 1 ? "install" : "installs"}`
+                            ambassador.downloadsShort > 0
+                              ? `${formatNumber(ambassador.downloadsShort)} more ${ambassador.downloadsShort === 1 ? "download" : "downloads"}`
                               : null,
                             ambassador.completion < STIPEND_MIN_COMPLETION_PCT
                               ? `${STIPEND_MIN_COMPLETION_PCT}% completion`

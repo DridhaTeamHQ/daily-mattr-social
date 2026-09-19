@@ -223,49 +223,89 @@ export function DayBars({
     );
   }
 
+  /**
+   * How often to print a date under a bar.
+   *
+   * Every bar gets one where they fit, which is what makes the chart
+   * readable — a run of bars with a date at each end tells you the range and
+   * nothing about any particular day, so finding "the spike on the 9th"
+   * meant counting columns with a finger. Past about sixteen days the labels
+   * would collide, so they thin out to every second, third or fourth,
+   * anchored on the last day so the right-hand end always reads "today".
+   */
+  const step = Math.ceil(data.length / 16);
+
+  /**
+   * Bars are drawn on a fixed track rather than stretched to fill.
+   *
+   * A campaign with three days of data used to get three columns a third of
+   * the card wide each, which reads as a different chart from the same
+   * campaign a week later. Fixed-width bars keep a day the same size
+   * whatever else is on screen, and the row scrolls if there are more than
+   * fit — which is also what keeps a fat bar fat.
+   */
   return (
-    <>
-      <div className="flex h-40 items-end gap-[3px]">
-        {data.map((d) => {
-          const pct = d.value === 0 ? 0 : Math.max(4, (d.value / max) * 100);
-          const label = new Date(d.day).toLocaleDateString("en-IN", {
+    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div className="flex min-w-full items-end justify-between gap-1.5">
+        {data.map((d, index) => {
+          const pct = d.value === 0 ? 0 : Math.max(6, (d.value / max) * 100);
+          const at = new Date(d.day);
+          const label = at.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
           });
+          // Counted back from the end, so today is always labelled.
+          const labelled = (data.length - 1 - index) % step === 0;
 
           return (
             <div
               key={d.day}
-              className="group relative flex h-full flex-1 items-end"
+              className="flex min-w-[18px] flex-1 flex-col items-center gap-1.5"
               // Native tooltip: an admin chart doesn't need a bespoke hover
               // layer to answer "what was that day".
               title={`${label}: ${formatNumber(d.value)}${unit}`}
             >
-              {d.value > 0 ? (
-                <div
-                  className="w-full rounded-t-[4px] border-2 border-ink transition-[height] duration-500 ease-out"
-                  style={{ height: `${pct}%`, backgroundColor: SERIES[color] }}
-                />
-              ) : (
-                // A visible floor for empty days, so the gap reads as "zero"
-                // rather than as missing data.
-                <div className="h-[3px] w-full rounded-full bg-ink/15" />
-              )}
+              <div className="flex h-36 w-full items-end">
+                {d.value > 0 ? (
+                  <div
+                    className="w-full rounded-t-md border-2 border-ink transition-[height] duration-500 ease-out"
+                    style={{
+                      height: `${pct}%`,
+                      backgroundColor: SERIES[color],
+                    }}
+                  />
+                ) : (
+                  // A visible floor for empty days, so the gap reads as
+                  // "zero" rather than as missing data.
+                  <div className="h-[3px] w-full rounded-full bg-ink/15" />
+                )}
+              </div>
+
+              {/* The day number under every labelled bar, with the month only
+                  where it changes — thirty repetitions of "Aug" is noise, and
+                  the one place the month turns over is the one place you
+                  need it. */}
+              <span className="h-7 text-center text-[10.5px] leading-tight font-bold whitespace-nowrap text-ink-soft">
+                {labelled && (
+                  <>
+                    {at.getDate()}
+                    {(index === 0 ||
+                      at.getMonth() !== new Date(data[index - 1].day).getMonth()) && (
+                      <>
+                        <br />
+                        <span className="text-ink-faint">
+                          {at.toLocaleDateString("en-IN", { month: "short" })}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </span>
             </div>
           );
         })}
       </div>
-
-      <div className="mt-2 flex justify-between text-[11.5px] font-bold text-ink-soft">
-        <span>
-          {new Date(data[0].day).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          })}
-        </span>
-        <span>Today</span>
-      </div>
-    </>
+    </div>
   );
 }
 

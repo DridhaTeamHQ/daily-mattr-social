@@ -174,6 +174,8 @@ export type Database = {
        */
       point_ledger: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: number;
           ambassador_id: string;
           delta: number;
@@ -188,6 +190,7 @@ export type Database = {
           phase: Enums<"program_phase"> | null;
         };
         Insert: {
+          version?: number;
           id?: number;
           ambassador_id: string;
           delta: number;
@@ -220,6 +223,8 @@ export type Database = {
 
       surveys: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           title: string;
           description: string | null;
@@ -235,6 +240,7 @@ export type Database = {
           audience: Enums<"survey_audience">;
         };
         Insert: {
+          version?: number;
           id?: string;
           title: string;
           description?: string | null;
@@ -250,6 +256,7 @@ export type Database = {
           audience?: Enums<"survey_audience">;
         };
         Update: {
+          version?: number;
           id?: string;
           title?: string;
           description?: string | null;
@@ -366,6 +373,8 @@ export type Database = {
 
       survey_responses: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           survey_link_id: string;
           survey_id: string;
@@ -380,6 +389,7 @@ export type Database = {
           submitted_at: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           survey_link_id: string;
           survey_id: string;
@@ -395,6 +405,7 @@ export type Database = {
         };
         /** Only adjudication fields change after submission. */
         Update: {
+          version?: number;
           status?: Enums<"response_status">;
           flag_reason?: string | null;
         };
@@ -462,6 +473,8 @@ export type Database = {
 
       campaigns: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           title: string;
           description: string | null;
@@ -485,6 +498,7 @@ export type Database = {
           platform: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           title: string;
           description?: string | null;
@@ -504,6 +518,7 @@ export type Database = {
           platform?: string;
         };
         Update: {
+          version?: number;
           id?: string;
           title?: string;
           description?: string | null;
@@ -590,6 +605,8 @@ export type Database = {
 
       submissions: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           campaign_task_id: string;
           ambassador_id: string;
@@ -618,6 +635,7 @@ export type Database = {
           proof_text: string | null;
         };
         Insert: {
+          version?: number;
           id?: string;
           campaign_task_id: string;
           ambassador_id: string;
@@ -648,6 +666,7 @@ export type Database = {
          * move. Re-uploading means a new row with a higher `attempt`.
          */
         Update: {
+          version?: number;
           checks?: Json;
           ai_verdict?: Json | null;
           ai_confidence?: number | null;
@@ -726,6 +745,8 @@ export type Database = {
 
       referral_conversions: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           ambassador_id: string;
           code: string;
@@ -744,6 +765,7 @@ export type Database = {
           day7_return_at: string | null;
         };
         Insert: {
+          version?: number;
           id?: string;
           ambassador_id: string;
           code: string;
@@ -762,6 +784,7 @@ export type Database = {
         };
         /** Voiding a conversion is the only edit; the fact of it stays. */
         Update: {
+          version?: number;
           status?: Enums<"conversion_status">;
           notes?: string | null;
           store?: Enums<"install_store">;
@@ -790,6 +813,8 @@ export type Database = {
 
       achievements: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           ambassador_id: string;
           title: string;
@@ -799,6 +824,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           ambassador_id: string;
           title: string;
@@ -808,6 +834,7 @@ export type Database = {
           created_at?: string;
         };
         Update: {
+          version?: number;
           title?: string;
           note?: string | null;
           awarded_at?: string;
@@ -948,6 +975,8 @@ export type Database = {
 
       referral_clicks: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           ambassador_id: string | null;
           code: string;
@@ -957,6 +986,7 @@ export type Database = {
           clicked_at: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           ambassador_id?: string | null;
           code: string;
@@ -979,6 +1009,8 @@ export type Database = {
 
       redemption_requests: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           ambassador_id: string;
           points: number;
@@ -993,6 +1025,7 @@ export type Database = {
           requested_at: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           ambassador_id: string;
           points: number;
@@ -1003,6 +1036,7 @@ export type Database = {
           note?: string | null;
         };
         Update: {
+          version?: number;
           status?: Enums<"redemption_status">;
           decided_by?: string | null;
           decided_at?: string | null;
@@ -1022,6 +1056,8 @@ export type Database = {
 
       payout_batches: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           label: string;
           kind: string;
@@ -1032,6 +1068,7 @@ export type Database = {
           processed_at: string | null;
         };
         Insert: {
+          version?: number;
           id?: string;
           label: string;
           kind?: string;
@@ -1040,6 +1077,7 @@ export type Database = {
           created_by?: string | null;
         };
         Update: {
+          version?: number;
           label?: string;
           status?: Enums<"payout_status">;
           processed_at?: string | null;
@@ -1057,6 +1095,8 @@ export type Database = {
 
       payouts: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           batch_id: string | null;
           ambassador_id: string;
@@ -1070,6 +1110,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          version?: number;
           id?: string;
           batch_id?: string | null;
           ambassador_id: string;
@@ -1080,6 +1121,7 @@ export type Database = {
           utr?: string | null;
         };
         Update: {
+          version?: number;
           status?: Enums<"payout_status">;
           utr?: string | null;
           failure_reason?: string | null;
@@ -1164,6 +1206,8 @@ export type Database = {
       };
       badge_awards: {
         Row: {
+          /** The programme run this row belongs to. See migration 0047. */
+          version: number;
           id: string;
           badge_id: string;
           ambassador_id: string;
@@ -1171,6 +1215,7 @@ export type Database = {
           meta: Json;
         };
         Insert: {
+          version?: number;
           id?: string;
           badge_id: string;
           ambassador_id: string;
@@ -1191,6 +1236,49 @@ export type Database = {
             columns: ["badge_id"];
             isOneToOne: false;
             referencedRelation: "badges";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      /**
+       * One row per run of the programme. Every versioned table above points
+       * at one of these, so a new run starts at zero with nothing from an
+       * earlier one moved or removed. See migration 0047.
+       */
+      programme_versions: {
+        Row: {
+          id: number;
+          label: string;
+          description: string | null;
+          /** When this run opened. Null until it has been made active. */
+          started_at: string | null;
+          /** When the next run took over. Null on the run still in progress. */
+          ended_at: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: number;
+          label: string;
+          description?: string | null;
+          started_at?: string | null;
+          ended_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          label?: string;
+          description?: string | null;
+          started_at?: string | null;
+          ended_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "programme_versions_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -1299,7 +1387,7 @@ export type Database = {
         Returns: { points: number; position: number; total: number }[];
       };
       ambassador_completion: {
-        Args: { target: string };
+        Args: { target: string; p_version?: number };
         Returns: {
           total_tasks: number;
           approved_tasks: number;
@@ -1307,7 +1395,7 @@ export type Database = {
         }[];
       };
       completion_leaderboard: {
-        Args: { limit_count?: number; viewer?: string };
+        Args: { limit_count?: number; viewer?: string; p_version?: number };
         Returns: {
           position: number;
           ambassador_id: string;
@@ -1331,7 +1419,7 @@ export type Database = {
         }[];
       };
       stipend_eligibility: {
-        Args: { period_start: string };
+        Args: { period_start: string; p_version?: number };
         Returns: {
           ambassador_id: string;
           full_name: string;
@@ -1460,7 +1548,9 @@ export type Database = {
         | "survey_live"
         | "rank_up"
         | "referral_confirmed"
-        | "account";
+        | "account"
+        /** A nudge for work already assigned. See migration 0048. */
+        | "reminder";
       conversion_source: "csv_import" | "manual" | "api";
       conversion_status: "counted" | "void";
     };

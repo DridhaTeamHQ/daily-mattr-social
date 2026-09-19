@@ -8,10 +8,12 @@ import {
   Users,
 } from "lucide-react";
 
+import { ProgrammeVersionCard } from "@/components/programme-version-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { getOverview, getRecentActivity } from "@/lib/admin/queries";
+import { getViewingScope } from "@/lib/programme-version";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Overview" };
@@ -26,18 +28,22 @@ const ACTION_LABELS: Record<string, string> = {
   "campaign.status": "changed a campaign's status",
   "campaign.create": "created a campaign",
   "campaign.delete": "deleted a campaign",
+  "campaign.remind": "nudged the ambassadors who hadn't started",
   "survey.status": "changed a survey's status",
   "survey.links": "issued survey links",
   "survey.create": "built a survey",
   "survey.delete": "deleted a survey",
   "ambassador.create": "added an ambassador",
   "ambassador.reset_password": "reset an ambassador's password",
+  "programme.version_start": "started a new run of the programme",
+  "programme.version_activate": "changed which run is current",
 };
 
 export default async function AdminOverviewPage() {
-  const [overview, activity] = await Promise.all([
+  const [overview, activity, scope] = await Promise.all([
     getOverview(),
     getRecentActivity(10),
+    getViewingScope(),
   ]);
 
   const queue = overview.queue.pending + overview.queue.needsReview;
@@ -49,7 +55,7 @@ export default async function AdminOverviewPage() {
           Overview
         </h1>
         <p className="mt-1 text-[13.5px] text-ink-soft">
-          What needs your attention, and how the programme is doing.
+          What needs your attention, and how {scope.label} is doing.
         </p>
       </div>
 
@@ -211,6 +217,11 @@ export default async function AdminOverviewPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* Last on the page, deliberately. Starting a new run is the rarest
+          thing an admin does here and the one with the widest effect, so it
+          sits below the day's work rather than beside it. */}
+      <ProgrammeVersionCard versions={scope.versions} viewing={scope.version} />
     </div>
   );
 }

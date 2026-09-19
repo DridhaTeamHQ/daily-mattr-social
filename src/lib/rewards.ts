@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { isDemoMode } from "@/lib/queries";
+import { getActiveVersion } from "@/lib/programme-version";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import type { Tables } from "@/lib/database.types";
@@ -203,23 +204,31 @@ export const getRewards = cache(async (): Promise<RewardsView | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // A balance is the sum of one run's rows. Points earned in an earlier run
+  // belong to that run's history and are not spendable in this one — which is
+  // what starting again at nought means for money as much as for a board.
+  const version = await getActiveVersion();
+
   const [ledgerRes, requestsRes, payoutsRes, settings] = await Promise.all([
     supabase
       .from("point_ledger")
       .select("*")
       .eq("ambassador_id", user.id)
+      .eq("version", version)
       .order("created_at", { ascending: false })
       .limit(200),
     supabase
       .from("redemption_requests")
       .select("*")
       .eq("ambassador_id", user.id)
+      .eq("version", version)
       .order("requested_at", { ascending: false })
       .limit(50),
     supabase
       .from("payouts")
       .select("*")
       .eq("ambassador_id", user.id)
+      .eq("version", version)
       .order("created_at", { ascending: false })
       .limit(50),
     getSettings("points_per_rupee", "min_redemption_points"),

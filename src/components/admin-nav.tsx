@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
+import { VersionSwitcher } from "@/components/version-switcher";
 import { signOut } from "@/app/login/actions";
+import type { ProgrammeVersion } from "@/lib/programme-version";
 import { cn, initials } from "@/lib/utils";
 
 /**
@@ -44,9 +46,14 @@ const ITEMS = [
 export function AdminNav({
   name,
   queueCount,
+  versions,
+  viewingVersion,
 }: {
   name: string;
   queueCount: number;
+  /** Every run of the programme. The switcher hides itself when there is one. */
+  versions: ProgrammeVersion[];
+  viewingVersion: number;
 }) {
   const pathname = usePathname();
   const isActive = (href: string) => {
@@ -101,6 +108,10 @@ export function AdminNav({
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
+          {/* Left of everything else in this group, because it governs what
+              every number on the page underneath means. */}
+          <VersionSwitcher versions={versions} viewing={viewingVersion} />
+
           <Link
             href="/dashboard"
             className="hidden rounded-sm px-2.5 py-1.5 text-[13px] text-white/65 transition-colors hover:bg-white/10 hover:text-white sm:block"

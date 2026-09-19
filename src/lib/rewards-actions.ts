@@ -6,6 +6,7 @@ import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
+import { getActiveVersion } from "@/lib/programme-version";
 import { getViewer } from "@/lib/view-as";
 import { fail, type ActionResult } from "@/lib/admin/guards";
 
@@ -76,12 +77,22 @@ export async function requestRedemption(
     // Filtered by id, not left to RLS: an admin's policy grants SELECT over
     // every row, so an unfiltered sum here would be the whole programme's
     // balance rather than one person's.
+    // Scoped to the open run as well as to the person: the balance being
+    // spent has to be the balance the rewards page showed them, and that one
+    // is this run's.
+    const version = await getActiveVersion();
+
     const [{ data: ledger }, { data: open }] = await Promise.all([
-      supabase.from("point_ledger").select("delta").eq("ambassador_id", user.id),
+      supabase
+        .from("point_ledger")
+        .select("delta")
+        .eq("ambassador_id", user.id)
+        .eq("version", version),
       supabase
         .from("redemption_requests")
         .select("points")
         .eq("ambassador_id", user.id)
+        .eq("version", version)
         .in("status", ["requested", "approved"]),
     ]);
 

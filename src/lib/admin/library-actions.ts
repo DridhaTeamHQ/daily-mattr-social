@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
-import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
+import { assertAdminWrite, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Enums } from "@/lib/database.types";
 
@@ -27,7 +27,7 @@ export async function createLibraryTask(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const label = String(formData.get("label") ?? "").trim();
     const platform = String(formData.get("platform") ?? "").trim();
@@ -91,7 +91,7 @@ export async function setLibraryTaskActive(
   active: boolean,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     const db = createAdminClient();
     const { error } = await db
@@ -113,7 +113,7 @@ export async function updateLibraryTaskPoints(
   points: number,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     if (!Number.isInteger(points) || points < 0 || points > 10_000) {
       return { ok: false, message: "Points must be a whole number." };

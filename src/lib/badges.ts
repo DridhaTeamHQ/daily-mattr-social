@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveVersion } from "@/lib/programme-version";
 import { notify } from "@/lib/notifications";
 import type { Tables } from "@/lib/database.types";
 
@@ -48,6 +49,10 @@ function weekKey(date: Date): string {
 
 async function gatherFacts(ambassadorId: string): Promise<Facts> {
   const db = createAdminClient();
+  // A badge is earned per run, so the facts behind it are this run's. Someone
+  // who cleared 25 responses last time starts the new run without the badge
+  // and earns it again on the new work.
+  const version = await getActiveVersion();
 
   const [
     { count: responses },
@@ -61,21 +66,25 @@ async function gatherFacts(ambassadorId: string): Promise<Facts> {
       .from("survey_responses")
       .select("id", { count: "exact", head: true })
       .eq("ambassador_id", ambassadorId)
-      .eq("status", "valid"),
+      .eq("status", "valid")
+      .eq("version", version),
     db
       .from("referral_conversions")
       .select("id", { count: "exact", head: true })
       .eq("ambassador_id", ambassadorId)
-      .eq("status", "counted"),
+      .eq("status", "counted")
+      .eq("version", version),
     db
       .from("submissions")
       .select("status, campaign_tasks(library_id, type)")
       .eq("ambassador_id", ambassadorId)
+      .eq("version", version)
       .in("status", ["approved", "auto_approved"]),
     db
       .from("point_ledger")
       .select("created_at")
       .eq("ambassador_id", ambassadorId)
+      .eq("version", version)
       .gt("delta", 0)
       .order("created_at", { ascending: false })
       .limit(500),
@@ -83,7 +92,8 @@ async function gatherFacts(ambassadorId: string): Promise<Facts> {
       .from("payouts")
       .select("id", { count: "exact", head: true })
       .eq("ambassador_id", ambassadorId)
-      .eq("kind", "stipend"),
+      .eq("kind", "stipend")
+      .eq("version", version),
     db.from("task_library").select("platform").eq("active", true),
   ]);
 
@@ -154,10 +164,17 @@ function earned(criteria: Criteria, facts: Facts): boolean {
 /** Evaluates every badge for one person and awards the newly earned ones. */
 export async function evaluateBadges(ambassadorId: string): Promise<string[]> {
   const db = createAdminClient();
+  const version = await getActiveVersion();
 
   const [{ data: badges }, { data: held }, facts] = await Promise.all([
     db.from("badges").select("*").eq("active", true),
-    db.from("badge_awards").select("badge_id").eq("ambassador_id", ambassadorId),
+    // Held in *this* run. The unique index carries the run too, so the same
+    // badge can be earned again in a new one without colliding.
+    db
+      .from("badge_awards")
+      .select("badge_id")
+      .eq("ambassador_id", ambassadorId)
+      .eq("version", version),
     gatherFacts(ambassadorId),
   ]);
 
@@ -207,7 +224,8 @@ export const getMyBadges = cache(async (): Promise<BadgeView[]> => {
     supabase
       .from("badge_awards")
       .select("badge_id, awarded_at")
-      .eq("ambassador_id", user.id),
+      .eq("ambassador_id", user.id)
+      .eq("version", await getActiveVersion()),
   ]);
 
   const awarded = new Map(

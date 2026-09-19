@@ -5,6 +5,7 @@ import { cache } from "react";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { getSettings } from "@/lib/settings";
 import { readAll } from "@/lib/admin/read-all";
+import { getViewingVersion } from "@/lib/programme-version";
 import { cohortLabel, type CohortIds, type Dimension } from "@/lib/admin/scope";
 
 /**
@@ -53,6 +54,10 @@ export type GoalTracking = {
 export const getGoalTracking = cache(
   async (days = 30, scope: CohortIds = null): Promise<GoalTracking> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
+  // The goal is a target for the run being looked at, not a lifetime total:
+  // a new run that inherited the last one's installs would open at 84% of a
+  // number nobody in it has earned.
   const { download_goal: goal } = await getSettings("download_goal");
 
   // Paged, because this is the table the 10,000-download goal counts. A plain
@@ -68,6 +73,7 @@ export const getGoalTracking = cache(
         .from("referral_conversions")
         .select("ambassador_id, converted_at, store")
         .eq("status", "counted")
+        .eq("version", version)
         .order("id")
         .range(from, to),
     "goalTracking.conversions",
@@ -153,9 +159,13 @@ export type FunnelStage = {
 
 export const getFunnel = cache(async (): Promise<FunnelStage[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [{ count: clicks }, conversions] = await Promise.all([
-    db.from("referral_clicks").select("id", { count: "exact", head: true }),
+    db
+      .from("referral_clicks")
+      .select("id", { count: "exact", head: true })
+      .eq("version", version),
     readAll<{
       onboarded_at: string | null;
       activated_at: string | null;
@@ -167,6 +177,7 @@ export const getFunnel = cache(async (): Promise<FunnelStage[]> => {
           .from("referral_conversions")
           .select("onboarded_at, activated_at, day3_return_at, day7_return_at")
           .eq("status", "counted")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "funnel.conversions",
@@ -212,6 +223,7 @@ async function sliceBy(
   scope: CohortIds,
 ): Promise<CohortSlice[]> {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [profiles, conversions, ledger] = await Promise.all([
     readAll<{
@@ -236,6 +248,7 @@ async function sliceBy(
           .from("referral_conversions")
           .select("ambassador_id")
           .eq("status", "counted")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "sliceBy.conversions",
@@ -245,6 +258,7 @@ async function sliceBy(
         db
           .from("point_ledger")
           .select("ambassador_id, delta")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "sliceBy.ledger",
@@ -326,6 +340,7 @@ export type ReviewOps = {
 
 export const getReviewOps = cache(async (): Promise<ReviewOps> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const rows = await readAll<{
     uploaded_at: string;
@@ -336,6 +351,7 @@ export const getReviewOps = cache(async (): Promise<ReviewOps> => {
       db
         .from("submissions")
         .select("uploaded_at, reviewed_at, status")
+        .eq("version", version)
         .order("id")
         .range(from, to),
     "reviewOps.submissions",

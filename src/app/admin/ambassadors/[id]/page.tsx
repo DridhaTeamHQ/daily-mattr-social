@@ -16,6 +16,7 @@ import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { deleteAchievement } from "@/lib/admin/edit-actions";
 import { getAmbassadorDetail, requireAdmin } from "@/lib/admin/queries";
+import { getViewingVersion } from "@/lib/programme-version";
 import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { formatDate, initials } from "@/lib/utils";
 
@@ -54,9 +55,13 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
    * simply omits the rank instead of inventing one.
    */
   const supabase = await createClient();
+  const version = await getViewingVersion();
   const [{ data: completion }, { data: board }] = await Promise.all([
-    supabase.rpc("ambassador_completion", { target: id }),
-    supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
+    supabase.rpc("ambassador_completion", { target: id, p_version: version }),
+    supabase.rpc("completion_leaderboard", {
+      limit_count: 1000,
+      p_version: version,
+    }),
   ]);
 
   const progress = completion?.[0] ?? null;

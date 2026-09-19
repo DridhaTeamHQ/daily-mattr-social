@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
-import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
+import { assertAdminWrite, fail, type ActionResult } from "@/lib/admin/guards";
 import { notify } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import { monthLabel } from "@/lib/admin/money";
+import { getActiveVersion } from "@/lib/programme-version";
 
 /**
  * The money write path.
@@ -34,7 +35,7 @@ export async function decideRedemption(
   note?: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: request } = await db
@@ -55,7 +56,11 @@ export async function decideRedemption(
       const { data: ledger } = await db
         .from("point_ledger")
         .select("delta")
-        .eq("ambassador_id", request.ambassador_id);
+        .eq("ambassador_id", request.ambassador_id)
+        // One run's balance, matching the one the student was shown when they
+        // asked. Summing every run would approve a payout against points
+        // earned in a programme that has already closed.
+        .eq("version", await getActiveVersion());
 
       const balance = (ledger ?? []).reduce((sum, row) => sum + row.delta, 0);
       if (balance < request.points) {
@@ -149,13 +154,18 @@ export async function decideRedemption(
  */
 export async function buildStipendBatch(month: string): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
 
     const supabase = await createClient();
     const db = createAdminClient();
 
+    const version = await getActiveVersion();
+
     const [{ data: rows, error: rpcError }, settings] = await Promise.all([
-      supabase.rpc("stipend_eligibility", { period_start: month }),
+      supabase.rpc("stipend_eligibility", {
+        period_start: month,
+        p_version: version,
+      }),
       getSettings("stipend_amount_inr"),
     ]);
     if (rpcError) throw rpcError;
@@ -169,6 +179,7 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
       .from("payouts")
       .select("ambassador_id, payout_batches!inner(period_month)")
       .eq("kind", "stipend")
+      .eq("version", version)
       .eq("payout_batches.period_month", month);
 
     const alreadyPaid = new Set((existing ?? []).map((p) => p.ambassador_id));
@@ -217,7 +228,7 @@ export async function buildStipendBatch(month: string): Promise<ActionResult> {
 /** Collects every approved-but-unpaid redemption into one batch. */
 export async function buildRedemptionBatch(): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: approved } = await db
@@ -278,7 +289,7 @@ export async function markPayoutPaid(
   utr: string,
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
 
     const reference = utr.trim();
     if (reference.length < 4) {
@@ -362,7 +373,7 @@ export async function markPayoutFailed(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const actorId = await assertAdmin();
+    const actorId = await assertAdminWrite();
     const db = createAdminClient();
 
     const { data: payout } = await db
@@ -451,7 +462,7 @@ export async function setBatchStatus(
   status: "processing" | "paid" | "pending",
 ): Promise<ActionResult> {
   try {
-    await assertAdmin();
+    await assertAdminWrite();
     const db = createAdminClient();
 
     const { error } = await db

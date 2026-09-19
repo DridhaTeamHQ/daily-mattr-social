@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { readAll } from "@/lib/admin/read-all";
+import { getViewingVersion } from "@/lib/programme-version";
 import type { CohortIds } from "@/lib/admin/scope";
 
 /**
@@ -62,11 +63,13 @@ export function earningRoute(row: LedgerRow): EarningRoute | null {
 export const getPointsByAmbassador = cache(
   async (): Promise<Map<string, number>> => {
     const db = (await createAdminClient());
+    const version = await getViewingVersion();
     const data = await readAll<{ ambassador_id: string; delta: number }>(
       (from, to) =>
         db
           .from("point_ledger")
           .select("ambassador_id, delta")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "getPointsByAmbassador",
@@ -102,6 +105,7 @@ const REJECTED = new Set(["rejected", "revoked"]);
 export const getCampaignParticipation = cache(
   async (): Promise<{ rows: CampaignParticipation[]; campaigns: number }> => {
     const db = (await createAdminClient());
+    const version = await getViewingVersion();
 
     const [profiles, submissions, ledger, { count }] = await Promise.all([
       readAll<{
@@ -129,6 +133,7 @@ export const getCampaignParticipation = cache(
           db
             .from("submissions")
             .select("ambassador_id, status, campaign_tasks(campaign_id)")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "campaignParticipation.submissions",
@@ -143,6 +148,7 @@ export const getCampaignParticipation = cache(
           db
             .from("point_ledger")
             .select("ambassador_id, delta, reason, source_type")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "campaignParticipation.ledger",
@@ -150,7 +156,8 @@ export const getCampaignParticipation = cache(
       db
         .from("campaigns")
         .select("id", { count: "exact", head: true })
-        .neq("status", "draft"),
+        .neq("status", "draft")
+        .eq("version", version),
     ]);
 
     const byPerson = new Map<string, CampaignParticipation>();
@@ -226,6 +233,7 @@ export type SurveyParticipation = {
 export const getSurveyParticipation = cache(
   async (): Promise<SurveyParticipation[]> => {
     const db = (await createAdminClient());
+    const version = await getViewingVersion();
 
     const [profiles, links, responses, ledger] = await Promise.all([
       readAll<{
@@ -244,11 +252,14 @@ export const getSurveyParticipation = cache(
             .range(from, to),
         "surveyParticipation.profiles",
       ),
+      // `surveys!inner` because a link has no run of its own: it belongs to
+      // one survey, and that survey's run is the one that counts.
       readAll<{ ambassador_id: string; click_count: number }>(
         (from, to) =>
           db
             .from("survey_links")
-            .select("ambassador_id, click_count")
+            .select("ambassador_id, click_count, surveys!inner(version)")
+            .eq("surveys.version", version)
             .order("id")
             .range(from, to),
         "surveyParticipation.links",
@@ -258,6 +269,7 @@ export const getSurveyParticipation = cache(
           db
             .from("survey_responses")
             .select("ambassador_id, status")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "surveyParticipation.responses",
@@ -272,6 +284,7 @@ export const getSurveyParticipation = cache(
           db
             .from("point_ledger")
             .select("ambassador_id, delta, reason, source_type")
+            .eq("version", version)
             .order("id")
             .range(from, to),
         "surveyParticipation.ledger",
@@ -341,6 +354,7 @@ export type DownloadLeader = {
 /** Every ambassador, ranked by confirmed downloads. */
 export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [profiles, conversions, ledger] = await Promise.all([
     readAll<{
@@ -365,6 +379,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
         db
           .from("referral_conversions")
           .select("ambassador_id, status")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "downloadLeaders.conversions",
@@ -379,6 +394,7 @@ export const getDownloadLeaders = cache(async (): Promise<DownloadLeader[]> => {
         db
           .from("point_ledger")
           .select("ambassador_id, delta, reason, source_type")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "downloadLeaders.ledger",
@@ -439,11 +455,13 @@ export const getCampaignTotals = cache(async (
   scope: CohortIds = null,
 ): Promise<CampaignTotals[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [{ data: campaigns }, submissions, ledger] = await Promise.all([
     db
       .from("campaigns")
       .select("id, title, status, platform, campaign_tasks(id)")
+      .eq("version", version)
       .order("created_at", { ascending: false }),
     readAll<{
       id: string;
@@ -455,6 +473,7 @@ export const getCampaignTotals = cache(async (
         db
           .from("submissions")
           .select("id, ambassador_id, status, campaign_tasks(campaign_id)")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "campaignTotals.submissions",
@@ -470,6 +489,7 @@ export const getCampaignTotals = cache(async (
         db
           .from("point_ledger")
           .select("ambassador_id, delta, source_id, reason, source_type")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "campaignTotals.ledger",
@@ -549,11 +569,13 @@ export const getSurveyTotals = cache(async (
   scope: CohortIds = null,
 ): Promise<SurveyTotals[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [{ data: surveys }, links, responses] = await Promise.all([
     db
       .from("surveys")
       .select("id, title, status, points_per_response")
+      .eq("version", version)
       .order("created_at", { ascending: false }),
     readAll<{
       ambassador_id: string;
@@ -573,6 +595,7 @@ export const getSurveyTotals = cache(async (
         db
           .from("survey_responses")
           .select("ambassador_id, survey_id, status")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "surveyTotals.responses",

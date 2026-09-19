@@ -13,6 +13,7 @@ import {
   TrendingUp,
   CircleAlert,
   CircleCheck,
+  AlarmClock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +46,9 @@ const ICONS: Record<
   survey_live: { icon: ClipboardList, tint: "bg-poll-tint text-poll" },
   rank_up: { icon: TrendingUp, tint: "bg-rank-tint text-rank" },
   referral_confirmed: { icon: Gift, tint: "bg-invite-tint text-invite" },
+  // A nudge about work they already have, so it looks like a clock rather
+  // than like something new arriving.
+  reminder: { icon: AlarmClock, tint: "bg-warn-tint text-warn" },
   account: { icon: Bell, tint: "bg-canvas-sunk text-ink-soft" },
 };
 

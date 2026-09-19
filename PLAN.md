@@ -144,6 +144,31 @@ Supabase (Postgres + Auth + Storage), OpenAI vision for screenshot adjudication.
 
 ## Decisions already made (do not relitigate)
 
+- **The programme runs more than once, and a run is a column.** V1 is the
+  first run; V2 began on 19 Sept 2026. Every counted row carries the run it
+  belongs to (`version`, migration 0047), so starting again is a new number
+  in a column and never a deletion — V1's 1,637 ledger rows, 891 installs,
+  1,003 responses and 21 campaigns are untouched and stay readable through
+  the switcher in the admin top bar.
+  - **Versioned** (results, which reset): campaigns, surveys, submissions,
+    survey_responses, referral_conversions, referral_clicks, point_ledger,
+    achievements, badge_awards, redemption_requests, payout_batches, payouts.
+  - **Not versioned** (identity and configuration, which carry across):
+    profiles, task_library, badge definitions, app_settings, audit_log,
+    notifications, active_days.
+  - `campaign_tasks` and `survey_links` have no column of their own — each
+    belongs to exactly one campaign or survey and inherits it, so a second
+    copy could only ever disagree with its parent.
+  - **Not a date cutover.** 0040 and 0044 are both bugs caused by inferring
+    "when did this stop" from timestamps. The run is stamped, by a default or
+    a trigger, never derived.
+  - The run is applied **inside** each read model, never by its callers:
+    admin models call `getViewingVersion()`, student models
+    `getActiveVersion()`. A forgotten filter would not fail loudly, it would
+    quietly add the last run's totals to this one's.
+  - History is **read-only**: `assertAdminWrite()` refuses every mutation
+    while the console is pointed at an earlier run.
+
 - **Points are a ledger, never a counter.** Balances are always
   `sum(delta)`. Reversals are new rows with `reason = 'revoke'`.
 - **Crediting is idempotent** through `(source_type, source_id, direction)`.

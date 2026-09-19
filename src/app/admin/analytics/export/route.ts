@@ -1,7 +1,7 @@
 import { csvResponse } from "@/lib/admin/csv-export";
 import {
   STIPEND_MIN_COMPLETION_PCT,
-  STIPEND_MIN_INSTALLS,
+  STIPEND_MIN_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
 import { readPeriod, resolvePeriod } from "@/lib/admin/period";
@@ -31,19 +31,25 @@ import { createClient } from "@/lib/supabase/server";
  *  * The period — day, week, month, total — chooses A TIME WINDOW. It does not
  *    decide WHO is in the file: every ambassador in the cohort gets a row
  *    whether or not they did anything in the window, because this is still a
- *    roster and a missing row reads as a missing person. It decides what the
- *    period columns mean, and they are named for it.
+ *    roster and a missing row reads as a missing person.
  *
  * So each row carries both: the lifetime figures a roster is opened for, and
- * the period figures the Analytics table beside the button is showing —
- * total, approved, rejections, installs, completion and stipend standing.
- * Those come from `getCompletionByAmbassador`, the same function the table
- * renders, so the file cannot disagree with the screen it was taken from.
+ * the measured figures the Analytics table beside the button is showing —
+ * total, approved, rejections, completion and stipend standing. Those come
+ * from `getCompletionByAmbassador`, the same function the table renders, so
+ * the file cannot disagree with the screen it was taken from.
  *
- * The period columns are blank for anyone the table does not measure —
+ * Those measured columns are headed "since joining", not with the period,
+ * and the headers are not decoration: the table stopped measuring completion
+ * inside the window. Total is every task open to that person since they
+ * accepted, and Approved is every approval they hold against it. The period
+ * still reaches the two rates on the page above; it reaches nothing in this
+ * file, which is why no column here is named for it.
+ *
+ * The measured columns are blank for anyone the table does not measure —
  * suspended and invited ambassadors, who are in this file and not in that
- * one. A zero there would read as "did nothing this month" rather than
- * "was not being asked to".
+ * one. A zero there would read as "did nothing" rather than "was not being
+ * asked to".
  *
  * Suspended and invited ambassadors are included, with their status in a
  * column. The page above only counts active ones because it is measuring the
@@ -65,6 +71,7 @@ type Profile = {
   status: string;
   joined_as: string;
   created_at: string;
+  activated_at: string | null;
 };
 
 const APPROVED = new Set(["approved", "auto_approved"]);
@@ -105,7 +112,7 @@ export async function GET(request: Request) {
           supabase
             .from("profiles")
             .select(
-              "id, full_name, email, phone, referral_code, city, college, batch, status, joined_as, created_at",
+              "id, full_name, email, phone, referral_code, city, college, batch, status, joined_as, created_at, activated_at",
             )
             .eq("role", "ambassador")
             .order("id")
@@ -212,12 +219,11 @@ export async function GET(request: Request) {
     "Status",
     "Joined as",
     "Joined on",
-    `Tasks open to them (${period.noun})`,
-    `Approved tasks (${period.noun})`,
-    `Rejections (${period.noun})`,
-    `Installs (${period.noun})`,
-    `Completion % (${period.noun})`,
-    `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_INSTALLS} installs)`,
+    "Tasks open to them (since joining)",
+    "Approved tasks (since joining)",
+    "Rejections (since joining)",
+    "Completion % (since joining)",
+    `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_DOWNLOADS} downloads)`,
     "Approved tasks (lifetime)",
     "Confirmed downloads (lifetime)",
     "Last download",
@@ -234,11 +240,19 @@ export async function GET(request: Request) {
     profile.batch ?? "",
     profile.status,
     profile.joined_as,
-    istDay(profile.created_at),
+    // The day they accepted, not the day an admin sent the invite — the same
+    // date "since joining" above is counted from, so a row cannot show a
+    // total measured from one date beside a different one. Falls back to the
+    // invite for an account that has never been opened.
+    istDay(profile.activated_at ?? profile.created_at),
     measured.get(profile.id)?.total ?? "",
     measured.get(profile.id)?.approved ?? "",
     measured.get(profile.id)?.rejected ?? "",
-    measured.get(profile.id)?.installs ?? "",
+    // No downloads column here: it held the same number as "Confirmed
+    // downloads (lifetime)" below from the moment the page stopped scoping
+    // them to the period, and two identical columns in a spreadsheet is a
+    // question rather than an answer. The Stipend column is judged on that
+    // one.
     measured.get(profile.id)?.completion ?? "",
     // The word, not a boolean: a column of TRUE/FALSE in a spreadsheet needs
     // the header read to know which way round it is.

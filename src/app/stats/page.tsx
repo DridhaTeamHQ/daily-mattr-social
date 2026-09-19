@@ -3,6 +3,7 @@ import { ClipboardList, Coins, Download, Users } from "lucide-react";
 
 import { Wordmark } from "@/components/logo";
 import { redisCache } from "@/lib/cache/redis";
+import { getActiveVersion } from "@/lib/programme-version";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatNumber } from "@/lib/utils";
 
@@ -34,8 +35,14 @@ export const dynamic = "force-dynamic";
 export default async function PublicStatsPage() {
   const db = createAdminClient();
 
+  // The run is part of the cache key, not just the query behind it. Three of
+  // the four figures are scoped to the open run, so one shared key would keep
+  // serving the previous run's totals for up to ten minutes after a switch —
+  // on the one page anybody on the internet can read.
+  const version = await getActiveVersion();
+
   const [{ data: stats }, { data: setting }] = await Promise.all([
-    redisCache.remember("public-stats", 600, async () => {
+    redisCache.remember(`public-stats:v${version}`, 600, async () => {
       const result = await db.rpc("public_stats");
       if (result.error) throw result.error;
       return { data: result.data };

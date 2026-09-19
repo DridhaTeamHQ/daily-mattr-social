@@ -7,6 +7,7 @@ import { SearchBox } from "@/components/search-box";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { requireAdmin } from "@/lib/admin/queries";
+import { getViewingVersion } from "@/lib/programme-version";
 import { matches } from "@/lib/search";
 import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { cn, formatNumber, initials } from "@/lib/utils";
@@ -25,8 +26,14 @@ export default async function AdminLeaderboardPage({
   const batch = params.batch?.trim() || null;
   const query = params.q ?? "";
   const supabase = await createClient();
+  // Named explicitly so an admin looking back at an earlier run reads that
+  // run's final board rather than the live one under its heading.
+  const version = await getViewingVersion();
   const [{ data: rows }, { data: profiles }] = await Promise.all([
-    supabase.rpc("completion_leaderboard", { limit_count: 1000 }),
+    supabase.rpc("completion_leaderboard", {
+      limit_count: 1000,
+      p_version: version,
+    }),
     supabase
       .from("profiles")
       .select("id, city, batch")

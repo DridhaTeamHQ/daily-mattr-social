@@ -1,0 +1,28 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 0048 — A nudge is its own kind of notification
+--
+-- The campaign page lists the active ambassadors who have submitted nothing —
+-- "the list worth chasing" — and chasing them meant copying names into
+-- WhatsApp. The Push reminder button on that card sends them a notification
+-- instead, and only them.
+--
+-- It gets its own `notification_type` rather than borrowing `campaign_live`,
+-- for two reasons that both show up in the student's bell:
+--
+--   * `campaign_live` means "this is new". A reminder about a campaign that
+--     went out nine days ago is not news, and a second "New campaign is live"
+--     for something they have already seen and ignored reads as a bug.
+--   * The bell picks its icon and tint off the type. A nudge wants to look
+--     like a nudge, not like a launch.
+--
+-- Nothing else changes. `notify()` already writes any type it is handed, and
+-- the bell falls back to the `account` icon for a type it does not know, so
+-- an older deploy reading a newer row degrades to a plain bell rather than
+-- breaking.
+--
+-- `add value if not exists` cannot be used in the same transaction as a
+-- statement that uses the new value, which is why this migration adds the
+-- value and does nothing else with it.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+alter type public.notification_type add value if not exists 'reminder';

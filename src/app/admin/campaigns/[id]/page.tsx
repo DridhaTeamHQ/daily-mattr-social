@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  BellRing,
   Inbox,
   Upload,
   ExternalLink,
@@ -18,9 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
-import { setCampaignStatus } from "@/lib/admin/actions";
+import { remindUntouched, setCampaignStatus } from "@/lib/admin/actions";
 import { archiveCampaign, deleteCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
+import { getActiveVersion } from "@/lib/programme-version";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
 import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
 
@@ -50,7 +52,10 @@ export default async function CampaignDetailPage({
   await requireAdmin();
 
   const { id } = await params;
-  const data = await getCampaignDetail(id);
+  const [data, activeVersion] = await Promise.all([
+    getCampaignDetail(id, 14),
+    getActiveVersion(),
+  ]);
   if (!data) notFound();
 
   const { data: library } = await (await createAdminClient())
@@ -249,7 +254,12 @@ export default async function CampaignDetailPage({
 
       {/* ─── Charts ────────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Uploads per day" hint="Last 30 days.">
+        {/* Fourteen days rather than thirty: a month of columns in a
+            half-width card is fifteen pixels a day, which is a fence rather
+            than a chart, and a campaign's uploads arrive in the days after it
+            goes out. A fortnight is wide enough to hold the burst and narrow
+            enough that every bar gets its own date underneath. */}
+        <ChartCard title="Uploads per day" hint="Last 14 days.">
           <DayBars data={data.submissionsByDay} color="pink" />
         </ChartCard>
 
@@ -309,11 +319,59 @@ export default async function CampaignDetailPage({
 
         <Card>
           <CardBody>
-            <h2 className="display text-[16px] text-ink">Hasn&apos;t started</h2>
-            <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-              Active ambassadors with nothing submitted — the list worth
-              chasing.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="display text-[16px] text-ink">
+                  Hasn&apos;t started
+                </h2>
+                <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
+                  Active ambassadors with nothing submitted — the list worth
+                  chasing.
+                </p>
+              </div>
+
+              {/* Three conditions, and the action re-checks all of them.
+                  Somebody to chase; a live campaign, because a reminder about
+                  an ended one sends them to an upload button that refuses;
+                  and a campaign in the run that is currently open, because
+                  nobody is being asked for an earlier run's work. Hidden
+                  rather than disabled: a greyed button invites a click and
+                  then explains itself, which is a worse way to learn this. */}
+              {data.untouched.length > 0 &&
+                data.campaign.status === "live" &&
+                data.campaign.version === activeVersion && (
+                <ActionButton
+                  size="sm"
+                  variant="secondary"
+                  action={remindUntouched.bind(null, data.campaign.id)}
+                  confirmMessage={`Send a reminder to the ${data.untouched.length} ambassador${
+                    data.untouched.length === 1 ? "" : "s"
+                  } who haven't started "${data.campaign.title}"? They'll get it in their notifications, and a push if they've turned those on. Nobody else is told.`}
+                >
+                  <BellRing aria-hidden />
+                  Push reminder
+                </ActionButton>
+              )}
+            </div>
+
+            {/* A button that is simply not there is a mystery, and this is
+                the one case where its absence has a cause worth naming: the
+                campaign is real, it is live, there are people to chase, and
+                the only thing stopping the nudge is that it belongs to a run
+                of the programme that has been closed. Their dashboards show
+                the open run, so the reminder would send them to a page with
+                nothing on it. */}
+            {data.untouched.length > 0 &&
+              data.campaign.status === "live" &&
+              data.campaign.version !== activeVersion && (
+                <Note tone="warn" size="sm" className="mt-3">
+                  These {data.untouched.length} can&apos;t be reminded about
+                  this campaign. It belongs to an earlier run of the programme,
+                  and students only see the run that is open — the notification
+                  would send them to an empty page. Make that run current again
+                  on Overview, or publish this work in the open one.
+                </Note>
+              )}
 
             {data.untouched.length === 0 ? (
               <EmptyState

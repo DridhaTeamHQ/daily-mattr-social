@@ -8,6 +8,7 @@ import { createClient as createFreshClient } from "@/lib/supabase/server";
 import { createAdminClient as createFreshAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/settings";
 import { readAll } from "@/lib/admin/read-all";
+import { getViewingVersion } from "@/lib/programme-version";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -95,9 +96,16 @@ export const getStipendPeriod = cache(
     // function has.
     const supabase = await (fresh ? createFreshClient() : createClient());
     const db = fresh ? createFreshAdminClient() : await createAdminClient();
+    const version = await getViewingVersion();
 
     const [{ data: rows }, settings, { data: payouts }] = await Promise.all([
-      supabase.rpc("stipend_eligibility", { period_start: month }),
+      // The run is named explicitly rather than left to the function's own
+      // default, so looking back at an earlier run shows what it actually
+      // paid rather than this run's figures under that run's heading.
+      supabase.rpc("stipend_eligibility", {
+        period_start: month,
+        p_version: version,
+      }),
       getSettings(
         "stipend_min_completion_pct",
         "stipend_min_downloads",
@@ -109,6 +117,7 @@ export const getStipendPeriod = cache(
         .from("payouts")
         .select("ambassador_id, amount_inr, status, payout_batches!inner(period_month)")
         .eq("kind", "stipend")
+        .eq("version", version)
         .eq("payout_batches.period_month", month),
     ]);
 
@@ -174,12 +183,14 @@ export type RedemptionRow = Tables<"redemption_requests"> & {
 
 export const getRedemptions = cache(async (): Promise<RedemptionRow[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const { data } = await db
     .from("redemption_requests")
     .select(
       "id, ambassador_id, points, amount_inr, status, method, payee_ref, note, decided_by, decided_at, decision_note, requested_at, profiles(full_name, email, referral_code)",
     )
+    .eq("version", version)
     .order("requested_at", { ascending: false })
     .limit(200);
 
@@ -194,6 +205,7 @@ export const getRedemptions = cache(async (): Promise<RedemptionRow[]> => {
         .from("point_ledger")
         .select("ambassador_id, delta")
         .in("ambassador_id", ids)
+        .eq("version", version)
         .order("id")
         .range(from, to),
     "redemptions.ledger",
@@ -232,12 +244,14 @@ export type BatchRow = Tables<"payout_batches"> & {
 
 export const getPayoutBatches = cache(async (): Promise<BatchRow[]> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const { data } = await db
     .from("payout_batches")
     .select(
       "id, label, kind, period_month, status, created_by, created_at, processed_at, payouts(id, batch_id, ambassador_id, redemption_id, kind, amount_inr, status, utr, failure_reason, processed_at, created_at, profiles(full_name, email))",
     )
+    .eq("version", version)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -273,6 +287,7 @@ export const getMoneySummary = cache(async (
   scope: CohortIds = null,
 ): Promise<MoneySummary> => {
   const db = (await createAdminClient());
+  const version = await getViewingVersion();
 
   const [payouts, redemptions, conversions] = await Promise.all([
     readAll<{
@@ -285,6 +300,7 @@ export const getMoneySummary = cache(async (
         db
           .from("payouts")
           .select("ambassador_id, kind, amount_inr, status")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "moneySummary.payouts",
@@ -294,6 +310,7 @@ export const getMoneySummary = cache(async (
         db
           .from("redemption_requests")
           .select("ambassador_id, status")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "moneySummary.redemptions",
@@ -304,6 +321,7 @@ export const getMoneySummary = cache(async (
           .from("referral_conversions")
           .select("ambassador_id")
           .eq("status", "counted")
+          .eq("version", version)
           .order("id")
           .range(from, to),
       "moneySummary.conversions",

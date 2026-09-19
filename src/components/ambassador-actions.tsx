@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import {
   createAmbassador,
@@ -318,9 +318,17 @@ export function AddAmbassadorDialog() {
 export function ResetPasswordDialog({
   profileId,
   name,
+  label = "Reset password",
 }: {
   profileId: string;
   name: string;
+  /**
+   * What the trigger says. Shortened to "Password" in the ambassadors table,
+   * where three actions share a column and the full phrase is what pushed the
+   * last one off the edge of the screen. The dialog itself still spells the
+   * whole thing out, so nothing is ambiguous once it is open.
+   */
+  label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [password, setPassword] = React.useState(suggestPassword);
@@ -360,8 +368,8 @@ export function ResetPasswordDialog({
       onOpenChange={(next) => (next ? setOpen(true) : reset())}
     >
       <Dialog.Trigger asChild>
-        <Button variant="ghost" size="sm">
-          Reset password
+        <Button variant="ghost" size="sm" title={`Reset ${name}'s password`}>
+          {label}
         </Button>
       </Dialog.Trigger>
 

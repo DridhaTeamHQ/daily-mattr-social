@@ -217,8 +217,10 @@ export default async function AmbassadorsPage({
           picker is hidden when there is nothing to choose between; a select
           with one option is furniture. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        {/* The college is still matched, it just is not worth the width in
+            the prompt now that it is off the table. */}
         <SearchBox
-          placeholder="Search by name, email, college/office, city, batch or code…"
+          placeholder="Search by name, email, city, batch or code…"
           className="w-full max-w-md"
         />
         <NavSelect
@@ -278,23 +280,49 @@ export default async function AmbassadorsPage({
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          {/* Horizontal scroll rather than hiding columns: an admin comparing
-              ambassador details needs the key fields next to the names. */}
+          {/* ─── Why this fits now ──────────────────────────────────────────
+              The column that broke the table was never a column: it was the
+              line under each name, which joined college, city and batch into
+              one string. College is optional and mostly not filled in, and
+              when it is, it is a whole sentence — "Gayatri Vidya Parishad
+              College of Degree and PG courses" — so one row could be twice
+              the width of the next and push Suspend off the right edge for
+              everybody.
+
+              So the college comes out of the table altogether. It is still
+              searchable, still on the ambassador's own page, and still
+              editable; it is simply not what identifies somebody at a glance.
+              City goes under the name, batch gets a column of its own, and
+              what was a run-on sentence is now two things you can sort your
+              eye down. The scroll stays for narrow screens, but at a normal
+              width there is nothing left to scroll to. */}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-left">
+            <table className="w-full min-w-[52rem] table-fixed text-left">
+              {/* Fixed layout with shares rather than letting the content
+                  decide: one long name or one long city must change how much
+                  room it gets, not how much room every other column has. */}
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[12%]" />
+                <col className="w-[11%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[25%]" />
+              </colgroup>
               <thead className="border-b border-line bg-canvas-sunk">
                 <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
-                  <th className="px-4 py-2.5 font-medium">Ambassador</th>
-                  <th className="px-4 py-2.5 font-medium">Code</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 font-medium">Joined</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2.5 font-medium">Ambassador</th>
+                  <th className="px-3 py-2.5 font-medium">Code</th>
+                  <th className="px-3 py-2.5 font-medium">Batch</th>
+                  <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 font-medium">Joined</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Actions</th>
                 </tr>
               </thead>
 
               <InfiniteTableBody
                 key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${query}`}
-                colSpan={5}
+                colSpan={6}
                 pageSize={25}
               >
                 {grouped.flatMap(([heading, members]) => [
@@ -303,8 +331,8 @@ export default async function AmbassadorsPage({
                   heading !== null && (
                     <tr key={`h-${heading}`} className="bg-canvas-sunk">
                       <td
-                        colSpan={5}
-                        className="px-4 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
+                        colSpan={6}
+                        className="px-3 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
                       >
                         {heading}
                         <span className="tabular ml-2 font-bold text-ink-faint">
@@ -315,7 +343,7 @@ export default async function AmbassadorsPage({
                   ),
                   ...members.map((row) => (
                   <tr key={row.id} className="hover:bg-canvas-sunk/50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="flex items-center gap-2.5">
                         <span
                           aria-hidden
@@ -324,39 +352,50 @@ export default async function AmbassadorsPage({
                           {initials(row.full_name || row.email)}
                         </span>
                         <div className="min-w-0">
+                          {/* `block truncate` rather than bare truncate: an
+                              inline element ignores both, which is why a long
+                              name used to widen the column instead of being
+                              cut off inside it. */}
                           <Link
                             href={`/admin/ambassadors/${row.id}`}
-                            className="truncate text-[13.5px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
+                            title={row.full_name || row.email}
+                            className="block truncate text-[13.5px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
                           >
                             {row.full_name || "—"}
                           </Link>
+                          {/* City, or the email when there is no city. Never
+                              the college — see the note above the table. */}
                           <p className="truncate text-[12px] text-ink-soft">
-                            {[row.college, row.city, row.batch]
-                              .filter(Boolean)
-                              .join(" · ") || row.email}
+                            {row.city || row.email}
                           </p>
                         </div>
                       </div>
                     </td>
 
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <code className="font-mono text-[12.5px] text-ink-soft">
                         {row.referral_code}
                       </code>
                     </td>
 
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 text-[12.5px] text-ink-soft">
+                      {row.batch || <span className="text-ink-faint">—</span>}
+                    </td>
+
+                    <td className="px-3 py-3">
                       <Badge tone={STATUS_TONE[row.status]} dot>
                         {row.status}
                       </Badge>
                     </td>
 
-                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
+                    {/* Wrapped on purpose: "7 Sept 2026" over two lines is
+                        shorter than the column it used to demand. */}
+                    <td className="px-3 py-3 text-[12.5px] text-ink-soft">
                       {formatDate(row.created_at)}
                     </td>
 
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
+                    <td className="px-3 py-3">
+                      <div className="flex justify-end gap-0.5">
                         {/* Same dialog as the one on their own page. Fixing a
                             misspelled name or a missing batch is the most
                             common thing an admin does from this list, and
@@ -373,6 +412,7 @@ export default async function AmbassadorsPage({
                         <ResetPasswordDialog
                           profileId={row.id}
                           name={row.full_name || row.email}
+                          label="Password"
                         />
 
                         {row.status === "suspended" ? (
