@@ -4,7 +4,7 @@ import { BadgeIndianRupee, CheckCircle2, Lock, Trophy } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { getDashboard, getMyAchievements } from "@/lib/queries";
+import { getMyAchievements, getNavData } from "@/lib/queries";
 import { getStipendProgress } from "@/lib/rewards";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { formatDate, formatNumber } from "@/lib/utils";
@@ -15,13 +15,16 @@ export default async function RewardsPage() {
   // The stipend is computed live, so it is right the moment a submission is
   // approved — which is why it has a switch. `stipend_unlock_at` decides, the
   // same mechanism the share link uses; see getUnlockAt.
-  const [dashboard, stipend, achievements, stipendUnlockAt] = await Promise.all([
-    getDashboard(),
+  // `getNavData` rather than the full payload: everything on this page comes
+  // from `getStipendProgress` and `getMyAchievements`, and the dashboard was
+  // only ever being read here to find out whether anybody was signed in.
+  const [viewer, stipend, achievements, stipendUnlockAt] = await Promise.all([
+    getNavData(),
     getStipendProgress(),
     getMyAchievements(),
     getUnlockAt("stipend_unlock_at"),
   ]);
-  if (!dashboard) redirect("/login?next=/dashboard/rewards");
+  if (!viewer) redirect("/login?next=/dashboard/rewards");
 
   const month = stipend.current;
   const met = month?.met ?? false;

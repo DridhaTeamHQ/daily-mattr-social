@@ -5,7 +5,7 @@ import { Calendar, Download, Gift, Lock } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
 import { ReferralLinkCard } from "@/components/referral-link-card";
 import { Button } from "@/components/ui/button";
-import { getDashboard } from "@/lib/queries";
+import { getReferralStats } from "@/lib/queries";
 import { getTextSetting, getUnlockAt, isUnlocked } from "@/lib/settings";
 import { formatDate } from "@/lib/utils";
 
@@ -16,10 +16,10 @@ const PLAY_STORE_FALLBACK =
 export const metadata = { title: "Referrals" };
 
 export default async function ReferralsPage() {
-  const data = await getDashboard();
-  if (!data) redirect("/login");
-
-  const { referrals } = data;
+  // The referral figures alone. This page never showed a campaign, a survey
+  // or a placing, and it used to load all three to render a code and a count.
+  const referrals = await getReferralStats();
+  if (!referrals) redirect("/login");
 
   // Read rather than hard-coded, so the store listing can be corrected without
   // a deploy — and so this and `/[code]` can never disagree about where the

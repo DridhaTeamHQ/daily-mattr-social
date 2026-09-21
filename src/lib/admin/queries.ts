@@ -417,6 +417,12 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   // Before the read, not after: a campaign whose deadline passed an hour ago
   // has to come back from this query as ended, not as live with an "Ended"
   // badge bolted on by the page that draws it.
+  //
+  // So this one keeps the await, deliberately. The student side defers the
+  // same sweep with `closeExpiredCampaignsAfterResponse` because it renders
+  // from the deadline rather than the status column; this page renders the
+  // status column, so here the sweep is part of the read and not a chore that
+  // happens to be on the path.
   await closeExpiredCampaigns();
 
   const [{ data: campaigns }, { data: subs }, cohort] = await Promise.all([

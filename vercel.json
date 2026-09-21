@@ -1,4 +1,22 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+
+  "//": [
+    "Functions run next to the database, not next to the default region.",
+    "",
+    "The Supabase project is in ap-south-1 (Mumbai). Without this key Vercel",
+    "placed every function in iad1 (Washington DC) — visible in the response",
+    "as `X-Vercel-Id: bom1::iad1::…`, an Indian edge handing the request to a",
+    "North American function. Each database round trip was then a crossing of",
+    "about 230ms, and a dashboard render makes a lot of them; the same query",
+    "measured from Mumbai answers in roughly 15ms.",
+    "",
+    "bom1 is Vercel's Mumbai region, the one ap-south-1 sits in. If the",
+    "database is ever moved, this moves with it — they are one decision, and",
+    "splitting them is what the 230ms was."
+  ],
+  "regions": ["bom1"],
+
   "crons": [
     {
       "path": "/api/cron/close-campaigns",
