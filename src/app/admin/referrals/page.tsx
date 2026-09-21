@@ -3,7 +3,6 @@ import { Gift, TrendingUp, Users } from "lucide-react";
 
 import Link from "next/link";
 
-import { AmbassadorNav } from "@/components/ambassador-nav";
 import { DownloadsCell } from "@/components/downloads-cell";
 import { ParamSelect } from "@/components/param-select";
 import { FeatureLock } from "@/components/feature-lock";
@@ -147,7 +146,6 @@ export default async function AdminInstallsPage({
           brought in.
         </p>
         </div>
-        <AmbassadorNav />
       </div>
 
       {/* Above the numbers on purpose: it governs what ambassadors can see, so

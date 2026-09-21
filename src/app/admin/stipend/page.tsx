@@ -7,7 +7,6 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { AmbassadorNav } from "@/components/ambassador-nav";
 import { ActionButton } from "@/components/action-button";
 import { SearchBox } from "@/components/search-box";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +62,6 @@ export default async function StipendPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <AmbassadorNav />
           <Button variant="secondary" size="sm" asChild>
             <a href={`/admin/stipend/export?month=${month}`}>
               <Download aria-hidden />

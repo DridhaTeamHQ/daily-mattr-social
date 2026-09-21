@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Trophy, Users } from "lucide-react";
 
-import { AmbassadorNav } from "@/components/ambassador-nav";
 import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import { SearchBox } from "@/components/search-box";
 import { Card, CardBody } from "@/components/ui/card";
@@ -83,7 +82,6 @@ export default async function AdminLeaderboardPage({
           <h1 className="display text-[26px] leading-none text-ink">Completion leaderboard</h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">Current-month ranking by approved task completion.</p>
         </div>
-        <AmbassadorNav />
       </div>
 
       <div className="space-y-2.5">
