@@ -15,7 +15,7 @@ import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
 import { codeProblem, normalizeCode } from "@/lib/referral-code-shape";
 import { canonicalBatch, canonicalCity } from "@/lib/batches";
-import { normalizeRatingLabels } from "@/lib/question-types";
+import { choiceOptions, normalizeRatingLabels } from "@/lib/question-types";
 import type { ActionResult } from "@/lib/admin/guards";
 import type { Enums } from "@/lib/database.types";
 
@@ -1681,6 +1681,10 @@ export type SurveyQuestionInput = {
   required: boolean;
   /** Multi-choice only. null = no limit. */
   max_select?: number | null;
+  /** Optional picture shown with the question. See migration 0050. */
+  image_url?: string | null;
+  /** Pictures for the choices, indexed to match `options`. */
+  option_images?: (string | null)[];
 };
 
 /**
@@ -1740,8 +1744,10 @@ export async function createSurvey(input: {
     // means a useful message instead of a raw Postgres error.
     for (const [i, q] of questions.entries()) {
       if (q.type === "single_choice" || q.type === "multi_choice") {
-        const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
-        if (options.length < 2) {
+        // A choice counts if it has words, a picture, or both; only the
+        // wholly empty rows the builder starts with fall out.
+        const { labels } = choiceOptions(q.options, q.option_images);
+        if (labels.length < 2) {
           return {
             ok: false,
             message: `Question ${i + 1} is a choice question, so it needs at least two options.`,
@@ -1770,7 +1776,15 @@ export async function createSurvey(input: {
     if (error) throw error;
 
     const { error: questionError } = await supabase.from("survey_questions").insert(
-      questions.map((q, index) => ({
+      questions.map((q, index) => {
+        const choice =
+          q.type === "single_choice" || q.type === "multi_choice";
+        // Labels and pictures are filtered in one pass, so a dropped row
+        // takes its own picture with it rather than handing it to the choice
+        // below, and a picture with no words is named by its position.
+        const { labels, images } = choiceOptions(q.options, q.option_images);
+
+        return {
         survey_id: survey.id,
         order_index: index,
         type: q.type,
@@ -1779,12 +1793,16 @@ export async function createSurvey(input: {
         // Choices for a choice question, and for a rating what each of its
         // five numbers means — same column, and blanks are kept there because
         // position is the number.
-        options:
-          q.type === "single_choice" || q.type === "multi_choice"
-            ? ((q.options ?? []).map((o) => o.trim()).filter(Boolean) as never)
-            : q.type === "rating"
-              ? (normalizeRatingLabels(q.options) as never)
-              : ([] as never),
+        options: choice
+          ? (labels as never)
+          : q.type === "rating"
+            ? (normalizeRatingLabels(q.options) as never)
+            : ([] as never),
+        image_url: q.image_url?.trim() || null,
+        // Only a choice question has choices to illustrate. A rating's
+        // `options` are the names of its five points, and a picture indexed
+        // against those would belong to nothing a respondent can click.
+        option_images: (choice ? images : []) as never,
         required: q.required,
         // Only multi-choice can carry a cap; anything else stores null so a
         // stray value on a text question can never limit anything.
@@ -1792,7 +1810,8 @@ export async function createSurvey(input: {
           q.type === "multi_choice" && q.max_select && q.max_select > 0
             ? q.max_select
             : null,
-      })),
+        };
+      }),
     );
 
     if (questionError) {

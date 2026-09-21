@@ -46,7 +46,7 @@ export default async function SurveyPreviewPage({
   const [{ data: questions }, { data: link }] = await Promise.all([
     supabase
       .from("survey_questions")
-      .select("id, type, prompt, help_text, options, required, max_select")
+      .select("id, type, prompt, help_text, options, required, max_select, image_url, option_images")
       .eq("survey_id", id)
       .order("order_index", { ascending: true }),
     // A real name in the "Shared by" sticker where one exists, so the preview
@@ -105,6 +105,11 @@ export default async function SurveyPreviewPage({
           questions={((questions ?? []) as PublicQuestion[]).map((q) => ({
             ...q,
             options: Array.isArray(q.options) ? (q.options as string[]) : [],
+            // Both columns are jsonb, so they arrive as `unknown` and are
+            // narrowed here once rather than guarded at every use in the form.
+            option_images: Array.isArray(q.option_images)
+              ? (q.option_images as (string | null)[])
+              : [],
           }))}
         />
       </div>

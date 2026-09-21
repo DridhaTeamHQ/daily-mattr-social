@@ -286,6 +286,11 @@ export default async function SurveyResponsesPage({
           prompt: q.prompt,
           help_text: q.help_text,
           options: Array.isArray(q.options) ? (q.options as string[]) : [],
+          image_url: q.image_url,
+          // jsonb, so it arrives as `unknown` and is narrowed once here.
+          option_images: Array.isArray(q.option_images)
+            ? (q.option_images as (string | null)[])
+            : [],
         }))}
       />
 

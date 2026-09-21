@@ -18,6 +18,12 @@ import { RatingScaleFields } from "@/components/rating-scale-fields";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
+import {
+  ImageField,
+  alignImages,
+  removeImageAt,
+  setImageAt,
+} from "@/components/image-field";
 import { createSurvey, type SurveyQuestionInput } from "@/lib/admin/actions";
 import { draftSurvey } from "@/lib/admin/ai-actions";
 import type { Enums } from "@/lib/database.types";
@@ -38,6 +44,8 @@ const newQuestion = (): Draft => ({
   options: [],
   required: true,
   max_select: null,
+  image_url: null,
+  option_images: [],
 });
 
 export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
@@ -98,6 +106,12 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                 : ["", ""]
               : [],
           required: q.required,
+          max_select: null,
+          // A drafted question has no pictures — the model writes words. The
+          // fields are still set so every question in state has the same
+          // shape, whether it was typed or drafted.
+          image_url: null,
+          option_images: [],
         })),
       );
 
@@ -117,13 +131,21 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
         requirePhone,
         audience,
         responseCap: responseCap.trim() ? Number(responseCap) : null,
-        // `key` is a local list identity only; the server assigns order_index.
+        /**
+         * The whole draft, spread, rather than a hand-listed set of fields.
+         *
+         * Listing them is how the images went missing: an admin attached
+         * pictures, pressed Save and got a survey with none — no error,
+         * because nothing failed. The fields simply were not in the request,
+         * and every field added to a question after this line was written
+         * would have been dropped the same silent way.
+         *
+         * `key` rides along and is ignored: it is a local list identity, and
+         * `createSurvey` builds its insert from named columns rather than
+         * from whatever it is handed.
+         */
         questions: questions.map((q) => ({
-          type: q.type,
-          prompt: q.prompt,
-          help_text: q.help_text,
-          options: q.options,
-          required: q.required,
+          ...q,
           max_select: q.type === "multi_choice" ? (q.max_select ?? null) : null,
         })),
       });
@@ -382,6 +404,23 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                   />
                 </Field>
 
+                {/* Offered on every question type, not just the choice ones:
+                    a picture is part of asking, and "what do you think of
+                    this?" above a paragraph box is as ordinary as it is above
+                    a set of options. */}
+                <div>
+                  <p className="mb-1.5 text-[13px] font-medium text-ink">
+                    Image
+                    <span className="ml-1 font-normal text-ink-soft">
+                      (optional)
+                    </span>
+                  </p>
+                  <ImageField
+                    value={question.image_url}
+                    onChange={(url) => update(question.key, { image_url: url })}
+                  />
+                </div>
+
                 <div>
                   <p className="mb-1.5 text-[13px] font-medium text-ink">Type</p>
                   <div className="flex flex-wrap gap-1.5">
@@ -401,6 +440,18 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                                 ? question.options
                                 : ["", ""]
                               : [],
+                            // The pictures belong to the labels. Carried when
+                            // the labels are, cleared when they are replaced
+                            // by two empty boxes or thrown away entirely.
+                            option_images:
+                              t.hasOptions &&
+                              question.options?.length &&
+                              !isRating
+                                ? alignImages(
+                                    question.option_images,
+                                    question.options.length,
+                                  )
+                                : [],
                           })
                         }
                         className={cn(
@@ -421,13 +472,34 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                     <p className="mb-1.5 text-[13px] font-medium text-ink">
                       Options
                       <span className="ml-1 font-normal text-ink-soft">
-                        (at least two)
+                        (at least two — words, a picture, or both)
                       </span>
                     </p>
 
                     <div className="space-y-2">
                       {(question.options ?? []).map((option, optionIndex) => (
-                        <div key={optionIndex} className="flex gap-2">
+                        <div key={optionIndex} className="flex items-center gap-2">
+                          {/* Some choices cannot be written down — "which of
+                              these posters" is four pictures and a tick box.
+                              The label stays required regardless: it is what
+                              the answer is recorded as, and what the results
+                              table counts. */}
+                          <ImageField
+                            size="option"
+                            label={`Image for option ${optionIndex + 1}`}
+                            value={question.option_images?.[optionIndex]}
+                            onChange={(url) =>
+                              update(question.key, {
+                                option_images: setImageAt(
+                                  question.option_images,
+                                  optionIndex,
+                                  url,
+                                  (question.options ?? []).length,
+                                ),
+                              })
+                            }
+                          />
+
                           <Input
                             value={option}
                             onChange={(e) => {
@@ -447,6 +519,11 @@ export function SurveyBuilder({ aiEnabled }: { aiEnabled: boolean }) {
                               update(question.key, {
                                 options: (question.options ?? []).filter(
                                   (_, i) => i !== optionIndex,
+                                ),
+                                option_images: removeImageAt(
+                                  question.option_images,
+                                  optionIndex,
+                                  (question.options ?? []).length - 1,
                                 ),
                               })
                             }

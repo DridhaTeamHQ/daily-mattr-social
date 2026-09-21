@@ -5,7 +5,7 @@ import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { assertAdminWrite, fail, type ActionResult } from "@/lib/admin/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeRatingLabels } from "@/lib/question-types";
+import { choiceOptions, normalizeRatingLabels } from "@/lib/question-types";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -559,6 +559,10 @@ export type QuestionEdit = {
   help_text: string;
   options: string[];
   type: Enums<"question_type">;
+  /** Optional picture for the question. See migration 0050. */
+  image_url: string | null;
+  /** Pictures for the choices, indexed to match `options`. */
+  option_images: (string | null)[];
 };
 
 /**
@@ -623,7 +627,13 @@ export async function updateSurveyQuestions(
       // same reason.
       const type = answered ? current.type : edit.type;
       const choice = type === "single_choice" || type === "multi_choice";
-      const options = (edit.options ?? []).map((o) => o.trim()).filter(Boolean);
+      // Filtered together, so a dropped row cannot leave its picture behind
+      // to be worn by the choice that moves up into its place. A choice with
+      // a picture and no words is kept and named by its position.
+      const { labels: options, images: optionImages } = choiceOptions(
+        edit.options,
+        edit.option_images,
+      );
 
       if (choice && !answered) {
         // Mirrors survey_questions_choices_present, so the failure is a
@@ -641,10 +651,23 @@ export async function updateSurveyQuestions(
         .update({
           prompt,
           help_text: edit.help_text.trim() || null,
+          /**
+           * The question's own picture is editable whenever the prompt is.
+           *
+           * It is part of the wording, not part of the answer: swapping the
+           * photo above "How often do you order food" re-reads exactly as
+           * much as rewriting that sentence does, and rewriting it is already
+           * allowed on an answered survey.
+           */
+          image_url: edit.image_url?.trim() || null,
           // Type and options both freeze once anybody has answered — a rating
           // scale included: renaming what 3 meant re-reads every 3 already
           // given. Switching away from a choice type clears the options, or
           // the row keeps a list nothing renders.
+          //
+          // The choice pictures freeze with them, and have to: they are
+          // indexed against the labels, so letting them move while the labels
+          // are pinned is how option 2's picture ends up over option 3.
           ...(answered
             ? {}
             : {
@@ -654,6 +677,7 @@ export async function updateSurveyQuestions(
                   : type === "rating"
                     ? normalizeRatingLabels(edit.options)
                     : [],
+                option_images: choice ? optionImages : [],
               }),
         })
         .eq("id", edit.id);
