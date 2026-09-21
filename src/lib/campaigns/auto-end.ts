@@ -1,5 +1,7 @@
 import "server-only";
 
+import { after } from "next/server";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
@@ -41,6 +43,35 @@ export async function closeExpiredCampaigns(): Promise<void> {
   } catch {
     // Swallowed on purpose — see above. The next caller tries again.
     lastSweep = 0;
+  }
+}
+
+/**
+ * The same sweep, queued to run once the response has been sent.
+ *
+ * The student dashboard does not need the sweep to have finished before it
+ * renders — it reads deadlines off `ends_at`/`ended_at`, and both submission
+ * actions check the deadline themselves, so an expired campaign cannot be
+ * worked on whatever its status column currently says. All the `await` bought
+ * was a badge, at the price of an UPDATE and a round trip on the critical path
+ * of every dashboard render.
+ *
+ * Not a loss of freshness either, on balance. The throttle above already let a
+ * finished campaign read as live for up to a minute; deferring narrows that to
+ * a single render, because the sweep now runs immediately after the response
+ * that noticed rather than being skipped by the next caller inside the window.
+ *
+ * The admin campaign list deliberately does *not* use this — see the comment
+ * at its call site. That page draws the status column, so for it the sweep is
+ * part of the read.
+ */
+export function closeExpiredCampaignsAfterResponse(): void {
+  try {
+    after(closeExpiredCampaigns);
+  } catch {
+    // `after()` throws outside a request scope. Nothing is lost: the cron
+    // sweeps on its own schedule, and the next render that *is* inside one
+    // queues this again.
   }
 }
 

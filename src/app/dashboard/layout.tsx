@@ -6,14 +6,18 @@ import { CelebrationProvider } from "@/components/celebrate";
 import { Note } from "@/components/ui/feedback";
 import { ViewAsBar } from "@/components/view-as-bar";
 import { getViewer } from "@/lib/view-as";
-import { getDashboard, isDemoMode } from "@/lib/queries";
+import { getNavData, isDemoMode } from "@/lib/queries";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const data = await getDashboard();
+  // The nav needs a name, a streak and a notification list. It used to read
+  // the whole dashboard payload for them — a thousand-row leaderboard, every
+  // campaign and the install board — on every navigation inside this section,
+  // including the routes that render none of it.
+  const data = await getNavData();
 
   // `proxy.ts` already bounced signed-out users, but it does optimistic checks
   // only — this is the one that actually matters.

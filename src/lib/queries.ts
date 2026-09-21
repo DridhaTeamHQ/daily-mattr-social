@@ -7,7 +7,7 @@ import { earningRoute } from "@/lib/admin/participation";
 import { getActiveVersion } from "@/lib/programme-version";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
+import { closeExpiredCampaignsAfterResponse } from "@/lib/campaigns/auto-end";
 import { createClient } from "@/lib/supabase/server";
 import {
   previewReferralStats,
@@ -24,13 +24,23 @@ import type { Enums } from "@/lib/database.types";
  * directly. That keeps the demo-mode fallback in one place and means the
  * switch to live data is a change here alone.
  *
- * Everything exported here is wrapped in React's `cache()`. A layout and the
- * page inside it both need the dashboard payload, and without deduping,
- * `getDashboard()` ran twice per navigation — each run being a profile read,
- * four RPCs, the ledger, notifications, and `getCampaigns()` on top. Roughly
- * thirty round trips to a database in ap-south-1 for one page view, which is
- * exactly the lag you feel on a nav click. `cache()` collapses repeat calls
- * within a single render to one.
+ * Everything exported here is wrapped in React's `cache()`, so a layout and
+ * the page inside it asking the same question cost one read between them.
+ *
+ * The models are deliberately small and separate rather than one payload.
+ * `getDashboard()` — a profile read, four RPCs, the ledger, notifications, a
+ * thousand-row leaderboard and `getCampaigns()` on top — used to be what the
+ * dashboard *layout* read, which meant every navigation in the section paid
+ * for all of it to put a name and a streak in the nav. Roughly thirty round
+ * trips to a database in ap-south-1 for one page view, which is exactly the
+ * lag you felt on a nav click.
+ *
+ * So each screen now asks for its own slice: the layout takes `getNavData()`,
+ * referrals takes `getReferralStats()`, surveys takes `getSurveyStats()`, and
+ * `getDashboard()` — which still returns everything — is read by `/dashboard`
+ * alone, where all of it is actually rendered. Because the slices are
+ * `cache()`d and independent, composing them there is no more expensive than
+ * the single query it replaced.
  */
 
 /**
@@ -201,10 +211,11 @@ export type DashboardData = {
 export async function mustChangePassword(): Promise<boolean> {
   if (isDemoMode()) return false;
 
-  // Reads from the cached dashboard payload rather than issuing its own
-  // profile query — the flag now travels with the profile it belongs to.
-  const data = await getDashboard();
-  return data?.profile.must_change_password ?? false;
+  // Reads from the cached nav payload rather than issuing its own profile
+  // query — the flag travels with the profile it belongs to, and the layout
+  // that asks this question has already loaded it.
+  const nav = await getNavData();
+  return nav?.profile.must_change_password ?? false;
 }
 
 /** True when the screens are showing fixtures rather than real data. */
@@ -383,15 +394,29 @@ async function getInstallBoard(subjectId: string): Promise<{
   }
 }
 
-export const getDashboard = cache(async (): Promise<DashboardData | null> => {
-  if (isDemoMode()) {
-    const { demoDashboard } = await import("@/lib/demo-data");
-    return demoDashboard;
-  }
+/**
+ * Who the ambassador screens are reading for, and the profile behind them.
+ *
+ * Resolved once per render and shared by every read model below, so splitting
+ * the payload up costs nothing: whichever slice a route asks for, the subject
+ * is worked out once.
+ *
+ * The two auth reads are fired together rather than in sequence. `currentUser()`
+ * and `getViewer()` each verify the JWT with the auth server and neither
+ * depends on the other, so running them one after another bought a second full
+ * round trip for nothing.
+ */
+type Subject = {
+  id: string;
+  preview: boolean;
+  version: number;
+  profile: DashboardData["profile"];
+};
 
+const subject = cache(async (): Promise<Subject | null> => {
   const supabase = await createClient();
 
-  const user = await currentUser();
+  const [user, viewer] = await Promise.all([currentUser(), getViewer()]);
   if (!user) return null;
 
   /**
@@ -401,87 +426,166 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
    * case this is the whole of the difference — the queries themselves do not
    * change, they just answer about somebody else.
    */
-  const viewer = await getViewer();
   const subjectId = viewer?.id ?? user.id;
-  const preview = viewer?.isPreview ?? false;
 
   // A student is always shown the run that is open. There is no switcher on
   // this side: an earlier run is not their score and not their work.
-  const version = await getActiveVersion();
-
-  const [
-    profileRes,
-    completionBoardRes,
-    surveysRes,
-    referralsRes,
-    ledgerRes,
-    streakRes,
-    notificationsRes,
-    campaigns,
-    installBoard,
-  ] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, full_name, college, referral_code, role, status, must_change_password")
-        .eq("id", subjectId)
-        .maybeSingle(),
-      supabase.rpc("completion_leaderboard", {
-        limit_count: 1000,
-        ...(preview ? { viewer: subjectId } : {}),
-      }),
-      // The `my_*` RPCs filter on auth.uid() internally, so a preview has to
-      // read the same tables directly. See preview-stats.ts.
-      preview
-        ? Promise.resolve({ data: null, error: null })
-        : supabase.rpc("my_survey_stats"),
-      preview
-        ? Promise.resolve({ data: null, error: null })
-        : supabase.rpc("my_referral_stats"),
-      supabase
-        .from("point_ledger")
-        .select("id, delta, reason, note, created_at")
-        .eq("ambassador_id", subjectId)
-        .eq("version", version)
-        .order("created_at", { ascending: false })
-        .limit(8),
-      preview
-        ? Promise.resolve({ data: null, error: null })
-        : supabase.rpc("my_streak"),
-      supabase
-        .from("notifications")
-        .select("id, type, title, body, href, read_at, created_at")
-        .eq("profile_id", subjectId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      getCampaigns(),
-      getInstallBoard(subjectId),
-    ]);
+  const [version, profileRes] = await Promise.all([
+    getActiveVersion(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, college, referral_code, role, status, must_change_password")
+      .eq("id", subjectId)
+      .maybeSingle(),
+  ]);
 
   const profile = profileRes.data;
   if (!profile) return null;
 
-  // Say so when the board could not be read. Without this the fallback below
-  // renders a confident 0% that is indistinguishable from a real 0%, which is
-  // how an unapplied migration once looked like a working page.
-  if (completionBoardRes.error) {
-    console.error("completion_leaderboard failed", completionBoardRes.error);
+  return {
+    id: subjectId,
+    preview: viewer?.isPreview ?? false,
+    version,
+    profile,
+  };
+});
+
+export type NavData = {
+  profile: DashboardData["profile"];
+  /** Consecutive days they showed up — signing in included — for the flame. */
+  streak: number;
+  notifications: NotificationRow[];
+};
+
+/**
+ * What the dashboard chrome needs, and nothing besides.
+ *
+ * `dashboard/layout.tsx` re-renders on every route in the section, so whatever
+ * it reads is paid for on every navigation — including the ones that never
+ * look at it. It read `getDashboard()`: the whole payload, a thousand-row
+ * leaderboard, every campaign with its tasks, and the install board, to put a
+ * name, a streak and a notification list in the nav. This is those three
+ * things and nothing else.
+ */
+export const getNavData = cache(async (): Promise<NavData | null> => {
+  if (isDemoMode()) {
+    const { demoDashboard } = await import("@/lib/demo-data");
+    return {
+      profile: demoDashboard.profile,
+      streak: demoDashboard.streak,
+      notifications: demoDashboard.notifications,
+    };
   }
 
-  const completionBoard = completionBoardRes.data ?? [];
-  // `is_me` is stamped against the viewer now, so in a preview it and the id
-  // agree. Matching on the id anyway: it is the same row either way, and it
-  // stays right against a database where 0039 has not been applied yet.
-  const mine = completionBoard.find((row) => row.ambassador_id === subjectId);
-  const standing = mine
-    ? {
-        completionPct: mine.completion_pct,
-        approvedTasks: mine.approved_tasks,
-        totalTasks: mine.total_tasks,
-        position: mine.position,
-        total: completionBoard.length,
-        batch: mine.batch,
-      }
-    : {
+  const subj = await subject();
+  if (!subj) return null;
+
+  const supabase = await createClient();
+
+  const [streak, notificationsRes] = await Promise.all([
+    // The `my_*` RPCs filter on auth.uid() internally, so a preview has to
+    // read the same tables directly. See preview-stats.ts.
+    subj.preview
+      ? previewStreak(supabase, subj.id)
+      : supabase.rpc("my_streak").then(({ data }) => data ?? 0),
+    supabase
+      .from("notifications")
+      .select("id, type, title, body, href, read_at, created_at")
+      .eq("profile_id", subj.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  return {
+    profile: subj.profile,
+    streak: streak ?? 0,
+    notifications: notificationsRes.data ?? [],
+  };
+});
+
+/** The survey slice, for the pages that show links rather than the whole home screen. */
+export const getSurveyStats = cache(async (): Promise<SurveyStat[] | null> => {
+  if (isDemoMode()) {
+    const { demoDashboard } = await import("@/lib/demo-data");
+    return demoDashboard.surveys;
+  }
+
+  const subj = await subject();
+  if (!subj) return null;
+
+  const supabase = await createClient();
+  if (subj.preview) return previewSurveyStats(supabase, subj.id);
+
+  const { data } = await supabase.rpc("my_survey_stats");
+  return data ?? [];
+});
+
+/** The referral slice. `/dashboard/referrals` reads this and nothing else. */
+export const getReferralStats = cache(
+  async (): Promise<DashboardData["referrals"] | null> => {
+    if (isDemoMode()) {
+      const { demoDashboard } = await import("@/lib/demo-data");
+      return demoDashboard.referrals;
+    }
+
+    const subj = await subject();
+    if (!subj) return null;
+
+    const supabase = await createClient();
+    if (subj.preview) {
+      return previewReferralStats(supabase, subj.id, subj.profile.referral_code);
+    }
+
+    const { data } = await supabase.rpc("my_referral_stats");
+    const referral = data?.[0];
+    return {
+      code: referral?.code ?? subj.profile.referral_code,
+      total_confirmed: referral?.total_confirmed ?? 0,
+      points_earned: referral?.points_earned ?? 0,
+      last_conversion: referral?.last_conversion ?? null,
+    };
+  },
+);
+
+/**
+ * Their placing on the completion board.
+ *
+ * Still reads the board a thousand rows at a time to find the one row that is
+ * theirs — that is the shape `completion_leaderboard` returns, not something
+ * this can fix from here. Split out so that only the screens which show a
+ * placing pay for it, instead of every navigation in the section.
+ */
+export const getStanding = cache(
+  async (): Promise<DashboardData["standing"] | null> => {
+    if (isDemoMode()) {
+      const { demoDashboard } = await import("@/lib/demo-data");
+      return demoDashboard.standing;
+    }
+
+    const subj = await subject();
+    if (!subj) return null;
+
+    const supabase = await createClient();
+    const boardRes = await supabase.rpc("completion_leaderboard", {
+      limit_count: 1000,
+      ...(subj.preview ? { viewer: subj.id } : {}),
+    });
+
+    // Say so when the board could not be read. Without this the fallback below
+    // renders a confident 0% that is indistinguishable from a real 0%, which is
+    // how an unapplied migration once looked like a working page.
+    if (boardRes.error) {
+      console.error("completion_leaderboard failed", boardRes.error);
+    }
+
+    const board = boardRes.data ?? [];
+    // `is_me` is stamped against the viewer now, so in a preview it and the id
+    // agree. Matching on the id anyway: it is the same row either way, and it
+    // stays right against a database where 0039 has not been applied yet.
+    const mine = board.find((row) => row.ambassador_id === subj.id);
+
+    if (!mine) {
+      return {
         completionPct: 0,
         approvedTasks: 0,
         totalTasks: 0,
@@ -489,32 +593,88 @@ export const getDashboard = cache(async (): Promise<DashboardData | null> => {
         total: 0,
         batch: null,
       };
+    }
 
-  const referral = referralsRes.data?.[0];
+    return {
+      completionPct: mine.completion_pct,
+      approvedTasks: mine.approved_tasks,
+      totalTasks: mine.total_tasks,
+      position: mine.position,
+      total: board.length,
+      batch: mine.batch,
+    };
+  },
+);
 
-  // Filled from the direct reads while previewing, from the RPCs otherwise.
-  const [previewSurveys, previewReferrals, previewStreakDays] = preview
-    ? await Promise.all([
-        previewSurveyStats(supabase, subjectId),
-        previewReferralStats(supabase, subjectId, profile.referral_code),
-        previewStreak(supabase, subjectId),
-      ])
-    : [null, null, null];
+/** The last few points movements, for the home screen activity strip. */
+export const getRecentLedger = cache(async (): Promise<LedgerEntry[]> => {
+  if (isDemoMode()) {
+    const { demoDashboard } = await import("@/lib/demo-data");
+    return demoDashboard.recentLedger;
+  }
+
+  const subj = await subject();
+  if (!subj) return [];
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("point_ledger")
+    .select("id, delta, reason, note, created_at")
+    .eq("ambassador_id", subj.id)
+    .eq("version", subj.version)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  return data ?? [];
+});
+
+/** The install podium, keyed to whoever the screens are reading for. */
+const getInstallStanding = cache(
+  async (): Promise<{ rank: number | null; podium: InstallPodiumRow[] }> => {
+    const subj = await subject();
+    if (!subj) return { rank: null, podium: [] };
+    return getInstallBoard(subj.id);
+  },
+);
+
+/**
+ * The whole home screen, assembled from the slices above.
+ *
+ * Only `/dashboard` needs all of this. Every piece is `cache()`d and
+ * independent, so this is one round of parallel reads here and free on a route
+ * that has already asked for one of them.
+ */
+export const getDashboard = cache(async (): Promise<DashboardData | null> => {
+  if (isDemoMode()) {
+    const { demoDashboard } = await import("@/lib/demo-data");
+    return demoDashboard;
+  }
+
+  const subj = await subject();
+  if (!subj) return null;
+
+  const [nav, standing, surveys, referrals, recentLedger, campaigns, installBoard] =
+    await Promise.all([
+      getNavData(),
+      getStanding(),
+      getSurveyStats(),
+      getReferralStats(),
+      getRecentLedger(),
+      getCampaigns(),
+      getInstallStanding(),
+    ]);
+
+  if (!nav || !standing || !surveys || !referrals) return null;
 
   return {
-    profile,
+    profile: subj.profile,
     standing,
-    surveys: previewSurveys ?? surveysRes.data ?? [],
+    surveys,
     campaigns,
-    referrals: previewReferrals ?? {
-      code: referral?.code ?? profile.referral_code,
-      total_confirmed: referral?.total_confirmed ?? 0,
-      points_earned: referral?.points_earned ?? 0,
-      last_conversion: referral?.last_conversion ?? null,
-    },
-    recentLedger: ledgerRes.data ?? [],
-    streak: previewStreakDays ?? streakRes.data ?? 0,
-    notifications: notificationsRes.data ?? [],
+    referrals,
+    recentLedger,
+    streak: nav.streak,
+    notifications: nav.notifications,
     installRank: installBoard.rank,
     installPodium: installBoard.podium,
   };
@@ -627,47 +787,65 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
 
   const supabase = await createClient();
 
-  const user = await currentUser();
-  if (!user) return [];
+  // Resolves the viewer, the run and the profile in one go — this used to be
+  // a separate auth read here, then a second one for the viewer, then a third
+  // round trip for the run.
+  const subj = await subject();
+  if (!subj) return [];
+
+  const subjectId = subj.id;
+  const version = subj.version;
 
   // The dashboard is the page most likely to be open when a deadline
-  // passes, so it is the one that should notice.
-  await closeExpiredCampaigns();
+  // passes, so it is still the one that notices — but it notices on the way
+  // out. This used to be an awaited UPDATE sitting in front of the read below,
+  // which put a write and a round trip on every dashboard render to change a
+  // status column the page barely uses. See the function for why deferring it
+  // costs no freshness.
+  closeExpiredCampaignsAfterResponse();
 
-  const version = await getActiveVersion();
-
-  const { data: campaigns } = await supabase
-    .from("campaigns")
-    // Must stay a single string literal — postgrest-js infers the row shape
-    // from it, and a concatenated expression degrades to `GenericStringError`.
-    .select(
-      "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, starts_at, ends_at, status, ended_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
-    )
-    // Closed campaigns included on purpose. Only 'live' was listed, so a
-    // campaign that closed vanished from this page while staying in the
-    // completion denominator — an ambassador read "All done" on every card
-    // and 91% on the leaderboard, with the missing task nowhere on screen.
-    .in("status", ["live", "ended", "archived"])
-    .eq("version", version)
-    .order("starts_at", { ascending: false });
+  // All three read the same run for the same person and none of them needs an
+  // answer from the others. They ran one after another, which on a function
+  // sitting a continent from the database was three crossings for one page.
+  //
+  // The dates and the submissions are fetched even when there turn out to be
+  // no campaigns. That is the trade: two small indexed reads that are
+  // occasionally wasted, against a round trip that was always spent.
+  const [
+    { data: campaigns },
+    { data: subjectDates },
+    { data: mine },
+  ] = await Promise.all([
+    supabase
+      .from("campaigns")
+      // Must stay a single string literal — postgrest-js infers the row shape
+      // from it, and a concatenated expression degrades to `GenericStringError`.
+      .select(
+        "id, title, description, platform, instagram_url, expected_handle, thumbnail_path, starts_at, ends_at, status, ended_at, campaign_tasks(id, type, points, instructions, required, order_index, proof_type, label_override, task_library(label, proof_type, platform))",
+      )
+      // Closed campaigns included on purpose. Only 'live' was listed, so a
+      // campaign that closed vanished from this page while staying in the
+      // completion denominator — an ambassador read "All done" on every card
+      // and 91% on the leaderboard, with the missing task nowhere on screen.
+      .in("status", ["live", "ended", "archived"])
+      .eq("version", version)
+      .order("starts_at", { ascending: false }),
+    // Own rows by RLS, or the previewed student's — an admin may read those
+    // too, which is what turns "Done 0/1" on every card into real progress.
+    supabase
+      .from("profiles")
+      .select("created_at, activated_at")
+      .eq("id", subjectId)
+      .maybeSingle(),
+    supabase
+      .from("submissions")
+      .select("campaign_task_id, status, attempt, reject_reason")
+      .eq("ambassador_id", subjectId)
+      .eq("version", version)
+      .order("attempt", { ascending: false }),
+  ]);
 
   if (!campaigns?.length) return [];
-
-  // Own rows by RLS, or the previewed student's — an admin may read those too,
-  // which is what turns "Done 0/1" on every card into their real progress.
-  const subjectId = (await getViewer())?.id ?? user.id;
-
-  const { data: subject } = await supabase
-    .from("profiles")
-    .select("created_at, activated_at")
-    .eq("id", subjectId)
-    .maybeSingle();
-  const { data: mine } = await supabase
-    .from("submissions")
-    .select("campaign_task_id, status, attempt, reject_reason")
-    .eq("ambassador_id", subjectId)
-    .eq("version", version)
-    .order("attempt", { ascending: false });
 
   // Highest attempt wins — that's the one the student is looking at.
   const latest = new Map<
@@ -699,7 +877,8 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
-  const joinedStamp = subject?.activated_at ?? subject?.created_at ?? null;
+  const joinedStamp =
+    subjectDates?.activated_at ?? subjectDates?.created_at ?? null;
   const joined = joinedStamp ? new Date(joinedStamp) : null;
   const reachableFrom =
     joined && joined > monthStart ? joined.getTime() : monthStart.getTime();

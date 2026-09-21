@@ -14,8 +14,8 @@ import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import {
   getCampaigns,
-  getDashboard,
   getSurveyMeta,
+  getSurveyStats,
   surveyTargetFor,
   type CampaignCard as CampaignCardData,
 } from "@/lib/queries";
@@ -38,19 +38,18 @@ export default async function CampaignsPage({
 }: {
   searchParams: Promise<{ platform?: string }>;
 }) {
-  // `getDashboard` is what the layout already loaded and it is memoised per
-  // request, so reading the surveys off it here is free — no second round trip.
-  const [campaigns, data, surveyMeta, siteUrl, sharedTarget] =
+  // The survey slice rather than the whole dashboard payload: this page shows
+  // campaign cards and survey links, and the placing, ledger and install board
+  // it used to pull in with them were never rendered here.
+  const [campaigns, surveys, surveyMeta, siteUrl, sharedTarget] =
     await Promise.all([
       getCampaigns(),
-      getDashboard(),
+      getSurveyStats(),
       getSurveyMeta(),
       getSiteUrl(),
       getSetting("stipend_min_responses_per_survey"),
     ]);
-  if (!campaigns || !data) redirect("/login");
-
-  const surveys = data.surveys;
+  if (!campaigns || !surveys) redirect("/login");
   const { platform } = await searchParams;
 
   const available = [
