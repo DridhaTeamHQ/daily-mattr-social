@@ -10,6 +10,12 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import {
+  ImageField,
+  alignImages,
+  removeImageAt,
+  setImageAt,
+} from "@/components/image-field";
+import {
   updateSurveyQuestions,
   type QuestionEdit,
 } from "@/lib/admin/edit-actions";
@@ -28,6 +34,9 @@ export type EditableQuestion = {
   prompt: string;
   help_text: string | null;
   options: string[];
+  image_url: string | null;
+  /** Indexed to match `options`. See migration 0050. */
+  option_images: (string | null)[];
 };
 
 /**
@@ -64,6 +73,8 @@ export function SurveyQuestionsEditor({
       help_text: q.help_text ?? "",
       options: [...q.options],
       type: q.type as Enums<"question_type">,
+      image_url: q.image_url,
+      option_images: alignImages(q.option_images, q.options.length),
     })),
   );
 
@@ -103,6 +114,13 @@ export function SurveyQuestionsEditor({
             needsOptions && carried.length < 2
               ? [...carried, "", ""].slice(0, 2)
               : carried,
+          // The pictures travel with the labels, and only within a family:
+          // a rating's five point-names are not choices, so nothing they
+          // carried can illustrate a tick box.
+          option_images:
+            optionFamily(d.type) === optionFamily(type) && needsOptions
+              ? alignImages(d.option_images, Math.max(carried.length, 2))
+              : [],
         };
       }),
     );
@@ -112,7 +130,17 @@ export function SurveyQuestionsEditor({
     setDrafts((current) =>
       current.map((d) =>
         d.id === id
-          ? { ...d, options: d.options.filter((_, i) => i !== index) }
+          ? {
+              ...d,
+              options: d.options.filter((_, i) => i !== index),
+              // Closes the gap rather than leaving a hole, or every picture
+              // below the removed choice would slide onto its neighbour.
+              option_images: removeImageAt(
+                d.option_images,
+                index,
+                d.options.length - 1,
+              ),
+            }
           : d,
       ),
     );
@@ -258,6 +286,22 @@ export function SurveyQuestionsEditor({
                 )}
               </div>
 
+              {/* The question's own picture, editable whenever the prompt is.
+                  It is part of the wording rather than part of the answer, and
+                  the prompt is already editable on an answered survey. */}
+              <div>
+                <p className="mb-1.5 text-[13px] font-medium text-ink">
+                  Image
+                  <span className="ml-1 font-normal text-ink-soft">
+                    (optional)
+                  </span>
+                </p>
+                <ImageField
+                  value={draft.image_url}
+                  onChange={(url) => update(draft.id, { image_url: url })}
+                />
+              </div>
+
               {/* Frozen once answered, like the choices: a rating stored as 4
                   is meaningless if the question becomes a paragraph. */}
               {!answered && (
@@ -292,6 +336,27 @@ export function SurveyQuestionsEditor({
                   <div className="space-y-2">
                     {draft.options.map((option, i) => (
                       <div key={i} className="flex items-center gap-2">
+                        {/* Frozen with the labels: the picture is indexed
+                            against them, so letting it move while they are
+                            pinned is how choice 2's image lands on choice 3. */}
+                        {!answered && (
+                          <ImageField
+                            size="option"
+                            label={`Image for choice ${i + 1}`}
+                            value={draft.option_images[i]}
+                            onChange={(url) =>
+                              update(draft.id, {
+                                option_images: setImageAt(
+                                  draft.option_images,
+                                  i,
+                                  url,
+                                  draft.options.length,
+                                ),
+                              })
+                            }
+                          />
+                        )}
+
                         <Input
                           className="min-w-0 flex-1"
                           value={option}

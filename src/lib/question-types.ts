@@ -102,3 +102,63 @@ export function normalizeRatingLabels(options: unknown): string[] {
   const labels = ratingLabels(options);
   return labels.some(Boolean) ? labels : [];
 }
+
+/**
+ * The choices of a choice question, with their pictures still attached.
+ *
+ * A choice counts as real if it has words, a picture, or both. Only a row
+ * with neither falls out — which is every row the builder starts with, since
+ * a fresh choice question opens with two empty boxes.
+ *
+ * ─── Why the two lists are filtered in one pass ────────────────────────
+ *
+ * `option_images[i]` illustrates `options[i]`, so dropping a row from one
+ * list and not the other slides every picture below it onto the wrong choice:
+ *
+ *   labels ["Red", "", "Blue"]  images [r, x, b]
+ *   separately → ["Red","Blue"] + [r, x]   → Blue wears the dropped picture
+ *   together   → ["Red","Blue"] + [r, b]   → each keeps its own
+ *
+ * ─── Why a picture-only choice still gets a name ──────────────────────
+ *
+ * The label is not decoration: an answer is written into
+ * `survey_answers.value` as the label itself, the responses table counts by
+ * matching those strings and the CSV exports them. A choice stored as `""`
+ * would record every pick as an empty cell, and two of them would be
+ * indistinguishable from each other for ever.
+ *
+ * So a choice with a picture and no words is given one — `Option 3`, by its
+ * position — rather than being refused. The admin sees a real name in the
+ * results, the respondent sees the picture, and nothing downstream has to
+ * learn about a nameless answer. A generated name never collides with a typed
+ * one: the typed labels are claimed first and the counter steps past them.
+ */
+export function choiceOptions(
+  options: string[] | undefined,
+  images: (string | null)[] | undefined,
+): { labels: string[]; images: (string | null)[] } {
+  const pairs = (options ?? []).map(
+    (label, index) => [label.trim(), images?.[index] ?? null] as const,
+  );
+  const kept = pairs.filter(([label, image]) => label.length > 0 || image !== null);
+
+  const taken = new Set(kept.map(([label]) => label).filter(Boolean));
+  const labels = kept.map(([label], index) => {
+    if (label) return label;
+
+    let counter = index + 1;
+    let name = `Option ${counter}`;
+    // Only ever runs when somebody has typed "Option 3" by hand and given a
+    // different choice a picture and no words.
+    while (taken.has(name)) name = `Option ${++counter}`;
+    taken.add(name);
+    return name;
+  });
+
+  const next = kept.map(([, image]) => image);
+  // A question whose pictures were all removed stores `[]` rather than a row
+  // of nulls; every reader treats a missing entry as "no picture" anyway.
+  while (next.length > 0 && next[next.length - 1] === null) next.pop();
+
+  return { labels, images: next };
+}

@@ -48,7 +48,7 @@ const loadSurvey = unstable_cache(
 
     const { data: questions } = await db
       .from("survey_questions")
-      .select("id, type, prompt, help_text, options, required, max_select")
+      .select("id, type, prompt, help_text, options, required, max_select, image_url, option_images")
       .eq("survey_id", link.surveys.id)
       .order("order_index", { ascending: true });
 
@@ -106,6 +106,11 @@ export default async function PublicSurveyPage({ params }: Params) {
       questions={((questions ?? []) as PublicQuestion[]).map((q) => ({
         ...q,
         options: Array.isArray(q.options) ? (q.options as string[]) : [],
+        // Both columns are jsonb, so they arrive as `unknown` and are narrowed
+        // here once rather than guarded at every use inside the form.
+        option_images: Array.isArray(q.option_images)
+          ? (q.option_images as (string | null)[])
+          : [],
       }))}
     />
   );

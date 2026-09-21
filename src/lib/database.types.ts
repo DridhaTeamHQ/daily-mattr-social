@@ -294,6 +294,10 @@ export type Database = {
           options: Json;
           required: boolean;
           max_select: number | null;
+          /** Optional picture for the question itself. See migration 0050. */
+          image_url: string | null;
+          /** Pictures for the choices, indexed to match `options`. */
+          option_images: Json;
         };
         Insert: {
           id?: string;
@@ -305,6 +309,8 @@ export type Database = {
           options?: Json;
           required?: boolean;
           max_select?: number | null;
+          image_url?: string | null;
+          option_images?: Json;
         };
         Update: {
           id?: string;
@@ -316,6 +322,8 @@ export type Database = {
           options?: Json;
           required?: boolean;
           max_select?: number | null;
+          image_url?: string | null;
+          option_images?: Json;
         };
         Relationships: [
           {

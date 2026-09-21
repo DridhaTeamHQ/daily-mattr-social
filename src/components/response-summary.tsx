@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { MessageSquareText } from "lucide-react";
 
 import { Card, CardBody } from "@/components/ui/card";
@@ -88,6 +89,46 @@ function bucketsFor(
   };
 }
 
+/**
+ * The picture for each choice, looked up by its label.
+ *
+ * The buckets are built from the answers, which are stored as the label text,
+ * so they carry no index back into `option_images`. This rebuilds the link
+ * from the question itself — `options[i]` is illustrated by
+ * `option_images[i]` — and hands the charts a plain label lookup.
+ *
+ * Without it a survey whose choices are four posters reports four bars named
+ * "Option 1" through "Option 4", which is a result nobody can read.
+ */
+function optionImages(question: {
+  options: unknown;
+  option_images: unknown;
+}): Record<string, string> {
+  const labels = Array.isArray(question.options) ? question.options : [];
+  const images = Array.isArray(question.option_images)
+    ? question.option_images
+    : [];
+
+  const byLabel: Record<string, string> = {};
+  labels.forEach((label, index) => {
+    const image = images[index];
+    if (typeof label === "string" && typeof image === "string" && image) {
+      byLabel[label] = image;
+    }
+  });
+  return byLabel;
+}
+
+/** The thumbnail beside a bar or a legend entry. */
+function OptionThumb({ src }: { src: string | undefined }) {
+  if (!src) return null;
+  return (
+    <span className="relative mt-0.5 block size-8 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-canvas-sunk">
+      <Image src={src} alt="" fill unoptimized sizes="32px" className="object-cover" />
+    </span>
+  );
+}
+
 export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
   if (data.questions.length === 0) {
     return (
@@ -135,10 +176,18 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
                   labels={ratingLabels(question.options)}
                 />
               ) : question.type === "single_choice" ? (
-                <DonutChart buckets={buckets} total={votes} />
+                <DonutChart
+                  buckets={buckets}
+                  total={votes}
+                  images={optionImages(question)}
+                />
               ) : question.type === "multi_choice" ||
                 question.type === "number" ? (
-                <BarChart buckets={buckets} answered={answered} />
+                <BarChart
+                  buckets={buckets}
+                  answered={answered}
+                  images={optionImages(question)}
+                />
               ) : (
                 <TextAnswers buckets={buckets} />
               )}
@@ -157,7 +206,15 @@ export function ResponseSummary({ data }: { data: SurveyWithResponses }) {
  * every other figure on the card is a share of, and putting it there means it
  * never has to be read off a caption.
  */
-function DonutChart({ buckets, total }: { buckets: Bucket[]; total: number }) {
+function DonutChart({
+  buckets,
+  total,
+  images,
+}: {
+  buckets: Bucket[];
+  total: number;
+  images?: Record<string, string>;
+}) {
   const slices = fold(buckets);
 
   // 2πr for r=54. Every arc is drawn as a dash of the right length on the
@@ -218,7 +275,7 @@ function DonutChart({ buckets, total }: { buckets: Bucket[]; total: number }) {
         </text>
       </svg>
 
-      <Legend slices={slices} total={total} />
+      <Legend slices={slices} total={total} images={images} />
     </div>
   );
 }
@@ -227,9 +284,11 @@ function DonutChart({ buckets, total }: { buckets: Bucket[]; total: number }) {
 function BarChart({
   buckets,
   answered,
+  images,
 }: {
   buckets: Bucket[];
   answered: number;
+  images?: Record<string, string>;
 }) {
   const top = buckets[0]?.count ?? 1;
 
@@ -242,6 +301,7 @@ function BarChart({
                 identifying its bar, and these run long — "Social Media
                 (Instagram, X, Reddit, Facebook, Whatsapp)" ends at "Social
                 Media (Instagra…" in one line, which names nothing. */}
+            <OptionThumb src={images?.[bucket.label]} />
             <span className="min-w-0 flex-1 text-[13px] leading-snug font-bold text-ink">
               {bucket.label}
             </span>
@@ -378,7 +438,15 @@ function TextAnswers({ buckets }: { buckets: Bucket[] }) {
  * depends on telling two colours apart, which is the failure mode a legend is
  * supposed to prevent rather than cause.
  */
-function Legend({ slices, total }: { slices: Bucket[]; total: number }) {
+function Legend({
+  slices,
+  total,
+  images,
+}: {
+  slices: Bucket[];
+  total: number;
+  images?: Record<string, string>;
+}) {
   return (
     <ul className="min-w-0 flex-1 space-y-1.5">
       {slices.map((slice, i) => (
@@ -388,6 +456,7 @@ function Legend({ slices, total }: { slices: Bucket[]; total: number }) {
             className="mt-1 size-2.5 shrink-0 rounded-full"
             style={{ background: SERIES[i % SERIES.length] }}
           />
+          <OptionThumb src={images?.[slice.label]} />
           <span className="min-w-0 flex-1 text-[13px] leading-snug font-bold text-ink">
             {slice.label}
           </span>

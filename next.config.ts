@@ -4,6 +4,21 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactCompiler: true,
 
+  /**
+   * Survey images are served from the Supabase storage bucket.
+   *
+   * `next/image` refuses a remote host it has not been told about, so without
+   * this every picture an admin attaches to a question renders as a broken
+   * box. Scoped to Supabase's own domain rather than left open: the point of
+   * the allow-list is that our pages cannot be pointed at an arbitrary host.
+   * The CSP's `img-src` already says the same thing one layer up.
+   */
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
+    ],
+  },
+
   experimental: {
     serverActions: {
       // Server Actions cap request bodies at 1MB by default, which silently
