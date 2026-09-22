@@ -8,9 +8,9 @@ import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { CampaignPreviewDialog } from "@/components/campaign-preview";
 import {
-  CampaignScheduleDialog,
+  SchedulePublishDialog,
   ScheduledNote,
-} from "@/components/campaign-schedule";
+} from "@/components/schedule-publish";
 import { SearchBox } from "@/components/search-box";
 import { InfiniteList } from "@/components/infinite-scroll";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
@@ -309,13 +309,11 @@ export default async function AdminCampaignsPage({
                         Publish now
                       </ActionButton>
 
-                      <CampaignScheduleDialog
-                        campaign={{
-                          id: c.id,
-                          title: c.title,
-                          publish_at: c.publish_at,
-                          ends_at: c.ends_at,
-                        }}
+                      <SchedulePublishDialog
+                        kind="campaign"
+                        id={c.id}
+                        publishAt={c.publish_at}
+                        endsAt={c.ends_at}
                       />
                     </>
                   )}

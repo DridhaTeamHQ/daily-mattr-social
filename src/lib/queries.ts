@@ -9,6 +9,7 @@ import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { closeExpiredCampaignsAfterResponse } from "@/lib/campaigns/auto-end";
 import { publishScheduledCampaigns } from "@/lib/campaigns/auto-publish";
+import { publishScheduledSurveys } from "@/lib/surveys/auto-publish";
 import { createClient } from "@/lib/supabase/server";
 import {
   previewReferralStats,
@@ -516,6 +517,12 @@ export const getSurveyStats = cache(async (): Promise<SurveyStat[] | null> => {
 
   const supabase = await createClient();
   if (subj.preview) return previewSurveyStats(supabase, subj.id);
+
+  // Awaited, and it has to be. This page is built entirely from the reader's
+  // `survey_links` rows, and a scheduled survey has none until the sweep has
+  // run and minted them. Defer it and an ambassador who was just notified
+  // that their link is ready opens this to an empty page.
+  await publishScheduledSurveys();
 
   const { data } = await supabase.rpc("my_survey_stats");
   return data ?? [];

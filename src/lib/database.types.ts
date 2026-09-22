@@ -238,6 +238,8 @@ export type Database = {
           phase: Enums<"program_phase">;
           response_cap: number | null;
           audience: Enums<"survey_audience">;
+          /** When a draft is due to go live by itself. See migration 0052. */
+          publish_at: string | null;
         };
         Insert: {
           version?: number;
@@ -254,6 +256,7 @@ export type Database = {
           phase?: Enums<"program_phase">;
           response_cap?: number | null;
           audience?: Enums<"survey_audience">;
+          publish_at?: string | null;
         };
         Update: {
           version?: number;
@@ -270,6 +273,7 @@ export type Database = {
           phase?: Enums<"program_phase">;
           response_cap?: number | null;
           audience?: Enums<"survey_audience">;
+          publish_at?: string | null;
         };
         Relationships: [
           {

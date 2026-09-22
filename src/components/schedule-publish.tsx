@@ -11,8 +11,11 @@ import { Field, Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import {
   cancelCampaignSchedule,
+  cancelSurveySchedule,
   scheduleCampaignPublish,
+  scheduleSurveyPublish,
 } from "@/lib/admin/actions";
+import type { ActionResult } from "@/lib/admin/guards";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +26,11 @@ import { cn } from "@/lib/utils";
  * three fields down a form full of wording changes would hide it from the one
  * moment anybody wants it: the second before they would otherwise have pressed
  * the button and gone to bed.
+ *
+ * One dialog for campaigns and surveys. They schedule identically from the
+ * admin's side — a day, a time, a draft that stops needing them — and the
+ * differences are entirely in what publishing then does, which is a sentence
+ * in the description and a pair of actions, not a second component.
  */
 
 /** A store that never emits — `publishAt` changes by prop, not by event. */
@@ -36,7 +44,37 @@ const PANEL = [
 ].join(" ");
 
 /**
- * The campaign's scheduled launch as the two fields that edit it.
+ * What each kind promises the moment it goes live.
+ *
+ * Worth saying in full rather than "it will be published": a campaign appears
+ * on dashboards, a survey also mints a personal link for every ambassador and
+ * tells them it is waiting. The second is a bigger thing to set running while
+ * nobody is watching, so the dialog says so before it is set running.
+ */
+const KINDS = {
+  campaign: {
+    blurb:
+      "It stays a draft until the time you set, then goes live by itself — the same as pressing Publish, including the notification every active ambassador gets.",
+    schedule: scheduleCampaignPublish,
+    cancel: cancelCampaignSchedule,
+  },
+  survey: {
+    blurb:
+      "It stays a draft until the time you set, then goes live by itself — the same as pressing Publish: every active ambassador gets their own link, and a notification saying it is ready.",
+    schedule: scheduleSurveyPublish,
+    cancel: cancelSurveySchedule,
+  },
+} satisfies Record<
+  string,
+  {
+    blurb: string;
+    schedule: (id: string, formData: FormData) => Promise<ActionResult>;
+    cancel: (id: string) => Promise<ActionResult>;
+  }
+>;
+
+/**
+ * The scheduled launch as the two fields that edit it.
  *
  * Two inputs rather than one `datetime-local`, for the reason the deadline
  * fields give: the combined picker opens a calendar and a clock over the
@@ -59,23 +97,29 @@ function today(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function CampaignScheduleDialog({
-  campaign,
+export function SchedulePublishDialog({
+  kind,
+  id,
+  publishAt,
+  /**
+   * A deadline the launch has to land before, when the thing has one.
+   * Campaigns do; surveys run until somebody closes them.
+   */
+  endsAt = null,
   className,
 }: {
-  campaign: {
-    id: string;
-    title: string;
-    publish_at: string | null;
-    ends_at: string | null;
-  };
+  kind: keyof typeof KINDS;
+  id: string;
+  publishAt: string | null;
+  endsAt?: string | null;
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
-  const scheduled = Boolean(campaign.publish_at);
-  const current = toLocalInput(campaign.publish_at);
+  const { blurb, schedule, cancel } = KINDS[kind];
+  const scheduled = Boolean(publishAt);
+  const current = toLocalInput(publishAt);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -97,15 +141,13 @@ export function CampaignScheduleDialog({
             <span className="sr-only">Close</span>
           </Dialog.Close>
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-            It stays a draft until the time you set, then goes live by itself —
-            the same as pressing Publish, including the notification every
-            active ambassador gets.
+            {blurb}
           </Dialog.Description>
 
-          {campaign.ends_at && (
+          {endsAt && (
             <Note tone="neutral" className="mt-3">
               This campaign ends{" "}
-              {new Date(campaign.ends_at).toLocaleString(undefined, {
+              {new Date(endsAt).toLocaleString(undefined, {
                 day: "numeric",
                 month: "short",
                 hour: "numeric",
@@ -125,10 +167,7 @@ export function CampaignScheduleDialog({
               formData.set("tz_offset", String(new Date().getTimezoneOffset()));
 
               startTransition(async () => {
-                const result = await scheduleCampaignPublish(
-                  campaign.id,
-                  formData,
-                );
+                const result = await schedule(id, formData);
                 if (!result.ok) {
                   toast.error(result.message);
                   return;
@@ -139,10 +178,10 @@ export function CampaignScheduleDialog({
             }}
             className="mt-4 space-y-4"
           >
-            <Field label="Goes live" htmlFor="c-publish-date" required>
+            <Field label="Goes live" htmlFor={`sched-date-${id}`} required>
               <div className="grid grid-cols-[1fr_9rem] gap-2">
                 <Input
-                  id="c-publish-date"
+                  id={`sched-date-${id}`}
                   name="publish_date"
                   type="date"
                   // The past is never a valid answer here, so the picker
@@ -153,7 +192,7 @@ export function CampaignScheduleDialog({
                   autoFocus
                 />
                 <Input
-                  id="c-publish-time"
+                  id={`sched-time-${id}`}
                   name="publish_time"
                   type="time"
                   aria-label="Goes live, time"
@@ -167,7 +206,7 @@ export function CampaignScheduleDialog({
             </Field>
 
             <div className="flex flex-wrap justify-end gap-2 pt-1">
-              {/* Cancelling is offered here rather than as a fifth button on
+              {/* Cancelling is offered here rather than as another button on
                   an already crowded card footer — you come to this dialog to
                   change when it launches, and "not at all" is one of the
                   answers to that. */}
@@ -175,7 +214,7 @@ export function CampaignScheduleDialog({
                 <ActionButton
                   variant="ghost"
                   className="mr-auto"
-                  action={cancelCampaignSchedule.bind(null, campaign.id)}
+                  action={cancel.bind(null, id)}
                   onSuccess={() => setOpen(false)}
                 >
                   Cancel schedule
@@ -203,7 +242,7 @@ export function CampaignScheduleDialog({
  * A draft that is scheduled and a draft that is not look identical otherwise,
  * and the difference is the whole thing an admin came to the list to check.
  * Replaces the "press Publish" warning rather than sitting next to it: that
- * line is a prompt to act, and on a campaign that is already going to publish
+ * line is a prompt to act, and on a draft that is already going to publish
  * itself it is a lie.
  */
 export function ScheduledNote({ publishAt }: { publishAt: string }) {

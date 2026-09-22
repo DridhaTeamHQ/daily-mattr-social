@@ -1995,7 +1995,13 @@ export async function setSurveyStatus(
 
     const { error } = await supabase
       .from("surveys")
-      .update({ status })
+      .update({
+        status,
+        // Pressing the button cancels the schedule, because the schedule has
+        // been overtaken — the survey is live now, not on Friday. Leaving it
+        // set would put "Publishes Friday" on a live survey.
+        publish_at: null,
+      })
       .eq("id", surveyId);
     if (error) throw error;
 
@@ -2066,6 +2072,133 @@ export async function issueSurveyLinks(surveyId: string): Promise<ActionResult> 
       ok: true,
       message: created ? `${created} new links issued` : "Everyone already has a link",
     };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Hands a survey draft a time instead of a button press.
+ *
+ * The companion to `scheduleCampaignPublish`, and the case for it is stronger.
+ * Publishing a survey mints a personal link for every active ambassador and
+ * tells them all their link is ready — so the hour it happens is the hour the
+ * cohort is asked to go and fill something in. That wants to be a morning
+ * somebody chose, not whenever the questions were finished being typed.
+ *
+ * Drafts only. A live survey has already issued its links and said so; the
+ * button for topping up a cohort that grew afterwards is "Issue missing
+ * links", not this.
+ */
+export async function scheduleSurveyPublish(
+  surveyId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const supabase = await createClient();
+
+    // The same two fields, read the same way as the campaign dialog and the
+    // deadline editor, so a date means the same thing everywhere in the
+    // console. A bare date means 9am — the start of a working morning.
+    const date = String(formData.get("publish_date") ?? "").trim();
+    const time = String(formData.get("publish_time") ?? "").trim();
+    if (!date) {
+      return { ok: false, message: "Pick the day it should go live." };
+    }
+
+    // The admin's clock, not the server's. Without it a 9am launch set from
+    // India lands in the afternoon, because Vercel runs in UTC.
+    const tzOffset = Number(formData.get("tz_offset"));
+    const local = `${date}T${time || "09:00"}`;
+    const publishAt = Number.isFinite(tzOffset)
+      ? new Date(new Date(`${local}:00.000Z`).getTime() + tzOffset * 60_000)
+      : new Date(local);
+
+    if (Number.isNaN(publishAt.getTime())) {
+      return { ok: false, message: "That is not a date I can read." };
+    }
+
+    const { data: survey, error: readError } = await supabase
+      .from("surveys")
+      .select("title, status")
+      .eq("id", surveyId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!survey) return { ok: false, message: "That survey is gone." };
+
+    if (survey.status !== "draft") {
+      return {
+        ok: false,
+        message: `Only a draft can be scheduled — this one is ${survey.status}.`,
+      };
+    }
+
+    // A minute of slack, not zero: the clock moved while the dialog was open,
+    // and refusing "9:00" at 9:00:03 would be pedantry. Anything genuinely
+    // past is a mistake worth catching, because the sweep would publish it
+    // within the minute and the admin would never see a schedule at all.
+    if (publishAt.getTime() < Date.now() - 60_000) {
+      return {
+        ok: false,
+        message: "That time has passed. Pick a later one, or press Publish.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("surveys")
+      .update({ publish_at: publishAt.toISOString() })
+      .eq("id", surveyId)
+      // Re-checked in the write: two admins in the same minute, one pressing
+      // Publish and one scheduling, must not leave a live survey carrying a
+      // pending launch that would issue a second round of links.
+      .eq("status", "draft");
+    if (error) throw error;
+
+    await audit(actorId, "survey.schedule", "survey", surveyId, {
+      publish_at: publishAt.toISOString(),
+      title: survey.title,
+    });
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/surveys");
+
+    return {
+      ok: true,
+      message: `"${survey.title}" goes live ${publishAt.toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      })}.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Puts a scheduled survey back to being an ordinary draft. */
+export async function cancelSurveySchedule(
+  surveyId: string,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from("surveys")
+      .update({ publish_at: null })
+      .eq("id", surveyId)
+      .eq("status", "draft");
+    if (error) throw error;
+
+    await audit(actorId, "survey.unschedule", "survey", surveyId, {});
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/surveys");
+
+    return { ok: true, message: "Schedule cancelled — it stays a draft." };
   } catch (err) {
     return fail(err);
   }

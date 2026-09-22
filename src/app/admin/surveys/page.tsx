@@ -3,6 +3,10 @@ import { ClipboardList } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { SurveyEditDialog } from "@/components/edit-dialogs";
+import {
+  SchedulePublishDialog,
+  ScheduledNote,
+} from "@/components/schedule-publish";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
@@ -58,6 +62,12 @@ export default async function AdminSurveysPage() {
                     <Badge tone={STATUS_TONE[s.status]} dot>
                       {s.status}
                     </Badge>
+                    {/* 'draft' is true of a survey that is scheduled and of
+                        one nobody has touched. This is what tells them
+                        apart at a glance down the list. */}
+                    {s.status === "draft" && s.publish_at && (
+                      <Badge tone="warn">scheduled</Badge>
+                    )}
                     {/* Who it is for changes what every other number on this
                         card means, so it sits next to the status. */}
                     <Badge tone={s.audience === "participant" ? "reel" : "poll"}>
@@ -98,6 +108,10 @@ export default async function AdminSurveysPage() {
                     {s.require_phone && " · phone required"}
                   </p>
 
+                  {s.status === "draft" && s.publish_at && (
+                    <ScheduledNote publishAt={s.publish_at} />
+                  )}
+
                   {s.status === "live" && s.linkCount === 0 && (
                     <Note tone="warn" className="mt-3">
                       This survey is live but nobody has a link. Issue links
@@ -126,14 +140,31 @@ export default async function AdminSurveysPage() {
                     </Link>
                   </Button>
 
+                  {/* Publish and Schedule are the same decision asked at
+                      two different times — now, or at an hour the cohort is
+                      actually likely to sit down and answer. Publish stays
+                      first and stays primary: most surveys still go out the
+                      moment the questions are right. */}
                   {s.status === "draft" && (
-                    <ActionButton
-                      size="sm"
-                      action={setSurveyStatus.bind(null, s.id, "live")}
-                      confirmMessage={`Publish "${s.title}"? Every active ambassador gets their own link.`}
-                    >
-                      Publish
-                    </ActionButton>
+                    <>
+                      <ActionButton
+                        size="sm"
+                        action={setSurveyStatus.bind(null, s.id, "live")}
+                        confirmMessage={
+                          s.publish_at
+                            ? `Publish "${s.title}" now? This cancels the schedule and every active ambassador gets their link immediately.`
+                            : `Publish "${s.title}"? Every active ambassador gets their own link.`
+                        }
+                      >
+                        Publish now
+                      </ActionButton>
+
+                      <SchedulePublishDialog
+                        kind="survey"
+                        id={s.id}
+                        publishAt={s.publish_at}
+                      />
+                    </>
                   )}
 
                   {s.status === "live" && (

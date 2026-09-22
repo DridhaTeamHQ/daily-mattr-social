@@ -12,7 +12,7 @@ import {
 
 import { ActionButton } from "@/components/action-button";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
-import { CampaignScheduleDialog } from "@/components/campaign-schedule";
+import { SchedulePublishDialog } from "@/components/schedule-publish";
 import { CampaignTaskManager } from "@/components/campaign-task-manager";
 import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
 import { Badge } from "@/components/ui/badge";
@@ -152,13 +152,11 @@ export default async function CampaignDetailPage({
                   Publish now
                 </ActionButton>
 
-                <CampaignScheduleDialog
-                  campaign={{
-                    id: campaign.id,
-                    title: campaign.title,
-                    publish_at: campaign.publish_at,
-                    ends_at: campaign.ends_at,
-                  }}
+                <SchedulePublishDialog
+                  kind="campaign"
+                  id={campaign.id}
+                  publishAt={campaign.publish_at}
+                  endsAt={campaign.ends_at}
                 />
               </>
             )}

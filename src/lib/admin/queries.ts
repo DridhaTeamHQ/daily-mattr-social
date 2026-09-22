@@ -8,6 +8,7 @@ import { earningRoute } from "@/lib/admin/participation";
 import { readAll } from "@/lib/admin/read-all";
 import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
 import { publishScheduledCampaigns } from "@/lib/campaigns/auto-publish";
+import { publishScheduledSurveys } from "@/lib/surveys/auto-publish";
 import { getViewingVersion } from "@/lib/programme-version";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
@@ -524,6 +525,12 @@ export type AdminSurvey = Tables<"surveys"> & {
 export async function getAdminSurveys(): Promise<AdminSurvey[]> {
   const supabase = await createClient();
   const version = await getViewingVersion();
+
+  // Before the read, for the reason the campaign list gives: this page draws
+  // the status column and the issued-links count, and a survey that was due
+  // at 9am has to come back from here as live with its links minted — this is
+  // the page an admin opens at 9:01 to check that it did.
+  await publishScheduledSurveys();
 
   const [{ data: surveys }, { data: questions }, { data: links }, { data: responses }] =
     await Promise.all([
