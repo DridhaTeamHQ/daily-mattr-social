@@ -224,3 +224,29 @@ test("generation failures and invalidation failures fail open without fabricatin
   assert.equal(stats.local.invalidationErrors, 1);
   assert.equal(stats.local.hits + stats.local.misses, 0);
 });
+
+test("a mutation still rotates the revision while the breaker is open", async () => {
+  const config = { url: "https://redis.test", token: "test", prefix: "test", timeoutMs: 20 };
+  const sent: unknown[][] = [];
+  let online = false;
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    if (!online) throw Error("offline");
+    sent.push(JSON.parse(String(init.body)));
+    return Response.json({ result: "OK" });
+  }) as unknown as typeof fetch;
+  const cache = new OptionalRedisCache(config, fetcher);
+
+  // One failed read opens the breaker for the next sixty seconds.
+  assert.equal(await cache.generation("admin"), null);
+  online = true;
+
+  // Reads stay off Redis for that minute — they only cost a database query.
+  assert.equal(await cache.remember("data", 60, async () => "from-database"), "from-database");
+  assert.deepEqual(sent, []);
+
+  // The invalidation is the one thing nothing would retry, so it goes anyway.
+  const rotated = await cache.invalidate("admin");
+  assert.equal(typeof rotated, "string");
+  assert.deepEqual(sent, [["SET", "test:generation:admin", rotated, "EX", 86400]]);
+  assert.equal((await cache.stats()).local.invalidationErrors, 0);
+});

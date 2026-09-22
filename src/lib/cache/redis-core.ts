@@ -113,9 +113,23 @@ export class OptionalRedisCache {
     }
   }
 
-  /** Invalidate without scanning/deleting data keys. Existing fills use old keys. */
+  /**
+   * Invalidate without scanning/deleting data keys. Existing fills use old keys.
+   *
+   * The breaker is deliberately ignored here, unlike every read path. A read
+   * that skips Redis costs one database query; an invalidation that skips Redis
+   * is lost for good — nothing retries it — and leaves the revision pointing at
+   * rows the database no longer has. The breaker opens for sixty seconds after
+   * any hiccup, including one timeout on an unrelated read, and data keys live
+   * for five minutes: an edit made inside that minute would keep serving its
+   * pre-edit rows for the rest of those five, long after Redis recovered.
+   *
+   * So a mutation always spends its one SET, up to the same 800 ms deadline as
+   * anything else. A failure still extends the breaker, and the caller still
+   * gets null.
+   */
   async invalidate(scope: string): Promise<string | null> {
-    if (!this.config || this.now() < this.retryAt) return null;
+    if (!this.config) return null;
     try {
       const generation = crypto.randomUUID();
       const result = await this.command(["SET", `${this.config.prefix}:generation:${scope}`, generation, "EX", 86400]);

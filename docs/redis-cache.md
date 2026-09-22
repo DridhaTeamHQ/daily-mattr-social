@@ -60,6 +60,15 @@ cannot overwrite the new revision's data. Old data expires naturally; no scans
 are needed in the application. The revision key expires after one day and gets a
 unique value when recreated. It is invalidation metadata, not usage tracking.
 
+Two counters deliberately do **not** rotate it: referral clicks, written by the
+`/r/<code>` and `/<code>` redirects, and survey link clicks, counted when a
+student opens a survey. Both are driven by anonymous visitor traffic, so
+rotating the shared revision on each one would flush every admin screen's data
+continuously and the cache would never hold anything. The admin funnel's click
+figures are therefore up to five minutes behind; every other figure beside them
+is current as of the last edit. Approving or counting a referral is an admin
+action and does rotate the revision as usual.
+
 External database changes, failed/partial mutations or failed invalidation can
 leave displays up to five minutes behind. Financial actions always re-check
 fresh data. This cache does not provide transaction isolation across queries.
@@ -77,6 +86,10 @@ the Redis totals' ten-minute lifetime.
   admin rendering can also require an initial revision lookup.
 - No automatic retries. The affected instance bypasses Redis for 60 seconds
   after failure, or five minutes after a quota rejection, then tries again.
+- Invalidation is the one exception: a mutation always spends its one revision
+  write, even inside that cooldown. Skipping a read costs a database query;
+  skipping an invalidation loses it, and the pre-edit rows would then be served
+  for the rest of their five minutes once the connection recovered.
 - Data payloads up to 1 MiB are cached. Larger/unsupported values are returned
   normally without storage; the cache health page shows skipped-write counts.
 - A data hit uses one GET. A miss adds one SET. Revision checks/rotation require
