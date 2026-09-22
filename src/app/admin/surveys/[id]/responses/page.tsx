@@ -7,6 +7,7 @@ import { FilterChips, type ChipOption } from "@/components/filter-chips";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
 import { ResponseTable } from "@/components/response-table";
+import { QuestionFilters, type QuestionFilter } from "@/components/question-filters";
 import { SurveyAmbassadors } from "@/components/survey-ambassadors";
 import { SurveyQuestionsEditor } from "@/components/survey-questions-editor";
 import { SearchBox } from "@/components/search-box";
@@ -18,6 +19,13 @@ import { requireAdmin, getSurveyResponses } from "@/lib/admin/queries";
 import { getSurveyAmbassadors } from "@/lib/admin/participation";
 import { deleteSurvey, setResponseStatus } from "@/lib/admin/edit-actions";
 import { matches } from "@/lib/search";
+import {
+  MAX_LISTED_ANSWERS,
+  answerOptions,
+  filterParam,
+  matchesFilters,
+  type ActiveFilter,
+} from "@/lib/survey-filters";
 import { aiEnabled } from "@/lib/ai";
 import { formatDate } from "@/lib/utils";
 
@@ -28,19 +36,25 @@ export default async function SurveyResponsesPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    q?: string;
-    status?: string;
-    view?: string;
-    page?: string;
-  }>;
+  // An index signature rather than the four keys it used to name: the
+  // per-question filters are `f1`, `f2`, … one per question, and how many
+  // there are is a property of the survey rather than of this file.
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   await requireAdmin();
 
-  const [{ id }, { q, status, view, page }] = await Promise.all([
-    params,
-    searchParams,
-  ]);
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+
+  // A repeated param arrives as an array; the page asks for one value each.
+  const one = (key: string): string | undefined => {
+    const value = sp[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
+
+  const q = one("q");
+  const status = one("status");
+  const view = one("view");
+  const page = one("page");
 
   // Summary first. It answers "what did people say", which is why the
   // survey was run; the individual list answers "what did this person say",
@@ -56,7 +70,14 @@ export default async function SurveyResponsesPage({
 
   const query = q ?? "";
 
-  const responses = data.responses
+  /**
+   * Status and search first, per-question filters second.
+   *
+   * Kept as two steps because each question's dropdown has to count its own
+   * options against everything else that is on — including the search and the
+   * status tile, excluding only itself. `matching` is that shared base.
+   */
+  const matching = data.responses
     .filter((r) => (status ? r.status === status : true))
     .filter((r) =>
       matches(
@@ -69,6 +90,45 @@ export default async function SurveyResponsesPage({
         ...r.answers.map((a) => a.answer),
       ),
     );
+
+  const active: ActiveFilter[] = data.questions.flatMap((question, index) => {
+    const param = filterParam(index);
+    const value = one(param);
+    return value ? [{ questionId: question.id, param, value }] : [];
+  });
+
+  const responses = matching.filter((r) => matchesFilters(r, active));
+
+  const questionFilters: QuestionFilter[] = !isList ? [] : data.questions.map(
+    (question, index) => {
+      const param = filterParam(index);
+
+      // What choosing an option would leave: every other filter applied, this
+      // question's own left out. Otherwise every option but the chosen one
+      // reads zero, which tells you nothing about where to go next.
+      const pool = matching.filter((r) => matchesFilters(r, active, param));
+      const options = answerOptions(pool, question.id);
+      const answered = pool.filter(
+        (r) =>
+          (r.answers.find((a) => a.questionId === question.id)?.values.length ??
+            0) > 0,
+      ).length;
+
+      return {
+        param,
+        label: `Q${index + 1}`,
+        prompt: question.prompt,
+        value: active.find((f) => f.param === param)?.value ?? null,
+        // Free text runs to roughly one distinct answer per response, and a
+        // dropdown of two hundred sentences is not a filter. Those keep
+        // Answered / Skipped; the search box finds a phrase inside them.
+        listed: options.length <= MAX_LISTED_ANSWERS,
+        options,
+        answered,
+        skipped: pool.length - answered,
+      };
+    },
+  );
 
   /**
    * Pages, not an endless list.
@@ -84,12 +144,40 @@ export default async function SurveyResponsesPage({
   const start = (current - 1) * PER_PAGE;
   const visible = responses.slice(start, start + PER_PAGE);
 
+  /**
+   * The same view, narrowed to one status.
+   *
+   * Every other choice is carried: changing the status used to drop you back
+   * on the summary with the search cleared, so "show me the duplicates"
+   * undid the work of getting to the list you wanted them narrowed from. Only
+   * the page number is dropped, since a different status has different pages.
+   */
+  const href = (next: { view?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (next.view) query.set("view", next.view);
+    if (q) query.set("q", q);
+    for (const filter of active) query.set(filter.param, filter.value);
+    if (next.status) query.set("status", next.status);
+    const search = query.toString();
+    return search
+      ? `/admin/surveys/${id}/responses?${search}`
+      : `/admin/surveys/${id}/responses`;
+  };
+
+  /** A status tile, keeping the view and the narrowing you already had. */
+  const statusHref = (next?: string) => href({ view, status: next });
+
+  /** A view chip, keeping the status and the narrowing you already had. */
+  const viewHref = (next?: string) => href({ view: next, status });
+
   const pageHref = (n: number) => {
-    const sp = new URLSearchParams({ view: "responses" });
-    if (q) sp.set("q", q);
-    if (status) sp.set("status", status);
-    if (n > 1) sp.set("page", String(n));
-    return `/admin/surveys/${id}/responses?${sp.toString()}`;
+    const next = new URLSearchParams({ view: "responses" });
+    if (q) next.set("q", q);
+    if (status) next.set("status", status);
+    // Without these, page 2 of a filtered list is page 2 of the whole list.
+    for (const filter of active) next.set(filter.param, filter.value);
+    if (n > 1) next.set("page", String(n));
+    return `/admin/surveys/${id}/responses?${next.toString()}`;
   };
 
   return (
@@ -114,10 +202,10 @@ export default async function SurveyResponsesPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatLink id={id} status={undefined} label="All" value={data.responses.length} tone="brand" active={!status} />
-        <StatLink id={id} status="valid" label="Counted" value={data.counts.valid} tone="poll" active={status === "valid"} />
-        <StatLink id={id} status="duplicate" label="Duplicates" value={data.counts.duplicate} tone="invite" active={status === "duplicate"} />
-        <StatLink id={id} status="flagged" label="Flagged" value={data.counts.flagged} tone="reel" active={status === "flagged"} />
+        <StatLink href={statusHref(undefined)} label="All" value={data.responses.length} tone="brand" active={!status} />
+        <StatLink href={statusHref("valid")} label="Counted" value={data.counts.valid} tone="poll" active={status === "valid"} />
+        <StatLink href={statusHref("duplicate")} label="Duplicates" value={data.counts.duplicate} tone="invite" active={status === "duplicate"} />
+        <StatLink href={statusHref("flagged")} label="Flagged" value={data.counts.flagged} tone="reel" active={status === "flagged"} />
       </div>
 
       <FilterChips
@@ -128,17 +216,17 @@ export default async function SurveyResponsesPage({
             {
               key: "summary",
               label: "Summary",
-              href: `/admin/surveys/${id}/responses`,
+              href: viewHref(),
             },
             {
               key: "ambassadors",
               label: `By ambassador (${people.length})`,
-              href: `/admin/surveys/${id}/responses?view=ambassadors`,
+              href: viewHref("ambassadors"),
             },
             {
               key: "responses",
               label: `Individual (${data.responses.length})`,
-              href: `/admin/surveys/${id}/responses?view=responses`,
+              href: viewHref("responses"),
             },
           ] satisfies ChipOption[]
         }
@@ -149,10 +237,14 @@ export default async function SurveyResponsesPage({
       {!isList && !isPeople && <ResponseSummary data={data} />}
 
       {isList && (
-      <SearchBox
-        placeholder="Search names, emails, or anything they answered…"
-        className="max-w-lg"
-      />
+        <div className="space-y-3">
+          <SearchBox
+            placeholder="Search names, emails, or anything they answered…"
+            className="max-w-lg"
+          />
+
+          <QuestionFilters filters={questionFilters} />
+        </div>
       )}
 
       {isList && (responses.length === 0 ? (
@@ -160,11 +252,13 @@ export default async function SurveyResponsesPage({
           <EmptyState
             icon={Inbox}
             title={
-              query || status ? "Nothing matches that" : "No responses yet"
+              query || status || active.length > 0
+                ? "Nothing matches that"
+                : "No responses yet"
             }
             description={
-              query || status
-                ? "Try a different search, or clear the filter."
+              query || status || active.length > 0
+                ? "Try a different search, or clear the filters."
                 : "When someone completes an ambassador's link, their answers appear here."
             }
           />
@@ -371,24 +465,18 @@ function PageLink({
 
 /** A stat tile that is also the status filter. */
 function StatLink({
-  id,
-  status,
+  href,
   label,
   value,
   tone,
   active,
 }: {
-  id: string;
-  status?: string;
+  href: string;
   label: string;
   value: number;
   tone: "brand" | "poll" | "invite" | "reel";
   active: boolean;
 }) {
-  const href = status
-    ? `/admin/surveys/${id}/responses?status=${status}`
-    : `/admin/surveys/${id}/responses`;
-
   return (
     <Link
       href={href}

@@ -651,11 +651,28 @@ export type SurveyAmbassador = {
   batch: string | null;
   slug: string | null;
   clicks: number;
+  /** Counted responses only. */
   responses: number;
+  /**
+   * Marked as the same person answering twice.
+   *
+   * Kept apart from `flagged`. These two were one number, which made the
+   * question "who is bringing in duplicates" unanswerable from this page —
+   * and they mean different things about the ambassador: a duplicate is
+   * usually one form filled twice, while a flag is an admin saying the
+   * answers look invented. Chasing the second is a different conversation
+   * from chasing the first.
+   */
+  duplicates: number;
   flagged: number;
   pointsEarned: number;
   /** Responses per click. Null until there are clicks to divide by. */
   conversion: number | null;
+  /**
+   * Duplicates as a share of everything they brought in, counted or not.
+   * Null until they have brought in anything to take a share of.
+   */
+  duplicateRate: number | null;
 };
 
 /**
@@ -723,9 +740,11 @@ export const getSurveyAmbassadors = cache(
         slug: link.slug,
         clicks: link.click_count,
         responses: 0,
+        duplicates: 0,
         flagged: 0,
         pointsEarned: 0,
         conversion: null,
+        duplicateRate: null,
       });
     }
 
@@ -733,17 +752,23 @@ export const getSurveyAmbassadors = cache(
       const row = rows.get(response.ambassador_id);
       if (!row) continue;
       if (response.status === "valid") row.responses += 1;
+      else if (response.status === "duplicate") row.duplicates += 1;
       else row.flagged += 1;
     }
 
     return [...rows.values()]
-      .map((row) => ({
-        ...row,
-        // Points are the flat rate times valid responses. Flagged ones were
-        // already reversed in the ledger, so they must not be counted here.
-        pointsEarned: row.responses * perResponse,
-        conversion: row.clicks > 0 ? row.responses / row.clicks : null,
-      }))
+      .map((row) => {
+        const brought = row.responses + row.duplicates + row.flagged;
+        return {
+          ...row,
+          // Points are the flat rate times valid responses. Duplicates and
+          // flags were already reversed in the ledger, so they must not be
+          // counted here.
+          pointsEarned: row.responses * perResponse,
+          conversion: row.clicks > 0 ? row.responses / row.clicks : null,
+          duplicateRate: brought > 0 ? row.duplicates / brought : null,
+        };
+      })
       .sort((a, b) => b.responses - a.responses || b.clicks - a.clicks);
   },
 );
