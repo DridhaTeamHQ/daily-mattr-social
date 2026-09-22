@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/close-campaigns",
       "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/publish-campaigns",
+      "schedule": "0 * * * *"
     }
   ]
 }

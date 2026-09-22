@@ -1486,7 +1486,14 @@ export async function setCampaignStatus(
 
     const { error } = await supabase
       .from("campaigns")
-      .update({ status })
+      .update({
+        status,
+        // Pressing the button cancels the schedule, because the schedule has
+        // been overtaken — the campaign is live now, not on Friday. Leaving it
+        // set would put "Publishes Friday" on a live campaign, and would arm
+        // the sweep again for anything that ever returned to draft.
+        publish_at: null,
+      })
       .eq("id", campaignId);
     if (error) throw error;
 
@@ -1514,6 +1521,146 @@ export async function setCampaignStatus(
     revalidatePath("/admin/campaigns");
     revalidatePath("/dashboard/campaigns");
     return { ok: true, message: `Campaign is now ${status}` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Hands a draft a time instead of a button press.
+ *
+ * Publishing is the one campaign action whose right moment is almost never
+ * the moment the admin is free. A reel drops at 9am and the cohort is on
+ * their phones at 9am; the person who built the campaign finished at eleven
+ * the night before. This closes that gap without asking anybody to be awake
+ * for it — the sweep in `lib/campaigns/auto-publish` presses the same button,
+ * notifications and all, when the clock passes the time set here.
+ *
+ * Drafts only. A live campaign has already been announced, and scheduling one
+ * could only mean announcing it a second time.
+ */
+export async function scheduleCampaignPublish(
+  campaignId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const supabase = await createClient();
+
+    // The same two-field date and time the deadline uses, read the same way,
+    // so "the 7th" means the same thing in both dialogs. A date with no time
+    // means 9am — the start of a working morning, where a bare deadline date
+    // means the end of the day.
+    const date = String(formData.get("publish_date") ?? "").trim();
+    const time = String(formData.get("publish_time") ?? "").trim();
+    if (!date) {
+      return { ok: false, message: "Pick the day it should go live." };
+    }
+
+    // The admin's clock, not the server's. Without it "9:00 AM" is read in
+    // whatever zone the server runs in — UTC on Vercel — and a morning launch
+    // set from India lands in the afternoon.
+    const tzOffset = Number(formData.get("tz_offset"));
+    const local = `${date}T${time || "09:00"}`;
+    const publishAt = Number.isFinite(tzOffset)
+      ? new Date(new Date(`${local}:00.000Z`).getTime() + tzOffset * 60_000)
+      : new Date(local);
+
+    if (Number.isNaN(publishAt.getTime())) {
+      return { ok: false, message: "That is not a date I can read." };
+    }
+
+    const { data: campaign, error: readError } = await supabase
+      .from("campaigns")
+      .select("title, status, ends_at")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!campaign) return { ok: false, message: "That campaign is gone." };
+
+    if (campaign.status !== "draft") {
+      return {
+        ok: false,
+        message: `Only a draft can be scheduled — this one is ${campaign.status}.`,
+      };
+    }
+
+    // A minute of slack, not zero: the clock moved while the dialog was open,
+    // and refusing "9:00" at 9:00:03 would be pedantry. Anything genuinely in
+    // the past is a mistake worth catching, because the sweep would publish it
+    // within the minute and the admin would never see the schedule at all.
+    if (publishAt.getTime() < Date.now() - 60_000) {
+      return {
+        ok: false,
+        message: "That time has passed. Pick a later one, or press Publish.",
+      };
+    }
+
+    // Checked here as well as by `campaigns_publish_before_end`, so the admin
+    // gets a sentence rather than a constraint name.
+    if (campaign.ends_at && publishAt >= new Date(campaign.ends_at)) {
+      return {
+        ok: false,
+        message: "It would publish after its own deadline. Move one of them.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("campaigns")
+      .update({ publish_at: publishAt.toISOString() })
+      .eq("id", campaignId)
+      // Re-checked in the write, not just above: two admins in the same
+      // minute, one pressing Publish and one scheduling, must not leave a
+      // live campaign carrying a pending launch.
+      .eq("status", "draft");
+    if (error) throw error;
+
+    await audit(actorId, "campaign.schedule", "campaign", campaignId, {
+      publish_at: publishAt.toISOString(),
+      title: campaign.title,
+    });
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/campaigns");
+    revalidatePath(`/admin/campaigns/${campaignId}`);
+
+    return {
+      ok: true,
+      message: `"${campaign.title}" goes live ${publishAt.toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      })}.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Puts a scheduled draft back to being an ordinary draft. */
+export async function cancelCampaignSchedule(
+  campaignId: string,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from("campaigns")
+      .update({ publish_at: null })
+      .eq("id", campaignId)
+      .eq("status", "draft");
+    if (error) throw error;
+
+    await audit(actorId, "campaign.unschedule", "campaign", campaignId, {});
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/campaigns");
+    revalidatePath(`/admin/campaigns/${campaignId}`);
+
+    return { ok: true, message: "Schedule cancelled — it stays a draft." };
   } catch (err) {
     return fail(err);
   }

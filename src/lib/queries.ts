@@ -8,6 +8,7 @@ import { getActiveVersion } from "@/lib/programme-version";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { closeExpiredCampaignsAfterResponse } from "@/lib/campaigns/auto-end";
+import { publishScheduledCampaigns } from "@/lib/campaigns/auto-publish";
 import { createClient } from "@/lib/supabase/server";
 import {
   previewReferralStats,
@@ -803,6 +804,16 @@ export const getCampaigns = cache(async (): Promise<CampaignCard[]> => {
   // status column the page barely uses. See the function for why deferring it
   // costs no freshness.
   closeExpiredCampaignsAfterResponse();
+
+  // Awaited, where the deadline sweep above is not, and the asymmetry is the
+  // point. Ending a campaign changes a badge on a card this page already
+  // draws; publishing one decides whether the card is in the read at all. A
+  // student refreshing at 9:00 for a launch they were told about must not be
+  // shown an empty list because the write that would have filled it was
+  // queued behind the response. See `publishScheduledCampaigns` — it is
+  // throttled to once a minute per instance, so this is not a write per
+  // render, and it hands the notifications off rather than waiting on them.
+  await publishScheduledCampaigns();
 
   // All three read the same run for the same person and none of them needs an
   // answer from the others. They ran one after another, which on a function

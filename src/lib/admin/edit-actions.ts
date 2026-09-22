@@ -48,6 +48,29 @@ export async function updateCampaign(
 
     const db = createAdminClient();
 
+    const endsAtInstant = toInstant(endsAt, tzOffset);
+
+    // A deadline pulled back in front of a pending launch would make the
+    // campaign publish itself and be ended in the same minute.
+    // `campaigns_publish_before_end` refuses it either way; catching it here
+    // is what turns a constraint name into a sentence, and it names the other
+    // date so the admin knows which one to move.
+    if (endsAtInstant) {
+      const { data: pending } = await db
+        .from("campaigns")
+        .select("publish_at")
+        .eq("id", campaignId)
+        .maybeSingle();
+
+      if (pending?.publish_at && new Date(pending.publish_at) >= new Date(endsAtInstant)) {
+        return {
+          ok: false,
+          message:
+            "That deadline is before the scheduled launch. Move the deadline later, or reschedule the publish.",
+        };
+      }
+    }
+
     // Points and tasks are deliberately absent. They are the deal a student
     // accepted when they started, and a live campaign must not be able to pay
     // less than it did an hour ago.
@@ -58,7 +81,7 @@ export async function updateCampaign(
         description: description || null,
         caption_hint: captionHint || null,
         platform: platform || "Instagram",
-        ends_at: toInstant(endsAt, tzOffset),
+        ends_at: endsAtInstant,
       })
       .eq("id", campaignId);
     if (error) throw error;

@@ -7,6 +7,10 @@ import { ActionButton } from "@/components/action-button";
 import { CreateCampaignDialog } from "@/components/campaign-actions";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { CampaignPreviewDialog } from "@/components/campaign-preview";
+import {
+  CampaignScheduleDialog,
+  ScheduledNote,
+} from "@/components/campaign-schedule";
 import { SearchBox } from "@/components/search-box";
 import { InfiniteList } from "@/components/infinite-scroll";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
@@ -179,6 +183,13 @@ export default async function AdminCampaignsPage({
                         {timeRemaining(c.ends_at)}
                       </Badge>
                     )}
+                    {/* A scheduled draft is not the same object as a draft,
+                        and the status chip cannot say so — 'draft' is true of
+                        both. This is what separates "somebody forgot to
+                        publish this" from "this is handled". */}
+                    {c.status === "draft" && c.publish_at && (
+                      <Badge tone="warn">scheduled</Badge>
+                    )}
                   </div>
 
                   {c.description && (
@@ -187,11 +198,14 @@ export default async function AdminCampaignsPage({
                     </p>
                   )}
 
-                  {c.status === "draft" && (
-                    <p className="mt-2.5 text-[12.5px] font-medium text-warn">
-                      Not visible to ambassadors yet — press Publish.
-                    </p>
-                  )}
+                  {c.status === "draft" &&
+                    (c.publish_at ? (
+                      <ScheduledNote publishAt={c.publish_at} />
+                    ) : (
+                      <p className="mt-2.5 text-[12.5px] font-medium text-warn">
+                        Not visible to ambassadors yet — press Publish.
+                      </p>
+                    ))}
 
                   {/* Library tasks carry whole sentences as labels, and Badge
                       is whitespace-nowrap by design — so these are clipped to
@@ -276,14 +290,34 @@ export default async function AdminCampaignsPage({
                     }))}
                   />
 
+                  {/* Publish and Schedule are the same decision asked at two
+                      different times — now, or at an hour the cohort is
+                      actually holding their phones — so they sit together.
+                      Publish stays first and stays primary: most campaigns
+                      still go out the moment they are ready. */}
                   {c.status === "draft" && (
-                    <ActionButton
-                      size="sm"
-                      action={setCampaignStatus.bind(null, c.id, "live")}
-                      confirmMessage={`Publish "${c.title}"? Every active ambassador will see it immediately.`}
-                    >
-                      Publish
-                    </ActionButton>
+                    <>
+                      <ActionButton
+                        size="sm"
+                        action={setCampaignStatus.bind(null, c.id, "live")}
+                        confirmMessage={
+                          c.publish_at
+                            ? `Publish "${c.title}" now? This cancels the schedule and every active ambassador sees it immediately.`
+                            : `Publish "${c.title}"? Every active ambassador will see it immediately.`
+                        }
+                      >
+                        Publish now
+                      </ActionButton>
+
+                      <CampaignScheduleDialog
+                        campaign={{
+                          id: c.id,
+                          title: c.title,
+                          publish_at: c.publish_at,
+                          ends_at: c.ends_at,
+                        }}
+                      />
+                    </>
                   )}
 
                   {c.status === "live" && (

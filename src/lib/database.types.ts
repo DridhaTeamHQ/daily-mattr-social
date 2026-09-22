@@ -499,6 +499,8 @@ export type Database = {
           ended_at: string | null;
           /** First time this campaign left draft. Stamped by trigger. */
           published_at: string | null;
+          /** When a draft is due to go live by itself. See migration 0051. */
+          publish_at: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -519,6 +521,7 @@ export type Database = {
           ends_at?: string | null;
           ended_at?: string | null;
           published_at?: string | null;
+          publish_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -539,6 +542,7 @@ export type Database = {
           ends_at?: string | null;
           ended_at?: string | null;
           published_at?: string | null;
+          publish_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;

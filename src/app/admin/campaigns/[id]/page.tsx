@@ -12,6 +12,7 @@ import {
 
 import { ActionButton } from "@/components/action-button";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
+import { CampaignScheduleDialog } from "@/components/campaign-schedule";
 import { CampaignTaskManager } from "@/components/campaign-task-manager";
 import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,9 @@ export default async function CampaignDetailPage({
               {campaign.status === "live" && (
                 <Badge tone="neutral">{timeRemaining(campaign.ends_at)}</Badge>
               )}
+              {campaign.status === "draft" && campaign.publish_at && (
+                <Badge tone="warn">scheduled</Badge>
+              )}
             </div>
 
             {campaign.description && (
@@ -118,18 +122,45 @@ export default async function CampaignDetailPage({
               Handle <span className="font-extrabold text-white">@{campaign.expected_handle}</span>
               {campaign.caption_hint ? ` · caption “${campaign.caption_hint}”` : ""}{" "}
               · created {formatDate(campaign.created_at)}
+              {/* Said in the header's own colours rather than with the list's
+                  `ScheduledNote`, which is drawn for a white card. The "draft"
+                  chip above is true of a scheduled campaign and of one nobody
+                  has touched; this is the line that tells them apart. */}
+              {campaign.status === "draft" && campaign.publish_at && (
+                <>
+                  {" · goes live "}
+                  <span className="font-extrabold text-white">
+                    {formatDate(campaign.publish_at, true)}
+                  </span>
+                </>
+              )}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             {campaign.status === "draft" && (
-              <ActionButton
-                size="sm"
-                action={setCampaignStatus.bind(null, campaign.id, "live")}
-                confirmMessage={`Publish "${campaign.title}"? Every active ambassador sees it immediately.`}
-              >
-                Publish
-              </ActionButton>
+              <>
+                <ActionButton
+                  size="sm"
+                  action={setCampaignStatus.bind(null, campaign.id, "live")}
+                  confirmMessage={
+                    campaign.publish_at
+                      ? `Publish "${campaign.title}" now? This cancels the schedule and every active ambassador sees it immediately.`
+                      : `Publish "${campaign.title}"? Every active ambassador sees it immediately.`
+                  }
+                >
+                  Publish now
+                </ActionButton>
+
+                <CampaignScheduleDialog
+                  campaign={{
+                    id: campaign.id,
+                    title: campaign.title,
+                    publish_at: campaign.publish_at,
+                    ends_at: campaign.ends_at,
+                  }}
+                />
+              </>
             )}
             {campaign.status === "live" && (
               <ActionButton

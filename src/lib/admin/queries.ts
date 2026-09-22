@@ -7,6 +7,7 @@ import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { earningRoute } from "@/lib/admin/participation";
 import { readAll } from "@/lib/admin/read-all";
 import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
+import { publishScheduledCampaigns } from "@/lib/campaigns/auto-publish";
 import { getViewingVersion } from "@/lib/programme-version";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
@@ -423,7 +424,11 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   // from the deadline rather than the status column; this page renders the
   // status column, so here the sweep is part of the read and not a chore that
   // happens to be on the path.
-  await closeExpiredCampaigns();
+  // Both ends of the clock, before the read. The same argument as above runs
+  // the other way for scheduled launches: a draft due at 9am has to come back
+  // from this query as live, because this is the page an admin opens at 9:01
+  // to check that it did.
+  await Promise.all([closeExpiredCampaigns(), publishScheduledCampaigns()]);
 
   const [{ data: campaigns }, { data: subs }, cohort] = await Promise.all([
     supabase
