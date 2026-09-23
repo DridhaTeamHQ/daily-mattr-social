@@ -388,7 +388,6 @@ export default async function SurveyResponsesPage({
               submitted: formatDate(response.submittedAt, true),
               email: response.email,
               phone: response.phone,
-              device: describeDevice(response.userAgent),
               reason: response.flagReason,
               matches: matchesFor(response),
               menu: {

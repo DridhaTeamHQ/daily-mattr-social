@@ -6,7 +6,6 @@ import {
   Mail,
   Phone,
   Pointer,
-  Smartphone,
 } from "lucide-react";
 
 import { ExpandableRow } from "@/components/expandable-row";
@@ -33,7 +32,6 @@ export type AmbassadorResponse = {
   submitted: string;
   email: string | null;
   phone: string | null;
-  device: string | null;
   /** Why it is not counted — written by the duplicate check or an admin. */
   reason: string | null;
   /** Other responses to this survey sharing a network, email or phone. */
@@ -423,7 +421,6 @@ function ResponseList({
               <Fact icon={Clock} value={response.submitted} />
               <Fact icon={Mail} value={response.email} />
               <Fact icon={Phone} value={response.phone} />
-              <Fact icon={Smartphone} value={response.device} />
             </div>
 
             {(response.reason || response.matches.length > 0) && (
