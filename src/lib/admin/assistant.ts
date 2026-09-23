@@ -252,12 +252,16 @@ async function runTool(name: string, args: Record<string, unknown>) {
         title: data.survey.title,
         counts: data.counts,
         // Capped: an assistant summarising 500 responses does not need all of
-        // them in one context window to describe the pattern.
-        responses: data.responses.slice(0, 60).map((r) => ({
-          status: r.status,
-          via: r.ambassador,
-          answers: r.answers.map((a) => ({ q: a.prompt, a: a.answer })),
-        })),
+        // them in one context window to describe the pattern. Valid only:
+        // duplicates keep their answers for the admin to judge, and "what
+        // people said" must not count them.
+        responses: data.responses
+          .filter((r) => r.status === "valid")
+          .slice(0, 60)
+          .map((r) => ({
+            via: r.ambassador,
+            answers: r.answers.map((a) => ({ q: a.prompt, a: a.answer })),
+          })),
       };
     }
 

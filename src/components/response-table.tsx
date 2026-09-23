@@ -1,10 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, Mail, Phone } from "lucide-react";
+import {
+  ChevronRight,
+  Clock,
+  Mail,
+  Phone,
+  ShieldAlert,
+  Smartphone,
+  UserRound,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Note } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +31,11 @@ import { cn } from "@/lib/utils";
  * and the whole page fits on a screen. Cells clamp to two lines — the row is
  * for scanning, not for reading an essay — and a row opens to the full text
  * and the moderation controls when there is something to act on.
+ *
+ * Everything known about the person comes before the answers — status, who
+ * brought them in, when, their contact details, their device and who else
+ * they share a network, email or phone with. Deciding whether a row is a
+ * duplicate used to mean opening it; now the evidence sits in the row.
  */
 
 export type ResponseRow = {
@@ -38,6 +50,10 @@ export type ResponseRow = {
   phone: string | null;
   status: "valid" | "duplicate" | "flagged" | "rejected";
   flagReason: string | null;
+  /** "Android · Instagram", or null when the browser sent nothing. */
+  device: string | null;
+  /** Other responses to this survey sharing a network, email or phone. */
+  matches: { kind: string; names: string[] }[];
   answers: { questionId: string; prompt: string; answer: string }[];
   /** Duplicate / Flag / Restore, bound on the server. */
   actions: React.ReactNode;
@@ -50,6 +66,103 @@ const STATUS_TONE = {
   rejected: "bad",
 } as const;
 
+/** The person, before the answers. Headings and cells are built from one list. */
+const DETAILS: {
+  key: string;
+  label: string;
+  width: string;
+  cell: (row: ResponseRow) => React.ReactNode;
+}[] = [
+  {
+    key: "status",
+    label: "Status",
+    width: "min-w-[110px]",
+    cell: (row) => (
+      <Badge tone={STATUS_TONE[row.status]} dot>
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "ambassador",
+    label: "Ambassador",
+    width: "min-w-[150px]",
+    cell: (row) => <Text value={row.ambassador} />,
+  },
+  {
+    key: "submitted",
+    label: "Submitted",
+    width: "min-w-[150px]",
+    cell: (row) => <Text value={row.submitted} />,
+  },
+  {
+    key: "email",
+    label: "Email",
+    width: "min-w-[190px]",
+    cell: (row) => <Text value={row.email} />,
+  },
+  {
+    key: "phone",
+    label: "Phone",
+    width: "min-w-[130px]",
+    cell: (row) => <Text value={row.phone} />,
+  },
+  {
+    key: "device",
+    label: "Device",
+    width: "min-w-[150px]",
+    cell: (row) => <Text value={row.device} />,
+  },
+  {
+    key: "check",
+    label: "Duplicate check",
+    width: "min-w-[240px]",
+    cell: (row) =>
+      row.flagReason || row.matches.length > 0 ? (
+        <div className="space-y-1">
+          {row.flagReason && (
+            <span
+              title={row.flagReason}
+              className="line-clamp-2 block text-[12.5px] leading-snug font-bold text-ink"
+            >
+              {row.flagReason}
+            </span>
+          )}
+          {row.matches.map((match) => (
+            <span
+              key={match.kind}
+              title={`${match.kind} as ${match.names.join(", ")}`}
+              className="line-clamp-2 block text-[12px] leading-snug font-semibold text-ink-soft"
+            >
+              {match.kind} as {summarise(match.names)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-[13px] font-semibold text-ink-faint">—</span>
+      ),
+  },
+];
+
+/** "Aryan, B lasya +3" — the full list is on hover and in the open row. */
+function summarise(names: string[]): string {
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${names.length - 2}` : shown;
+}
+
+function Text({ value }: { value: string | null }) {
+  return value ? (
+    <span
+      title={value}
+      className="line-clamp-2 block text-[13px] leading-snug font-bold [overflow-wrap:anywhere] text-ink"
+    >
+      {value}
+    </span>
+  ) : (
+    <span className="text-[13px] font-semibold text-ink-faint">—</span>
+  );
+}
+
 export function ResponseTable({
   rows,
   questions,
@@ -59,22 +172,47 @@ export function ResponseTable({
 }) {
   const [open, setOpen] = React.useState<string | null>(null);
 
+  // The scroller's visible width, which an opened row's panel is held to.
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = React.useState(0);
+  React.useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() =>
+      setViewport(element.clientWidth),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-surface">
       {/* The table scrolls sideways inside its own box. A survey with ten
           questions is genuinely wider than a laptop, and the alternative —
           shrinking every column until nothing is legible — is worse than
           scrolling. */}
-      <div className="overflow-x-auto">
+      <div ref={scroller} className="overflow-x-auto">
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th
                 scope="col"
-                className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-3.5 py-2.5 text-[11.5px] font-bold tracking-wide text-ink-faint uppercase"
+                className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-3.5 py-2.5 align-bottom text-[11.5px] font-bold tracking-wide text-ink-faint uppercase"
               >
                 Respondent
               </th>
+              {DETAILS.map((detail) => (
+                <th
+                  key={detail.key}
+                  scope="col"
+                  className={cn(
+                    detail.width,
+                    "px-3.5 py-2.5 align-bottom text-[11.5px] font-bold tracking-wide text-ink-faint uppercase",
+                  )}
+                >
+                  {detail.label}
+                </th>
+              ))}
               {questions.map((question, i) => (
                 <th
                   key={question.id}
@@ -90,12 +228,6 @@ export function ResponseTable({
                   </span>
                 </th>
               ))}
-              <th
-                scope="col"
-                className="px-3.5 py-2.5 text-[11.5px] font-bold tracking-wide text-ink-faint uppercase"
-              >
-                Status
-              </th>
             </tr>
           </thead>
 
@@ -134,12 +266,15 @@ export function ResponseTable({
                           <p className="truncate text-[13.5px] font-extrabold text-ink">
                             {row.index}. {row.name || "Anonymous"}
                           </p>
-                          <p className="truncate text-[11.5px] font-semibold text-ink-soft">
-                            via {row.ambassador} · {row.submitted}
-                          </p>
                         </div>
                       </div>
                     </th>
+
+                    {DETAILS.map((detail) => (
+                      <td key={detail.key} className="px-3.5 py-3">
+                        {detail.cell(row)}
+                      </td>
+                    ))}
 
                     {questions.map((question) => {
                       const answer = byQuestion.get(question.id);
@@ -161,79 +296,24 @@ export function ResponseTable({
                         </td>
                       );
                     })}
-
-                    <td className="px-3.5 py-3">
-                      <Badge tone={STATUS_TONE[row.status]} dot>
-                        {row.status}
-                      </Badge>
-                    </td>
                   </tr>
 
                   {expanded && (
-                    <tr className="bg-brand-tint/40">
+                    <tr>
                       <td
-                        colSpan={questions.length + 2}
-                        className="px-3.5 pt-1 pb-4"
+                        colSpan={questions.length + DETAILS.length + 1}
+                        className="bg-gray-50 p-0"
                       >
-                        {/* Held to a readable measure rather than stretched to
-                            the width of a ten-question table. */}
-                        <div className="max-w-2xl space-y-3">
-                          {(row.email || row.phone) && (
-                            <div className="flex flex-wrap gap-2">
-                              {row.email && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-[12px] font-bold text-ink">
-                                  <Mail className="size-3.5" />
-                                  {row.email}
-                                </span>
-                              )}
-                              {row.phone && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-[12px] font-bold text-ink">
-                                  <Phone className="size-3.5" />
-                                  {row.phone}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {row.flagReason && (
-                            <Note tone="warn">{row.flagReason}</Note>
-                          )}
-
-                          <dl className="space-y-2">
-                            {row.answers.map((answer) => (
-                              <div
-                                key={answer.questionId}
-                                className="rounded-lg bg-surface px-3.5 py-2.5"
-                              >
-                                <dt className="text-[11.5px] font-extrabold tracking-wide text-ink/70 uppercase">
-                                  {answer.prompt}
-                                </dt>
-                                <dd
-                                  className={
-                                    answer.answer === "—"
-                                      ? "mt-1 text-[13.5px] font-semibold text-ink-faint"
-                                      : "mt-1 text-[14px] leading-relaxed font-bold text-ink"
-                                  }
-                                >
-                                  {answer.answer === "—"
-                                    ? "Skipped"
-                                    : answer.answer}
-                                </dd>
-                              </div>
-                            ))}
-                          </dl>
-
-                          {/* Moderation lives behind the expander on purpose.
-                              Flagging reverses a point, and a destructive
-                              control on every row of a dense table is one
-                              mis-click away from doing it to the wrong
-                              person. */}
-                          <div
-                            className="flex flex-wrap items-center gap-2"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {row.actions}
-                          </div>
+                        {/* Pinned to the visible part of the scroller. The
+                            cell spans every column, so a plain panel inside
+                            it starts at the table's left edge — scrolled
+                            sideways to read Q6, the panel opened off-screen
+                            and read as a stack of empty boxes. */}
+                        <div
+                          className="sticky left-0"
+                          style={{ width: viewport || undefined }}
+                        >
+                          <ResponseDetail row={row} />
                         </div>
                       </td>
                     </tr>
@@ -243,6 +323,140 @@ export function ResponseTable({
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One response, opened.
+ *
+ * The person on the left, their answers on the right. The answers are a grid
+ * of cards rather than one long column: a five-question survey used to open
+ * into a strip of wide, mostly-empty boxes, each holding a single digit.
+ */
+function ResponseDetail({ row }: { row: ResponseRow }) {
+  const answered = row.answers.filter((a) => a.answer !== "—").length;
+
+  const about = [
+    { icon: UserRound, label: "Ambassador", value: row.ambassador },
+    { icon: Clock, label: "Submitted", value: row.submitted },
+    { icon: Mail, label: "Email", value: row.email },
+    { icon: Phone, label: "Phone", value: row.phone },
+    { icon: Smartphone, label: "Device", value: row.device },
+  ];
+
+  return (
+    <div className="space-y-4 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="display truncate text-[18px] text-ink">
+              {row.name || "Anonymous"}
+            </h3>
+            <Badge tone={STATUS_TONE[row.status]} dot>
+              {row.status}
+            </Badge>
+          </div>
+          <p className="mt-0.5 text-[12.5px] font-semibold text-ink-soft">
+            Response #{row.index} · answered {answered} of {row.answers.length}
+          </p>
+        </div>
+
+        {/* Moderation lives behind the expander on purpose. Flagging reverses
+            a point, and a destructive control on every row of a dense table
+            is one mis-click away from doing it to the wrong person. */}
+        <div
+          className="flex flex-wrap items-center gap-2"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {row.actions}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="space-y-3">
+          <dl className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-surface">
+            {about.map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3 px-3.5 py-2.5">
+                <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-faint" />
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-bold tracking-wide text-ink-faint uppercase">
+                    {label}
+                  </dt>
+                  <dd
+                    className={cn(
+                      "text-[13.5px] [overflow-wrap:anywhere]",
+                      value ? "font-bold text-ink" : "font-semibold text-ink-faint",
+                    )}
+                  >
+                    {value || "Not given"}
+                  </dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+
+          {(row.flagReason || row.matches.length > 0) && (
+            <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+              <p className="flex items-center gap-2 text-[11px] font-bold tracking-wide text-amber-800 uppercase">
+                <ShieldAlert aria-hidden className="size-4" />
+                Duplicate check
+              </p>
+              {row.flagReason && (
+                <p className="text-[13px] font-bold text-ink">{row.flagReason}</p>
+              )}
+              {row.matches.map((match) => (
+                <p key={match.kind} className="text-[12.5px] font-semibold text-ink-soft">
+                  {match.kind} as{" "}
+                  <span className="font-bold text-ink">
+                    {match.names.join(", ")}
+                  </span>
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {answered === 0 ? (
+          <div className="flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-surface px-6 py-8 text-center">
+            <p className="text-[14px] font-extrabold text-ink">No answers saved</p>
+            <p className="mt-1 max-w-sm text-[12.5px] font-semibold text-ink-soft">
+              {row.status === "duplicate"
+                ? "Caught as a duplicate before duplicates kept their answers, so only the person's details were saved."
+                : "Every question on this response was skipped."}
+            </p>
+          </div>
+        ) : (
+          <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {row.answers.map((answer, i) => {
+              const skipped = answer.answer === "—";
+              return (
+                <li
+                  key={answer.questionId}
+                  className="flex flex-col rounded-xl border border-gray-200 bg-surface px-3.5 py-3"
+                >
+                  <p className="text-[12px] leading-snug font-semibold text-ink-soft">
+                    <span className="mr-1.5 rounded-md bg-brand-tint px-1.5 py-0.5 text-[11px] font-extrabold text-brand-strong">
+                      Q{i + 1}
+                    </span>
+                    {answer.prompt}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-2 [overflow-wrap:anywhere]",
+                      skipped
+                        ? "text-[13px] font-semibold text-ink-faint italic"
+                        : "text-[15px] leading-relaxed font-extrabold text-ink",
+                    )}
+                  >
+                    {skipped ? "Skipped" : answer.answer}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
     </div>
   );

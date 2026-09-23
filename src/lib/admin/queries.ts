@@ -734,6 +734,15 @@ export type SurveyResponseRow = {
   phone: string | null;
   flagReason: string | null;
   ambassador: string;
+  /** Who brought it in — the key the ambassador filter narrows by. */
+  ambassadorId: string;
+  /**
+   * Salted, never the raw address. Only ever compared with other responses
+   * to the same survey — the page turns it into "same network as" and it is
+   * not sent to the browser.
+   */
+  ipHash: string | null;
+  userAgent: string | null;
   answers: ResponseAnswer[];
 };
 
@@ -813,13 +822,16 @@ export async function getSurveyResponses(
       respondent_email: string | null;
       respondent_phone: string | null;
       flag_reason: string | null;
+      ambassador_id: string;
+      ip_hash: string | null;
+      user_agent: string | null;
       profiles: { full_name: string } | null;
     }>(
       (from, to) =>
         supabase
           .from("survey_responses")
           .select(
-            "id, status, submitted_at, respondent_name, respondent_email, respondent_phone, flag_reason, profiles(full_name)",
+            "id, status, submitted_at, respondent_name, respondent_email, respondent_phone, flag_reason, ambassador_id, ip_hash, user_agent, profiles(full_name)",
           )
           .eq("survey_id", surveyId)
           .order("submitted_at", { ascending: false })
@@ -877,6 +889,9 @@ export async function getSurveyResponses(
     phone: r.respondent_phone,
     flagReason: r.flag_reason,
     ambassador: r.profiles?.full_name ?? "—",
+    ambassadorId: r.ambassador_id,
+    ipHash: r.ip_hash,
+    userAgent: r.user_agent,
     // Every question, in order, even the ones this person skipped — a gap is
     // itself a finding, and hiding it makes responses look inconsistent.
     answers: ordered.map((q) => {

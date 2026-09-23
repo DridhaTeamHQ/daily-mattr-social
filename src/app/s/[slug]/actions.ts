@@ -256,10 +256,8 @@ export async function submitSurvey(
     case "identity_duplicate":
       return ALREADY_SUBMITTED;
     case "ip_duplicate":
-      return {
-        status: "done",
-        message: "Thanks — your answers were recorded.",
-      };
+      // Stored with its answers, below, but never credited.
+      break;
     case "accepted":
       break;
     default:
@@ -276,6 +274,39 @@ export async function submitSurvey(
   const responseId = admission.response_id;
   if (!responseId) {
     return { status: "error", message: "Couldn't save your answers. Try again." };
+  }
+
+  /**
+   * A duplicate keeps its answers.
+   *
+   * They used to be dropped, which left the admin a row of dashes to judge
+   * "is this really the same person" from, and nothing to count if they
+   * decided it was not. The row stays `duplicate`, and every summary and chart
+   * reads `valid` rows only, so these answers are visible on the responses
+   * page and nowhere in the analysis. No points, streak or badge either —
+   * marking it "Not a duplicate" is what pays the point.
+   *
+   * A failed write is logged rather than surfaced: the person already did
+   * everything right from their side, and the row itself is saved.
+   */
+  if (admission.outcome === "ip_duplicate") {
+    if (answers.length > 0) {
+      const { error: duplicateAnswersError } = await db
+        .from("survey_answers")
+        .insert(answers.map((a) => ({ ...a, response_id: responseId })));
+      if (duplicateAnswersError) {
+        console.error("saving a duplicate's answers failed", {
+          surveyId: survey.id,
+          code: duplicateAnswersError.code,
+        });
+      }
+    }
+
+    await invalidateAdminCache();
+    return {
+      status: "done",
+      message: "Thanks — your answers were recorded.",
+    };
   }
 
   // A survey response also makes the week active, so the consistency bonus

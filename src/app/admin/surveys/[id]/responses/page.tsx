@@ -8,7 +8,11 @@ import { ReasonDialog } from "@/components/reason-dialog";
 import { ResponseSummary } from "@/components/response-summary";
 import { ResponseTable } from "@/components/response-table";
 import { QuestionFilters, type QuestionFilter } from "@/components/question-filters";
-import { SurveyAmbassadors } from "@/components/survey-ambassadors";
+import { ResponseFilters, type ResponseFilter } from "@/components/response-filters";
+import {
+  SurveyAmbassadors,
+  type AmbassadorResponse,
+} from "@/components/survey-ambassadors";
 import { SurveyQuestionsEditor } from "@/components/survey-questions-editor";
 import { SearchBox } from "@/components/search-box";
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,7 @@ import {
   type ActiveFilter,
 } from "@/lib/survey-filters";
 import { aiEnabled } from "@/lib/ai";
+import { describeDevice } from "@/lib/device";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Responses" };
@@ -53,14 +58,16 @@ export default async function SurveyResponsesPage({
 
   const q = one("q");
   const status = one("status");
+  const ambassador = one("amb");
   const view = one("view");
   const page = one("page");
 
-  // Summary first. It answers "what did people say", which is why the
-  // survey was run; the individual list answers "what did this person say",
-  // which matters far less often.
-  const isList = view === "responses";
+  // The full list first, as it was before the summary took its place: the
+  // client reads responses one by one and narrows them with the filters, and
+  // the charts and per-ambassador breakdown are the second look, not the first.
+  const isSummary = view === "summary";
   const isPeople = view === "ambassadors";
+  const isList = !isSummary && !isPeople;
 
   const [data, people] = await Promise.all([
     getSurveyResponses(id),
@@ -70,15 +77,50 @@ export default async function SurveyResponsesPage({
 
   const query = q ?? "";
 
+  type Row = (typeof data.responses)[number];
+  const byStatus = (r: Row) => (status ? r.status === status : true);
+  const byAmbassador = (r: Row) =>
+    ambassador ? r.ambassadorId === ambassador : true;
+
   /**
-   * Status and search first, per-question filters second.
-   *
-   * Kept as two steps because each question's dropdown has to count its own
-   * options against everything else that is on — including the search and the
-   * status tile, excluding only itself. `matching` is that shared base.
+   * Counting a response again — the same words wherever it is offered, the
+   * table's button and the ambassador cards' ⋮ menu alike.
    */
-  const matching = data.responses
-    .filter((r) => (status ? r.status === status : true))
+  const restoreAction = (r: Row) =>
+    setResponseStatus.bind(null, r.id, "valid", undefined);
+  const restoreLabel = (r: Row) =>
+    r.status === "duplicate"
+      ? "Not a duplicate"
+      : r.status === "flagged"
+        ? "Remove flag"
+        : "Count it";
+  const restoreConfirm = (r: Row) => {
+    const points = data.survey.points_per_response;
+    return [
+      r.status === "duplicate"
+        ? `Mark ${r.name || "this response"} as not a duplicate?`
+        : `Count ${r.name || "this response"} again?`,
+      "",
+      points > 0
+        ? `It counts as a valid response and ${r.ambassador} gets ${points} point${points === 1 ? "" : "s"}.`
+        : "It counts as a valid response.",
+    ].join("\n");
+  };
+
+  // `?r=` narrows the list to one response: where "View in table" lands. An
+  // id rather than their email or name, which do not belong in a URL.
+  const only = one("r");
+
+  /**
+   * Search first, then status and ambassador, then per-question filters.
+   *
+   * Kept as steps because every dropdown counts its own options against
+   * everything else that is on, excluding only itself. `searched` is the base
+   * the status and ambassador dropdowns count from; `matching` is the base
+   * the question dropdowns count from.
+   */
+  const searched = data.responses
+    .filter((r) => (only ? r.id === only : true))
     .filter((r) =>
       matches(
         query,
@@ -91,6 +133,8 @@ export default async function SurveyResponsesPage({
       ),
     );
 
+  const matching = searched.filter(byStatus).filter(byAmbassador);
+
   const active: ActiveFilter[] = data.questions.flatMap((question, index) => {
     const param = filterParam(index);
     const value = one(param);
@@ -98,6 +142,103 @@ export default async function SurveyResponsesPage({
   });
 
   const responses = matching.filter((r) => matchesFilters(r, active));
+
+  /**
+   * Who else each response shares a network, email or phone with.
+   *
+   * Across the whole survey rather than the filtered list: "Duplicates" on
+   * its own shows the second submission, and the point of the column is
+   * naming the first one, which is usually a valid row the filter hid.
+   */
+  const groups = new Map<string, Row[]>();
+  const keysOf = (r: Row) =>
+    [
+      r.ipHash ? ["Same network", `ip:${r.ipHash}`] : null,
+      r.email ? ["Same email", `email:${r.email.trim().toLowerCase()}`] : null,
+      r.phone
+        ? ["Same phone", `phone:${r.phone.replace(/\D/g, "").slice(-10)}`]
+        : null,
+    ].filter((k): k is string[] => k !== null);
+
+  for (const r of data.responses) {
+    for (const [, key] of keysOf(r)) {
+      groups.set(key, [...(groups.get(key) ?? []), r]);
+    }
+  }
+
+  const matchesFor = (r: Row) =>
+    keysOf(r).flatMap(([kind, key]) => {
+      const others = (groups.get(key) ?? []).filter((o) => o.id !== r.id);
+      if (others.length === 0) return [];
+
+      // One person submitting fifteen times is one name, not fifteen: the
+      // list read "Gundu Laksh, Gundu Laksh, Gundu Laksh…" to the end.
+      const counts = new Map<string, number>();
+      for (const o of others) {
+        const name = o.name?.trim() || "Anonymous";
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+      return [
+        {
+          kind,
+          names: [...counts]
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)),
+        },
+      ];
+    });
+
+  const countBy = (rows: Row[], key: (row: Row) => string) => {
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(key(row), (counts.get(key(row)) ?? 0) + 1);
+    return counts;
+  };
+
+  const answering = (r: Row) => matchesFilters(r, active);
+  const statusCounts = countBy(
+    searched.filter(byAmbassador).filter(answering),
+    (r) => r.status,
+  );
+  const ambassadorCounts = countBy(
+    searched.filter(byStatus).filter(answering),
+    (r) => r.ambassadorId,
+  );
+
+  // Everyone who has brought in a response stays in the dropdown whatever the
+  // other filters leave them — a name vanishing when you pick "Duplicates"
+  // reads as a bug, where "(0)" reads as an answer.
+  const ambassadorNames = new Map<string, string>();
+  for (const r of data.responses) ambassadorNames.set(r.ambassadorId, r.ambassador);
+
+  const listFilters: ResponseFilter[] = !isList ? [] : [
+    {
+      param: "amb",
+      label: "Ambassador",
+      any: `All ambassadors (${ambassadorNames.size})`,
+      value: ambassador ?? null,
+      options: [...ambassadorNames]
+        .map(([value, label]) => ({
+          value,
+          label,
+          count: ambassadorCounts.get(value) ?? 0,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    },
+    {
+      param: "status",
+      label: "Status",
+      any: "All statuses",
+      value: status ?? null,
+      options: [
+        { value: "valid", label: "Counted" },
+        { value: "duplicate", label: "Duplicates" },
+        { value: "flagged", label: "Flagged" },
+      ].map((option) => ({
+        ...option,
+        count: statusCounts.get(option.value) ?? 0,
+      })),
+    },
+  ];
 
   const questionFilters: QuestionFilter[] = !isList ? [] : data.questions.map(
     (question, index) => {
@@ -156,6 +297,7 @@ export default async function SurveyResponsesPage({
     const query = new URLSearchParams();
     if (next.view) query.set("view", next.view);
     if (q) query.set("q", q);
+    if (ambassador) query.set("amb", ambassador);
     for (const filter of active) query.set(filter.param, filter.value);
     if (next.status) query.set("status", next.status);
     const search = query.toString();
@@ -171,9 +313,10 @@ export default async function SurveyResponsesPage({
   const viewHref = (next?: string) => href({ view: next, status });
 
   const pageHref = (n: number) => {
-    const next = new URLSearchParams({ view: "responses" });
+    const next = new URLSearchParams();
     if (q) next.set("q", q);
     if (status) next.set("status", status);
+    if (ambassador) next.set("amb", ambassador);
     // Without these, page 2 of a filtered list is page 2 of the whole list.
     for (const filter of active) next.set(filter.param, filter.value);
     if (n > 1) next.set("page", String(n));
@@ -210,31 +353,59 @@ export default async function SurveyResponsesPage({
 
       <FilterChips
         label="View"
-        active={isList ? "responses" : isPeople ? "ambassadors" : "summary"}
+        active={isSummary ? "summary" : isPeople ? "ambassadors" : "responses"}
         options={
           [
             {
+              key: "responses",
+              label: `All responses (${data.responses.length})`,
+              href: viewHref(),
+            },
+            {
               key: "summary",
               label: "Summary",
-              href: viewHref(),
+              href: viewHref("summary"),
             },
             {
               key: "ambassadors",
               label: `By ambassador (${people.length})`,
               href: viewHref("ambassadors"),
             },
-            {
-              key: "responses",
-              label: `Individual (${data.responses.length})`,
-              href: viewHref("responses"),
-            },
           ] satisfies ChipOption[]
         }
       />
 
-      {isPeople && <SurveyAmbassadors rows={people} />}
+      {isPeople && (
+        <SurveyAmbassadors
+          rows={people}
+          surveyId={id}
+          responses={Object.groupBy(
+            data.responses.map((response) => ({
+              ambassadorId: response.ambassadorId,
+              id: response.id,
+              name: response.name,
+              status: response.status,
+              submitted: formatDate(response.submittedAt, true),
+              email: response.email,
+              phone: response.phone,
+              device: describeDevice(response.userAgent),
+              reason: response.flagReason,
+              matches: matchesFor(response),
+              menu: {
+                tableHref: `/admin/surveys/${id}/responses?r=${response.id}`,
+                ...(response.status !== "valid" && {
+                  restore: restoreAction(response),
+                  restoreLabel: restoreLabel(response),
+                  confirmMessage: restoreConfirm(response),
+                }),
+              },
+            })),
+            (response) => response.ambassadorId,
+          ) as Record<string, AmbassadorResponse[]>}
+        />
+      )}
 
-      {!isList && !isPeople && <ResponseSummary data={data} />}
+      {isSummary && <ResponseSummary data={data} />}
 
       {isList && (
         <div className="space-y-3">
@@ -242,6 +413,8 @@ export default async function SurveyResponsesPage({
             placeholder="Search names, emails, or anything they answered…"
             className="max-w-lg"
           />
+
+          <ResponseFilters filters={listFilters} />
 
           <QuestionFilters filters={questionFilters} />
         </div>
@@ -252,12 +425,12 @@ export default async function SurveyResponsesPage({
           <EmptyState
             icon={Inbox}
             title={
-              query || status || active.length > 0
+              query || status || ambassador || only || active.length > 0
                 ? "Nothing matches that"
                 : "No responses yet"
             }
             description={
-              query || status || active.length > 0
+              query || status || ambassador || only || active.length > 0
                 ? "Try a different search, or clear the filters."
                 : "When someone completes an ambassador's link, their answers appear here."
             }
@@ -280,6 +453,8 @@ export default async function SurveyResponsesPage({
               phone: response.phone,
               status: response.status,
               flagReason: response.flagReason,
+              device: describeDevice(response.userAgent),
+              matches: matchesFor(response),
               answers: response.answers,
               // Flagging reverses the point the response earned — leaving the
               // points on the balance would make the flag cosmetic and let
@@ -323,18 +498,14 @@ export default async function SurveyResponsesPage({
                     />
                   </>
                 ) : (
+                  // Named for what it undoes. "Restore" on a duplicate read
+                  // as restoring the duplicate, and nobody found it.
                   <ActionButton
                     size="sm"
-                    variant="secondary"
-                    action={setResponseStatus.bind(
-                      null,
-                      response.id,
-                      "valid",
-                      undefined,
-                    )}
-                    confirmMessage="Count this response again? The point goes back."
+                    action={restoreAction(response)}
+                    confirmMessage={restoreConfirm(response)}
                   >
-                    Restore
+                    {restoreLabel(response)}
                   </ActionButton>
                 ),
             }))}
