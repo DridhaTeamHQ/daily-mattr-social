@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  ChevronDown,
   Clock,
   Flag,
   Mail,
@@ -36,6 +37,8 @@ export type AmbassadorResponse = {
   reason: string | null;
   /** Other responses to this survey sharing a network, email or phone. */
   matches: { kind: string; names: string[] }[];
+  /** Every question, in order, with "—" for a skipped one. */
+  answers: { questionId: string; prompt: string; answer: string }[];
   /** What the ⋮ menu offers — built on the server with the action bound. */
   menu: React.ComponentProps<typeof ResponseMenu>;
 };
@@ -443,6 +446,8 @@ function ResponseList({
                 ))}
               </div>
             )}
+
+            <Answers answers={response.answers} />
           </li>
         ))}
       </ul>
@@ -455,6 +460,60 @@ function ResponseList({
         <ArrowRight aria-hidden className="size-3.5" />
       </Link>
     </div>
+  );
+}
+
+/**
+ * The answers, opened in place on the card.
+ *
+ * "View in table" is a different page, and coming back from it lands at the
+ * top with every ambassador folded up again — reading one person's answers
+ * cost finding your place in a list of sixty. A native <details>, so it needs
+ * no client code and each card opens on its own.
+ */
+function Answers({ answers }: { answers: AmbassadorResponse["answers"] }) {
+  const answered = answers.filter((a) => a.answer !== "—").length;
+  if (answers.length === 0) return null;
+
+  return (
+    <details className="group mt-2.5">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[12.5px] font-bold text-brand-strong select-none hover:underline [&::-webkit-details-marker]:hidden">
+        <ChevronDown
+          aria-hidden
+          className="size-3.5 transition-transform group-open:rotate-180"
+        />
+        <span className="group-open:hidden">
+          Show answers ({answered} of {answers.length})
+        </span>
+        <span className="hidden group-open:inline">Hide answers</span>
+      </summary>
+
+      <ol className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-200">
+        {answers.map((answer, i) => {
+          const skipped = answer.answer === "—";
+          return (
+            <li key={answer.questionId} className="px-2.5 py-2">
+              <p className="text-[11.5px] leading-snug font-semibold text-ink-soft">
+                <span className="mr-1 font-extrabold text-brand-strong">
+                  Q{i + 1}
+                </span>
+                {answer.prompt}
+              </p>
+              <p
+                className={cn(
+                  "mt-0.5 text-[13px] [overflow-wrap:anywhere]",
+                  skipped
+                    ? "font-semibold text-ink-faint italic"
+                    : "font-extrabold text-ink",
+                )}
+              >
+                {skipped ? "Skipped" : answer.answer}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+    </details>
   );
 }
 

@@ -31,7 +31,6 @@ import {
   type ActiveFilter,
 } from "@/lib/survey-filters";
 import { aiEnabled } from "@/lib/ai";
-import { describeDevice } from "@/lib/device";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Responses" };
@@ -357,14 +356,14 @@ export default async function SurveyResponsesPage({
         options={
           [
             {
-              key: "responses",
-              label: `All responses (${data.responses.length})`,
-              href: viewHref(),
-            },
-            {
               key: "summary",
               label: "Summary",
               href: viewHref("summary"),
+            },
+            {
+              key: "responses",
+              label: `All responses (${data.responses.length})`,
+              href: viewHref(),
             },
             {
               key: "ambassadors",
@@ -390,6 +389,7 @@ export default async function SurveyResponsesPage({
               phone: response.phone,
               reason: response.flagReason,
               matches: matchesFor(response),
+              answers: response.answers,
               menu: {
                 tableHref: `/admin/surveys/${id}/responses?r=${response.id}`,
                 ...(response.status !== "valid" && {
@@ -449,10 +449,8 @@ export default async function SurveyResponsesPage({
               ambassador: response.ambassador,
               submitted: formatDate(response.submittedAt, true),
               email: response.email,
-              phone: response.phone,
               status: response.status,
               flagReason: response.flagReason,
-              device: describeDevice(response.userAgent),
               matches: matchesFor(response),
               answers: response.answers,
               // Flagging reverses the point the response earned — leaving the

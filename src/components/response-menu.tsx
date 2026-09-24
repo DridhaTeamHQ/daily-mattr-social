@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { CheckCircle2, MoreVertical, Table2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, MoreVertical, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { ActionResult } from "@/lib/admin/guards";
@@ -98,14 +98,19 @@ export function ResponseMenu({
               {restoreLabel ?? "Count it"}
             </button>
           )}
+          {/* A new tab, so this list keeps its place: coming back from the
+              table used to land at the top with every ambassador folded. */}
           <Link
             href={tableHref}
+            target="_blank"
+            rel="noopener"
             role="menuitem"
             onClick={() => setOpen(false)}
             className={item}
           >
             <Table2 aria-hidden className="size-4 text-ink-soft" />
             View in table
+            <ExternalLink aria-hidden className="ml-auto size-3.5 text-ink-faint" />
           </Link>
         </div>
       )}
