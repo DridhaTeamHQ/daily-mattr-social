@@ -7,7 +7,9 @@ import { useFormStatus } from "react-dom";
 import { CircleAlert, CircleCheck, Maximize2, X } from "lucide-react";
 import * as React from "react";
 
-import { submitSurvey, type SubmitState } from "./actions";
+import { checkAlreadySubmitted, submitSurvey, type SubmitState } from "./actions";
+import { GoogleSignIn } from "./google-signin";
+import { googleSignInClientId } from "@/lib/google-signin";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
@@ -336,9 +338,18 @@ export function SurveyForm({
     ? async () => initial
     : submitSurvey.bind(null, slug);
   const [state, formAction] = useActionState(action, initial);
+  // Local-only for now; null in every production build.
+  const googleClientId = googleSignInClientId();
+  const [googleMissing, setGoogleMissing] = React.useState(false);
+  // Set the moment a Google sign-in turns out to have answered already, so
+  // they see the same screen a repeat submission gets, before filling it in.
+  const [alreadyOnSignIn, setAlreadyOnSignIn] = React.useState(false);
+  const shown: SubmitState = alreadyOnSignIn
+    ? { status: "already", message: "You've already submitted this survey." }
+    : state;
 
-  if (state.status === "done" || state.status === "already") {
-    const already = state.status === "already";
+  if (shown.status === "done" || shown.status === "already") {
+    const already = shown.status === "already";
     const Icon = already ? CircleAlert : CircleCheck;
 
     return (
@@ -354,7 +365,7 @@ export function SurveyForm({
             <Icon className="size-10 text-ink" />
           </span>
           <h2 className="display mt-5 text-[26px] leading-tight text-ink">
-            {state.message}
+            {shown.message}
           </h2>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
             {already
@@ -367,7 +378,23 @@ export function SurveyForm({
   }
 
   return (
-    <form action={formAction} className="stagger space-y-4">
+    <form
+      action={formAction}
+      className="stagger space-y-4"
+      onSubmit={(event) => {
+        // Google sign-in is required whenever it is on. The server refuses a
+        // submission without it too; this just says so before the round trip.
+        if (!googleClientId || !askWhoYouAre || preview) return;
+        const credential = new FormData(event.currentTarget).get("google_credential");
+        if (!credential) {
+          event.preventDefault();
+          setGoogleMissing(true);
+          document
+            .getElementById("google-signin")
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }}
+    >
       {questions.map((question, index) => (
         <Card key={question.id}>
           <CardBody>
@@ -420,25 +447,51 @@ export function SurveyForm({
         <CardBody className="space-y-4">
           <h2 className="display text-[18px] text-ink">About you</h2>
 
-          <Field label="Name" htmlFor="respondent_name">
-            <Input id="respondent_name" name="respondent_name" autoComplete="name" />
-          </Field>
+          {googleClientId ? (
+            <div id="google-signin">
+              <Field
+                label="Sign in"
+                required
+                hint="Sign in with Google so each person is counted once. We only keep your name and email."
+                error={googleMissing ? "Sign in with Google before submitting." : null}
+              >
+                <GoogleSignIn
+                  clientId={googleClientId}
+                  onSignedIn={(credential) => {
+                    if (!credential) return;
+                    setGoogleMissing(false);
+                    if (preview) return;
+                    checkAlreadySubmitted(slug, credential)
+                      .then((already) => already && setAlreadyOnSignIn(true))
+                      // Only a courtesy; the submit still catches a repeat.
+                      .catch(() => {});
+                  }}
+                />
+              </Field>
+            </div>
+          ) : (
+            <>
+              <Field label="Name" htmlFor="respondent_name">
+                <Input id="respondent_name" name="respondent_name" autoComplete="name" />
+              </Field>
 
-          <Field
-            label="Email"
-            htmlFor="respondent_email"
-            required={requireEmail}
-            hint="Only used to make sure nobody fills this in twice."
-          >
-            <Input
-              id="respondent_email"
-              name="respondent_email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              required={requireEmail}
-            />
-          </Field>
+              <Field
+                label="Email"
+                htmlFor="respondent_email"
+                required={requireEmail}
+                hint="Only used to make sure nobody fills this in twice."
+              >
+                <Input
+                  id="respondent_email"
+                  name="respondent_email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  required={requireEmail}
+                />
+              </Field>
+            </>
+          )}
 
           {requirePhone && (
             <Field label="Phone" htmlFor="respondent_phone" required>
@@ -463,7 +516,9 @@ export function SurveyForm({
       <p className="pb-4 text-center text-[12px] leading-relaxed text-ink-faint">
         {preview
           ? "Preview — the button is off and nothing you type here is recorded."
-          : "Your answers go to the dailymattr team. We don't store your IP address, only a scrambled version of it to stop duplicate entries."}
+          : googleClientId && askWhoYouAre
+            ? "Your answers go to the dailymattr team. Google only tells us your name and email."
+            : "Your answers go to the dailymattr team. We don't store your IP address, only a scrambled version of it to stop duplicate entries."}
       </p>
     </form>
   );

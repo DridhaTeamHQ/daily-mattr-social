@@ -13,6 +13,8 @@ import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { serverEnv } from "@/lib/env";
+import { googleSignInClientId } from "@/lib/google-signin";
+import { verifyGoogleCredential } from "@/lib/google-id-token";
 import { notify } from "@/lib/notifications";
 import { isOtherOption } from "@/lib/survey-other";
 import type { Enums, Json } from "@/lib/database.types";
@@ -120,9 +122,34 @@ export async function submitSurvey(
   }
 
   // ─── Respondent details ───────────────────────────────────────────────────
-  const name = String(formData.get("respondent_name") ?? "").trim();
-  const email = String(formData.get("respondent_email") ?? "").trim().toLowerCase();
+  let name = String(formData.get("respondent_name") ?? "").trim();
+  let email = String(formData.get("respondent_email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("respondent_phone") ?? "").trim();
+
+  /**
+   * Local-only Google sign-in (see lib/google-signin). When it is on, the email
+   * is the one Google vouches for, never the one typed, and the existing
+   * one-email-per-survey unique index does the duplicate check. The IP hash is
+   * then left out entirely: a shared campus network is exactly where it
+   * wrongly marked real people as duplicates.
+   */
+  const googleVerified =
+    googleSignInClientId() !== null && survey.audience !== "participant";
+
+  if (googleVerified) {
+    const identity = await verifyGoogleCredential(
+      String(formData.get("google_credential") ?? ""),
+    );
+    if (!identity) {
+      return {
+        status: "error",
+        message: "Sign in with Google to submit (or sign in again — it may have expired).",
+      };
+    }
+    // Both from Google, never from the form, so neither can be typed over.
+    email = identity.email;
+    name = identity.name ?? "";
+  }
 
   if (survey.require_email && !email) {
     return { status: "error", message: "Your email is required." };
@@ -196,7 +223,7 @@ export async function submitSurvey(
     respondent_name: name || null,
     respondent_email: email || null,
     respondent_phone: phone || null,
-    ip_hash: await hashIp(),
+    ip_hash: googleVerified ? null : await hashIp(),
     user_agent: (await headers()).get("user-agent")?.slice(0, 500) ?? null,
   };
 
@@ -377,4 +404,42 @@ export async function submitSurvey(
     status: "done",
     message: "Thanks — your answers were recorded.",
   };
+}
+
+/**
+ * Asked the moment someone signs in with Google (local only — see
+ * lib/google-signin), so a person who has already answered is told so before
+ * they fill the whole thing in again rather than after.
+ *
+ * Read-only, and only a courtesy: `submitSurvey` still makes the real decision
+ * through the unique email index. Matches `valid` rows only, the same rows that
+ * index covers, so this never says "already" to someone the submit would take.
+ */
+export async function checkAlreadySubmitted(
+  slug: string,
+  credential: string,
+): Promise<boolean> {
+  if (!googleSignInClientId()) return false;
+
+  const identity = await verifyGoogleCredential(credential);
+  if (!identity) return false;
+
+  const db = createAdminClient();
+  const { data: link } = await db
+    .from("survey_links")
+    .select("survey_id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!link) return false;
+
+  const { count } = await db
+    .from("survey_responses")
+    .select("id", { count: "exact", head: true })
+    .eq("survey_id", link.survey_id)
+    .eq("status", "valid")
+    // Exact match: stored emails are always lowercased by submitSurvey, and
+    // `ilike` would read an `_` in someone's address as a wildcard.
+    .eq("respondent_email", identity.email);
+
+  return (count ?? 0) > 0;
 }

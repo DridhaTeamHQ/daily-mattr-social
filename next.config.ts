@@ -1,6 +1,8 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 
+import { googleSignInClientId } from "./src/lib/google-signin";
+
 const nextConfig: NextConfig = {
   reactCompiler: true,
 
@@ -48,19 +50,24 @@ const nextConfig: NextConfig = {
    * script host, which is the realistic delivery route.
    */
   async headers() {
+    // Local-only Google sign-in on the survey page (see lib/google-signin).
+    // Empty in production, so the policy there is unchanged.
+    const google = googleSignInClientId() ? " https://accounts.google.com" : "";
+
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval'${google}`,
+      `style-src 'self' 'unsafe-inline'${google}`,
+      ...(google ? [`frame-src${google}`] : []),
       // Supabase storage serves screenshots; data: covers the canvas share card.
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data:",
       // Supabase REST/auth/realtime, and the OpenAI call for screenshot review.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com",
+      `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com${google}`,
       "upgrade-insecure-requests",
     ].join("; ");
 
