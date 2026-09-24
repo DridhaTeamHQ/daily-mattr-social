@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 
 import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getTextSetting } from "@/lib/settings";
+import { getAppStoreUrl, getPlayStoreUrl, PLAY_STORE_FALLBACK } from "@/lib/store-links";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -29,19 +29,6 @@ import type { Enums } from "@/lib/database.types";
  * already out in the world. Two copies of a redirect that writes analytics is
  * how the short one quietly stops counting.
  */
-
-const PLAY_FALLBACK =
-  "https://play.google.com/store/apps/details?id=com.dailymattr";
-
-/**
- * Where an iPhone goes while there is no iOS build.
- *
- * Not the App Store: that listing does not exist, so the link a student shared
- * would 404 in front of the person they shared it with. Not the Play Store
- * either — an install button that cannot install is a worse answer than being
- * told plainly.
- */
-const IOS_NOTICE = "/android-only";
 
 /**
  * The shape of a referral code, used to decide what is a code at all.
@@ -67,10 +54,8 @@ export function normalizePathCode(raw: string | undefined): string {
 /**
  * Which store the device is asking for.
  *
- * Still recorded per device even though only one store can be reached: how many
- * people are tapping these links on an iPhone is the number that says what the
- * Android-only build is costing, and it disappears the moment every click is
- * filed as 'play_store'.
+ * Decides where the click is sent, and is recorded with it so the growth page
+ * can split clicks by store.
  *
  * User-agent sniffing is unreliable in general and entirely adequate here, and
  * 'unknown' is recorded honestly rather than guessed at.
@@ -103,16 +88,12 @@ export async function resolveReferralClick(
   const store = storeFor(userAgent);
   const isIos = store === "app_store";
 
-  // Desktop lands on the Play Store with everyone else: 'unknown' is usually
-  // someone checking their own link, and the listing is the honest answer.
-  let destination = isIos ? IOS_NOTICE : PLAY_FALLBACK;
+  // iPhones to the App Store, everyone else to the Play Store. Desktop lands
+  // there too: 'unknown' is usually someone checking their own link.
+  let destination = PLAY_STORE_FALLBACK;
 
   try {
-    // The notice is a page of ours, not a setting — there is no store URL to
-    // look up for a platform the app is not on.
-    if (!isIos) {
-      destination = await getTextSetting("play_store_url", destination);
-    }
+    destination = await (isIos ? getAppStoreUrl() : getPlayStoreUrl());
 
     const db = createAdminClient();
 
