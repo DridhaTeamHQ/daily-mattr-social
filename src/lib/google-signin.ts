@@ -1,15 +1,14 @@
 /**
- * "Sign in with Google" on the public survey page — LOCAL ONLY for now.
+ * "Sign in with Google" on the public survey page.
  *
- * On when `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is set (in `.env.local`, which is
- * gitignored) AND the app is not a production build. The second check is the
- * one that matters: even if the variable ever reaches Vercel, a production
- * build compiles this to `null` and the survey page, the server action and the
- * CSP are exactly what they were before. Delete the NODE_ENV check to ship it.
+ * On wherever `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is set — `.env.local` locally,
+ * the Vercel project settings in production. Unset, the survey page, the
+ * server action and the CSP are what they were before: typed name and email,
+ * and the IP window for duplicates.
  *
- * Read literally so Next inlines both values into the client bundle.
+ * Read literally so Next inlines it into the client bundle. That also means it
+ * is fixed at build time: changing it on Vercel needs a redeploy.
  */
 export function googleSignInClientId(): string | null {
-  if (process.env.NODE_ENV === "production") return null;
   return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || null;
 }

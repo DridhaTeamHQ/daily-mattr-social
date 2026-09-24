@@ -127,7 +127,7 @@ export async function submitSurvey(
   const phone = String(formData.get("respondent_phone") ?? "").trim();
 
   /**
-   * Local-only Google sign-in (see lib/google-signin). When it is on, the email
+   * Google sign-in (see lib/google-signin). When it is on, the email
    * is the one Google vouches for, never the one typed, and the existing
    * one-email-per-survey unique index does the duplicate check. The IP hash is
    * then left out entirely: a shared campus network is exactly where it
@@ -407,8 +407,8 @@ export async function submitSurvey(
 }
 
 /**
- * Asked the moment someone signs in with Google (local only — see
- * lib/google-signin), so a person who has already answered is told so before
+ * Asked the moment someone signs in with Google (see lib/google-signin),
+ * so a person who has already answered is told so before
  * they fill the whole thing in again rather than after.
  *
  * Read-only, and only a courtesy: `submitSurvey` still makes the real decision

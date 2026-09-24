@@ -338,7 +338,7 @@ export function SurveyForm({
     ? async () => initial
     : submitSurvey.bind(null, slug);
   const [state, formAction] = useActionState(action, initial);
-  // Local-only for now; null in every production build.
+  // Null when Google sign-in is off (see lib/google-signin).
   const googleClientId = googleSignInClientId();
   const [googleMissing, setGoogleMissing] = React.useState(false);
   // Set the moment a Google sign-in turns out to have answered already, so

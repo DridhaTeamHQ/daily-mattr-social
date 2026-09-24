@@ -50,8 +50,8 @@ const nextConfig: NextConfig = {
    * script host, which is the realistic delivery route.
    */
   async headers() {
-    // Local-only Google sign-in on the survey page (see lib/google-signin).
-    // Empty in production, so the policy there is unchanged.
+    // Google sign-in on the survey page (see lib/google-signin). Empty when
+    // it is off, so the policy is then exactly what it was before.
     const google = googleSignInClientId() ? " https://accounts.google.com" : "";
 
     const csp = [

@@ -55,7 +55,7 @@ function readClaims(credential: string): { email?: string; name?: string } {
 
 /**
  * Replaces the typed email on the public survey when Google sign-in is on
- * (local only — see lib/google-signin). The ID token rides along in a hidden
+ * (see lib/google-signin). The ID token rides along in a hidden
  * field and the server action checks it.
  */
 export function GoogleSignIn({
