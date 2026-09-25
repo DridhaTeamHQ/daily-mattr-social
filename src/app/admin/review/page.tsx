@@ -235,11 +235,6 @@ export default async function ReviewPage({
                             </p>
                           </div>
                         )}
-
-                        <p className="mt-2 text-[11.5px] text-ink-faint">
-                          Uploaded {formatDate(item.uploaded_at, true)}
-                          {item.attempt > 1 && ` · attempt ${item.attempt}`}
-                        </p>
                       </div>
 
                       {/* ─── Detail ───────────────────────────────────────── */}
@@ -378,6 +373,11 @@ export default async function ReviewPage({
                             </>
                           )}
                         </div>
+
+                        <p className="mt-3 text-[12px] text-ink-faint">
+                          Uploaded {formatDate(item.uploaded_at, true)}
+                          {item.attempt > 1 && ` · attempt ${item.attempt}`}
+                        </p>
                       </div>
                     </CardBody>
                   </Card>
