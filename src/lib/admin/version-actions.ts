@@ -17,26 +17,22 @@ import {
  *
  * ─── What starting a run does, and what it very deliberately does not ──────
  *
- * It writes two rows and one setting. A row in `programme_versions` for the
- * new run, an end stamp on the one it replaces, and the setting that says
- * which run new work belongs to. That is the whole of it.
+ * It writes a row in `programme_versions` for the new run, an end stamp on the
+ * one it replaces, and calls `switch_programme_version()` (migration 0053),
+ * which moves the ongoing work into the new run and points new work at it.
  *
- * Nothing is deleted, emptied, archived or copied. Every campaign, survey,
- * response, submission, install, point and payout stays exactly where it is,
- * still carrying the run it was earned in, still readable through the version
- * switcher for as long as the database exists. The new run reads as zero
- * because there is nothing in it yet, not because anything was taken away.
+ * Nothing is deleted. Rows change which run they are counted in; nothing else
+ * about them is touched.
  *
  * ─── What carries across ───────────────────────────────────────────────────
  *
- * The ambassadors, with their logins, referral codes, cities and batches; the
- * task library; the badge definitions; every threshold in app_settings. Those
- * are who the programme is and how it is configured, not results.
+ * Everything except installs: campaigns, surveys, submissions, responses,
+ * task and survey points, badges, achievements — plus the ambassadors, the
+ * task library and every threshold in app_settings.
  *
- * What starts empty is everything that is counted: the completion board, the
- * install totals, points, stipend eligibility, the achievements and badges
- * held. A student opening the app on the first day of a new run sees the work
- * they have to do and none of the score they used to have.
+ * What starts empty is installs: referral conversions and clicks, and the
+ * points they earned. They stay in the run they were recorded in, which is
+ * how an earlier run's install totals stay readable through the switcher.
  *
  * ─── It is reversible ──────────────────────────────────────────────────────
  *
@@ -90,20 +86,14 @@ export async function startNextVersion(
     });
     if (insertError) throw insertError;
 
-    // The setting is written before the end stamp on purpose. If the stamp
+    // The switch is written before the end stamp on purpose. If the stamp
     // fails, the worst case is a previous run with no end date — cosmetic. If
-    // the setting failed after the stamp, a run would read as finished while
+    // the switch failed after the stamp, a run would read as finished while
     // still taking every new row, which is the confusing half of the pair.
-    const { error: settingError } = await db
-      .from("app_settings")
-      .upsert(
-        {
-          key: "active_programme_version",
-          value: nextId as never,
-          updated_by: actorId,
-        },
-        { onConflict: "key" },
-      );
+    const { error: settingError } = await db.rpc("switch_programme_version", {
+      p_to: nextId,
+      p_actor: actorId,
+    });
     if (settingError) throw settingError;
 
     const { error: stampError } = await db
@@ -134,11 +124,10 @@ export async function startNextVersion(
 }
 
 /**
- * Points new work at an existing run.
+ * Opens an existing run — a prepared one, or an earlier one as an undo.
  *
- * The undo for a restart nobody meant, and nothing more. It moves where new
- * rows land; it cannot move rows that already exist, because a row's run is
- * written on it once and never derived.
+ * The ongoing work moves with it, exactly as when a run is started; installs
+ * stay in the run they were recorded in.
  */
 export async function setActiveVersion(id: number): Promise<ActionResult> {
   try {
@@ -159,15 +148,21 @@ export async function setActiveVersion(id: number): Promise<ActionResult> {
 
     const db = createAdminClient();
 
-    const { error } = await db.from("app_settings").upsert(
-      {
-        key: "active_programme_version",
-        value: id as never,
-        updated_by: actorId,
-      },
-      { onConflict: "key" },
-    );
+    // Moves the ongoing work (campaigns, surveys, submissions, task points)
+    // into the run being opened and points new work at it, in one
+    // transaction. Installs stay in the run they were recorded in.
+    const { error } = await db.rpc("switch_programme_version", {
+      p_to: id,
+      p_actor: actorId,
+    });
     if (error) throw error;
+
+    // The run being left is finished from this moment.
+    await db
+      .from("programme_versions")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", previous)
+      .is("ended_at", null);
 
     // Re-opening a run clears the end stamp it was given when it was closed:
     // it is running again, and a finished date on a live run is a date that

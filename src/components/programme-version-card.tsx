@@ -66,7 +66,7 @@ export function ProgrammeVersionCard({
   function reopen(id: number, label: string) {
     if (
       !window.confirm(
-        `Point new work back at ${label}? Anything recorded since the restart stays where it is — this only changes which run the next campaign, install or point is written into.`,
+        `Make ${label} the current run? Campaigns, surveys, submissions and task points move into ${label}. Installs stay in the run they were recorded in, so ${label} shows only its own installs.`,
       )
     ) {
       return;
@@ -131,16 +131,19 @@ export function ProgrammeVersionCard({
                   Start {`V${nextId}`}
                 </Dialog.Title>
                 <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                  The programme begins again at nought. {active?.label ?? "V1"}{" "}
-                  is kept exactly as it is.
+                  Installs start again at 0. Everything else carries on as it
+                  is.
                 </Dialog.Description>
 
                 <form onSubmit={start} className="mt-4 space-y-4">
                   <Note tone="brand" title="What changes">
                     <ul className="list-disc space-y-1 pl-4">
                       <li>
-                        Completion, points, installs, stipends, badges and
-                        achievements all start empty.
+                        Installs, and the points they earned, start at 0.
+                      </li>
+                      <li>
+                        Campaigns, surveys, submissions, task points, badges
+                        and achievements carry across into the new run.
                       </li>
                       <li>
                         Ambassadors keep their logins, referral codes, cities
@@ -148,16 +151,11 @@ export function ProgrammeVersionCard({
                         across.
                       </li>
                       <li>
-                        Campaigns and surveys from {active?.label ?? "V1"} stop
-                        appearing to students. Create the new run&rsquo;s work
-                        as usual.
-                      </li>
-                      <li>
                         <strong className="font-bold text-ink">
                           Nothing is deleted.
                         </strong>{" "}
-                        Switch runs in the top bar to read{" "}
-                        {active?.label ?? "V1"} again at any time.
+                        {active?.label ?? "V1"}&rsquo;s installs stay readable
+                        by switching runs in the top bar.
                       </li>
                     </ul>
                   </Note>

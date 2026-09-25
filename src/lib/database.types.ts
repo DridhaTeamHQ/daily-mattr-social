@@ -1434,6 +1434,10 @@ export type Database = {
           downloads: number;
         }[];
       };
+      switch_programme_version: {
+        Args: { p_to: number; p_actor?: string | null };
+        Returns: number;
+      };
       stipend_eligibility: {
         Args: { period_start: string; p_version?: number };
         Returns: {
