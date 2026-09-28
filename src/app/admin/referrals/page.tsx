@@ -32,10 +32,15 @@ export default async function AdminInstallsPage({
   searchParams: Promise<{
     q?: string;
     batch?: string | string[];
+    status?: string | string[];
     sort?: string | string[];
   }>;
 }) {
-  const [{ q, batch: rawBatch, sort: rawSort }, summary, linkUnlockAt] =
+  const [
+    { q, batch: rawBatch, status: rawStatus, sort: rawSort },
+    summary,
+    linkUnlockAt,
+  ] =
     await Promise.all([
       searchParams,
       getReferralSummary(),
@@ -77,6 +82,23 @@ export default async function AdminInstallsPage({
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => compareBatch(a.value, b.value));
 
+  // Only the three statuses the badge knows; anything else in the URL is
+  // ignored rather than filtering the table down to nobody.
+  const rawStatusValue = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
+  const status =
+    rawStatusValue && rawStatusValue in STATUS_TONE
+      ? (rawStatusValue as keyof typeof STATUS_TONE)
+      : null;
+  // Counted over everyone, like the batch counts, so the dropdown says how
+  // many are invited before anyone picks it.
+  const statusOptions = (
+    Object.keys(STATUS_TONE) as (keyof typeof STATUS_TONE)[]
+  ).map((value) => ({
+    value,
+    label: value[0].toUpperCase() + value.slice(1),
+    count: summary.rows.filter((r) => r.status === value).length,
+  }));
+
   // Anything but "batch" is the ranking the page exists for. The default is
   // not written to the URL, so a plain /admin/referrals link keeps meaning
   // the leaderboard.
@@ -89,6 +111,7 @@ export default async function AdminInstallsPage({
   const rows = summary.rows.filter(
     (r) =>
       (batch === null || batchOf(r) === batch) &&
+      (status === null || r.status === status) &&
       matches(query, r.full_name, r.email, r.college, r.referral_code),
   );
   // Grouped by batch when asked, and by code inside each group: the codes
@@ -112,7 +135,7 @@ export default async function AdminInstallsPage({
   for (const row of rows) {
     groupSizes.set(batchOf(row), (groupSizes.get(batchOf(row)) ?? 0) + 1);
   }
-  const narrowed = Boolean(query) || batch !== null;
+  const narrowed = Boolean(query) || batch !== null || status !== null;
 
   /**
    * Where each ambassador places, by download count rather than by row.
@@ -212,6 +235,13 @@ export default async function AdminInstallsPage({
             options={batchOptions}
           />
           <ParamSelect
+            param="status"
+            label="Status"
+            any="All statuses"
+            value={status}
+            options={statusOptions}
+          />
+          <ParamSelect
             param="sort"
             label="Sort"
             any="Downloads"
@@ -234,7 +264,7 @@ export default async function AdminInstallsPage({
             title={narrowed ? "Nobody matches that" : "No ambassadors yet"}
             description={
               narrowed
-                ? "Try a different name, email or code, or switch batch."
+                ? "Try a different name, email or code, or switch batch or status."
                 : "Add ambassadors and their referral codes appear here automatically."
             }
           />
