@@ -7,6 +7,7 @@ import { ReferralLinkCard } from "@/components/referral-link-card";
 import { Button } from "@/components/ui/button";
 import { getReferralStats } from "@/lib/queries";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
+import { getSiteUrl } from "@/lib/site-url";
 import { getAppStoreUrl, getPlayStoreUrl } from "@/lib/store-links";
 import { formatDate } from "@/lib/utils";
 
@@ -21,9 +22,10 @@ export default async function ReferralsPage() {
   // Read rather than hard-coded, so the store listing can be corrected without
   // a deploy — and so this and `/[code]` can never disagree about where the
   // app lives.
-  const [playStoreUrl, appStoreUrl] = await Promise.all([
+  const [playStoreUrl, appStoreUrl, siteUrl] = await Promise.all([
     getPlayStoreUrl(),
     getAppStoreUrl(),
+    getSiteUrl(),
   ]);
 
   // The link card is finished and switched off until the app is live in the
@@ -127,6 +129,7 @@ export default async function ReferralsPage() {
           code={referrals.code}
           playStoreUrl={playStoreUrl}
           appStoreUrl={appStoreUrl}
+          smartLink={`${siteUrl}/${referrals.code}`}
         />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">

@@ -1,7 +1,8 @@
-import { Smartphone } from "lucide-react";
+import { Download, Smartphone } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ShareReferralButton } from "@/components/share-referral";
+import { qrDataUrl } from "@/lib/qr";
 
 /**
  * The share link, one panel per store.
@@ -21,34 +22,98 @@ import { ShareReferralButton } from "@/components/share-referral";
  * unaffected — a referral is counted when the friend types the code into the
  * app, never from the click — and `ShareReferralButton` sends the code beside
  * the link precisely so that still happens.
+ *
+ * The one exception is the combined QR at the top, which does go through
+ * `/<code>`: a camera pointed at a poster has no panel to choose, and the
+ * redirect is the only thing that knows which store the phone wants.
  */
-export function ReferralLinkCard({
+export async function ReferralLinkCard({
   code,
   playStoreUrl,
   appStoreUrl,
+  smartLink,
 }: {
   code: string;
   /** The store listings themselves — what gets shown, shared and copied. */
   playStoreUrl: string;
   appStoreUrl: string;
+  /**
+   * The tracked `/<code>` redirect. Only the combined QR uses it: a QR is
+   * scanned by a phone whose store we cannot know in advance, and this route
+   * already sends iPhones to the App Store and everything else to Play.
+   */
+  smartLink: string;
+}) {
+  const [smartQr, playQr, appQr] = await Promise.all([
+    qrDataUrl(smartLink),
+    qrDataUrl(playStoreUrl),
+    qrDataUrl(appStoreUrl),
+  ]);
+
+  return (
+    <div className="space-y-4">
+      {smartQr && <CombinedQrPanel code={code} qr={smartQr} link={smartLink} />}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StorePanel
+          code={code}
+          url={playStoreUrl}
+          qr={playQr}
+          platform="Android"
+          store="Play Store"
+          icon={<Smartphone className="size-5" aria-hidden />}
+        />
+        <StorePanel
+          code={code}
+          url={appStoreUrl}
+          qr={appQr}
+          platform="iOS"
+          store="App Store"
+          icon={<AppleLogo className="size-5" />}
+          iconTile="bg-black text-white"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One QR for a room full of mixed phones.
+ *
+ * The per-store QRs below are for when the ambassador knows which phone the
+ * friend holds. This is for everything else — a poster, a stall, a slide at
+ * the front of a lecture — where one code has to work for whoever points a
+ * camera at it. Scans go through `/<code>`, so they are counted as clicks too.
+ */
+function CombinedQrPanel({
+  code,
+  qr,
+  link,
+}: {
+  code: string;
+  qr: string;
+  link: string;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <StorePanel
-        code={code}
-        url={playStoreUrl}
-        platform="Android"
-        store="Play Store"
-        icon={<Smartphone className="size-5" aria-hidden />}
-      />
-      <StorePanel
-        code={code}
-        url={appStoreUrl}
-        platform="iOS"
-        store="App Store"
-        icon={<AppleLogo className="size-5" />}
-        iconTile="bg-black text-white"
-      />
+    <div className="flex flex-col items-center gap-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center">
+      <QrImage src={qr} alt={`QR code for ${link}`} className="size-44" />
+      <div className="text-center sm:text-left">
+        <p className="text-[11px] font-extrabold tracking-widest text-brand-strong uppercase">
+          One QR for any phone
+        </p>
+        <p className="mt-1.5 text-[13px] leading-relaxed font-extrabold text-gray-900">
+          Scan opens the App Store on iPhone and the Play Store on Android.
+        </p>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed font-semibold text-gray-500">
+          Best for posters, stalls and group chats with both kinds of phone.
+          Remind them to enter your code{" "}
+          <span className="font-mono font-bold text-gray-900">{code}</span>{" "}
+          in the app after installing.
+        </p>
+        <div className="mt-4">
+          <QrDownload src={qr} filename={`dailymattr-${code}-qr.png`} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -56,6 +121,7 @@ export function ReferralLinkCard({
 function StorePanel({
   code,
   url,
+  qr,
   platform,
   store,
   icon,
@@ -63,6 +129,7 @@ function StorePanel({
 }: {
   code: string;
   url: string;
+  qr: string | null;
   platform: string;
   store: string;
   icon: React.ReactNode;
@@ -110,6 +177,28 @@ function StorePanel({
         the {store}. The more people you bring in, the more you progress!
       </p>
 
+      {qr && (
+        <div className="mt-4 flex items-center gap-4">
+          <QrImage
+            src={qr}
+            alt={`QR code for the ${store} listing`}
+            className="size-28"
+          />
+          <div>
+            <p className="text-[12px] leading-relaxed font-semibold text-gray-500">
+              Scan with an {platform === "iOS" ? "iPhone" : "Android phone"}{" "}
+              to open the {store}.
+            </p>
+            <div className="mt-2">
+              <QrDownload
+                src={qr}
+                filename={`dailymattr-${code}-${platform.toLowerCase()}-qr.png`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Share sends the code and the store link together, which is what
           makes this work: the link installs the app and the code is what
           credits the ambassador once it is typed in. Copy link is the one
@@ -128,6 +217,46 @@ function StorePanel({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * A plain `<img>`, not `next/image`: the source is a data URL drawn for this
+ * request, so there is nothing for the optimiser to fetch or cache.
+ *
+ * `rendering: pixelated` keeps the modules sharp when the browser scales the
+ * PNG — a blurred QR is one a cheap phone camera gives up on.
+ */
+function QrImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className={`shrink-0 rounded-xl border border-gray-200 bg-white [image-rendering:pixelated] ${className ?? ""}`}
+    />
+  );
+}
+
+/** The same PNG, saved — for a poster, a story or a printed card. */
+function QrDownload({ src, filename }: { src: string; filename: string }) {
+  return (
+    <a
+      href={src}
+      download={filename}
+      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-extrabold tracking-wide text-gray-900 uppercase shadow-xs transition-all hover:bg-gray-50"
+    >
+      <Download className="size-3.5" aria-hidden />
+      Download QR
+    </a>
   );
 }
 
