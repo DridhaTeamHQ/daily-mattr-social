@@ -1,6 +1,7 @@
 import { Download, Smartphone } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
+import { ShareQrButton } from "@/components/share-qr";
 import { ShareReferralButton } from "@/components/share-referral";
 import { qrDataUrl } from "@/lib/qr";
 
@@ -111,7 +112,12 @@ function CombinedQrPanel({
           in the app after installing.
         </p>
         <div className="mt-4">
-          <QrDownload src={qr} filename={`dailymattr-${code}-qr.png`} />
+          <QrActions
+            src={qr}
+            filename={`dailymattr-${code}-qr.png`}
+            code={code}
+            link={link}
+          />
         </div>
       </div>
     </div>
@@ -190,9 +196,11 @@ function StorePanel({
               to open the {store}.
             </p>
             <div className="mt-2">
-              <QrDownload
+              <QrActions
                 src={qr}
                 filename={`dailymattr-${code}-${platform.toLowerCase()}-qr.png`}
+                code={code}
+                link={url}
               />
             </div>
           </div>
@@ -246,17 +254,39 @@ function QrImage({
   );
 }
 
-/** The same PNG, saved — for a poster, a story or a printed card. */
-function QrDownload({ src, filename }: { src: string; filename: string }) {
+const QR_BUTTON =
+  "inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-extrabold tracking-wide text-gray-900 uppercase shadow-xs transition-all hover:bg-gray-50";
+
+/**
+ * The same PNG, shared straight into a chat or saved — for a poster, a story
+ * or a printed card. The link passed in is the one the QR encodes, so the
+ * caption and the picture always point at the same place.
+ */
+function QrActions({
+  src,
+  filename,
+  code,
+  link,
+}: {
+  src: string;
+  filename: string;
+  code: string;
+  link: string;
+}) {
   return (
-    <a
-      href={src}
-      download={filename}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-extrabold tracking-wide text-gray-900 uppercase shadow-xs transition-all hover:bg-gray-50"
-    >
-      <Download className="size-3.5" aria-hidden />
-      Download QR
-    </a>
+    <div className="flex flex-wrap gap-2">
+      <ShareQrButton
+        src={src}
+        filename={filename}
+        code={code}
+        link={link}
+        className={QR_BUTTON}
+      />
+      <a href={src} download={filename} className={QR_BUTTON}>
+        <Download className="size-3.5" aria-hidden />
+        Download QR
+      </a>
+    </div>
   );
 }
 
