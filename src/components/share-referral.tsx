@@ -21,6 +21,10 @@ import { Button } from "@/components/ui/button";
  * app — so a share that carries a single one of them costs the ambassador the
  * referral either way.
  *
+ * When a QR is passed in, it comes back as a small card image with the ask,
+ * the code and the link drawn on it (see `drawShareCard`) — because WhatsApp
+ * keeps a shared image and drops the text sent with it.
+ *
  * The clipboard is written as well as the sheet being opened, because the sheet
  * can be dismissed and WhatsApp is not the only place a student pastes this.
  */
@@ -42,18 +46,34 @@ export function ShareReferralButton({
 }) {
   const [busy, setBusy] = React.useState(false);
 
-  // Built before the click, not in it: turning the data URL into a File after
-  // the tap would sit in front of `navigator.share` and spend the activation.
-  const qrFile = React.useMemo(
-    () => (qr ? dataUrlToFile(qr, qrFilename) : null),
-    [qr, qrFilename],
-  );
-
   /** The ask, without the URL — `url` carries that so it arrives as a link. */
   const ask = `Get dailymattr — use my referral code ${code}`;
 
   /** The clipboard has no notion of a link field, so this one is glued. */
   const message = `${ask}\n${link}`;
+
+  // The bare QR until the card is drawn, so a tap in the first instant still
+  // shares something. Both are built before the click, not in it: making the
+  // File after the tap would sit in front of `navigator.share` and spend the
+  // activation.
+  const plainQr = React.useMemo(
+    () => (qr ? dataUrlToFile(qr, qrFilename) : null),
+    [qr, qrFilename],
+  );
+  const [card, setCard] = React.useState<File | null>(null);
+  React.useEffect(() => {
+    if (!qr) return;
+    let live = true;
+    drawShareCard(qr, code, link).then((blob) => {
+      if (live && blob) {
+        setCard(new File([blob], qrFilename, { type: "image/png" }));
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [qr, code, link, qrFilename]);
+  const qrFile = card ?? plainQr;
 
   async function share() {
     setBusy(true);
@@ -62,6 +82,7 @@ export function ShareReferralButton({
     // transient activation, and putting an await in front of it is how you get
     // NotAllowedError on Android for a button that plainly was clicked.
     let sheet: Promise<void> | null = null;
+    let sentImage = false;
     try {
       // With the QR attached, the link goes in `text`: apps that take a file
       // tend to drop the separate `url` field and keep only the caption.
@@ -71,6 +92,7 @@ export function ShareReferralButton({
 
       if (withQr && navigator.canShare?.(withQr)) {
         sheet = navigator.share(withQr);
+        sentImage = true;
       } else if (navigator.share) {
         // `url` as its own field, not glued into `text`. WhatsApp and the rest
         // linkify what arrives in `url` and leave a pasted string alone, and a
@@ -87,6 +109,12 @@ export function ShareReferralButton({
     try {
       if (sheet) {
         await sheet;
+        // WhatsApp and others keep the image and quietly drop the text that
+        // came with it. The card carries the code either way, but the link is
+        // only tappable as text — so say where it is.
+        if (sentImage && copied) {
+          toast.success("Message copied — paste it with the QR so the link is tappable");
+        }
         return;
       }
     } catch (err) {
@@ -113,6 +141,93 @@ export function ShareReferralButton({
       Share code &amp; link
     </Button>
   );
+}
+
+/**
+ * The QR as a card with the message drawn on it.
+ *
+ * Share sheets hand an image and its caption to the app separately, and
+ * WhatsApp in particular keeps the image and drops the caption. Drawing the
+ * ask, the code and the link into the picture means a forward of the image
+ * alone still tells the friend what to type.
+ *
+ * Drawn in the browser rather than on the server so the text uses the phone's
+ * own fonts — a server without them renders the words as empty boxes.
+ */
+async function drawShareCard(
+  qr: string,
+  code: string,
+  link: string,
+): Promise<Blob | null> {
+  try {
+    const img = new Image();
+    img.src = qr;
+    await img.decode();
+
+    const W = 1080;
+    const pad = 72;
+    const qrSize = 720;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const font = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+    const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+
+    // The link wraps by character — a URL has no spaces to break on.
+    ctx.font = `600 25px ${mono}`;
+    const linkLines: string[] = [];
+    let line = "";
+    for (const ch of link) {
+      if (ctx.measureText(line + ch).width > W - pad * 2) {
+        linkLines.push(line);
+        line = ch;
+      } else {
+        line += ch;
+      }
+    }
+    if (line) linkLines.push(line);
+
+    const H = pad + 64 + 40 + qrSize + 48 + 40 + 16 + 96 + 40 + linkLines.length * 36 + pad;
+    canvas.width = W;
+    canvas.height = H;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#111827";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    let y = pad;
+    ctx.font = `800 56px ${font}`;
+    ctx.fillText("Get dailymattr", W / 2, y);
+    y += 64 + 40;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, (W - qrSize) / 2, y, qrSize, qrSize);
+    y += qrSize + 48;
+
+    ctx.fillStyle = "#4b5563";
+    ctx.font = `600 36px ${font}`;
+    ctx.fillText("Use my referral code", W / 2, y);
+    y += 40 + 16;
+
+    ctx.fillStyle = "#111827";
+    ctx.font = `800 88px ${mono}`;
+    ctx.fillText(code, W / 2, y);
+    y += 96 + 40;
+
+    ctx.fillStyle = "#1d4ed8";
+    ctx.font = `600 25px ${mono}`;
+    for (const l of linkLines) {
+      ctx.fillText(l, W / 2, y);
+      y += 36;
+    }
+
+    return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  } catch {
+    return null;
+  }
 }
 
 /**
