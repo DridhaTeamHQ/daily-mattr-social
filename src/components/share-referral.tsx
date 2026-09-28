@@ -4,6 +4,7 @@ import * as React from "react";
 import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { dataUrlToFile } from "@/components/share-qr";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -26,11 +27,27 @@ import { Button } from "@/components/ui/button";
 export function ShareReferralButton({
   code,
   link,
+  qr,
+  qrFilename = `dailymattr-${code}-qr.png`,
 }: {
   code: string;
   link: string;
+  /**
+   * The QR for `link`, as a PNG data URL. When given, it goes out as an image
+   * in the same share — one message with the picture, the code and the link,
+   * rather than a second button that sends the picture on its own.
+   */
+  qr?: string | null;
+  qrFilename?: string;
 }) {
   const [busy, setBusy] = React.useState(false);
+
+  // Built before the click, not in it: turning the data URL into a File after
+  // the tap would sit in front of `navigator.share` and spend the activation.
+  const qrFile = React.useMemo(
+    () => (qr ? dataUrlToFile(qr, qrFilename) : null),
+    [qr, qrFilename],
+  );
 
   /** The ask, without the URL — `url` carries that so it arrives as a link. */
   const ask = `Get dailymattr — use my referral code ${code}`;
@@ -46,7 +63,15 @@ export function ShareReferralButton({
     // NotAllowedError on Android for a button that plainly was clicked.
     let sheet: Promise<void> | null = null;
     try {
-      if (navigator.share) {
+      // With the QR attached, the link goes in `text`: apps that take a file
+      // tend to drop the separate `url` field and keep only the caption.
+      const withQr: ShareData | null = qrFile
+        ? { title: "dailymattr", text: message, files: [qrFile] }
+        : null;
+
+      if (withQr && navigator.canShare?.(withQr)) {
+        sheet = navigator.share(withQr);
+      } else if (navigator.share) {
         // `url` as its own field, not glued into `text`. WhatsApp and the rest
         // linkify what arrives in `url` and leave a pasted string alone, and a
         // referral link nobody can tap is a referral nobody makes.

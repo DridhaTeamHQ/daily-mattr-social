@@ -69,7 +69,7 @@ export function ShareQrButton({
   );
 }
 
-function dataUrlToFile(dataUrl: string, filename: string): File | null {
+export function dataUrlToFile(dataUrl: string, filename: string): File | null {
   try {
     const [header, base64] = dataUrl.split(",");
     const type = /data:([^;]+)/.exec(header)?.[1] ?? "image/png";

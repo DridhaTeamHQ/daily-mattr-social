@@ -190,20 +190,11 @@ function StorePanel({
             alt={`QR code for the ${store} listing`}
             className="size-28"
           />
-          <div>
-            <p className="text-[12px] leading-relaxed font-semibold text-gray-500">
-              Scan with an {platform === "iOS" ? "iPhone" : "Android phone"}{" "}
-              to open the {store}.
-            </p>
-            <div className="mt-2">
-              <QrActions
-                src={qr}
-                filename={`dailymattr-${code}-${platform.toLowerCase()}-qr.png`}
-                code={code}
-                link={url}
-              />
-            </div>
-          </div>
+          <p className="text-[12px] leading-relaxed font-semibold text-gray-500">
+            Scan with an {platform === "iOS" ? "iPhone" : "Android phone"} to
+            open the {store}. Share below sends this QR with your code and
+            link.
+          </p>
         </div>
       )}
 
@@ -212,7 +203,12 @@ function StorePanel({
           credits the ambassador once it is typed in. Copy link is the one
           for pasting into something that only wants a URL. */}
       <div className="mt-4">
-        <ShareReferralButton code={code} link={url} />
+        <ShareReferralButton
+          code={code}
+          link={url}
+          qr={qr}
+          qrFilename={`dailymattr-${code}-${platform.toLowerCase()}-qr.png`}
+        />
       </div>
 
       <div className="mt-3">
