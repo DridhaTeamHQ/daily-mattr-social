@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 
-import { normalizePathCode, resolveReferralClick } from "@/lib/referral-click";
+import { downloadPageResponse } from "@/lib/download-page";
+import { normalizePathCode, recordReferralClick } from "@/lib/referral-click";
 
 /**
  * The original referral link, kept working.
@@ -22,5 +22,7 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> },
 ) {
   const { code: raw } = await params;
-  redirect(await resolveReferralClick(request, normalizePathCode(raw)));
+  const code = normalizePathCode(raw);
+  await recordReferralClick(request, code);
+  return downloadPageResponse(code);
 }

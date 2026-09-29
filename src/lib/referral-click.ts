@@ -5,7 +5,6 @@ import type { NextRequest } from "next/server";
 
 import { clientIp } from "@/lib/client-ip";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAppStoreUrl, getPlayStoreUrl, PLAY_STORE_FALLBACK } from "@/lib/store-links";
 import type { Enums } from "@/lib/database.types";
 
 /**
@@ -17,7 +16,7 @@ import type { Enums } from "@/lib/database.types";
  * link, so a click was invisible.
  *
  * Sending people through here buys two things: a click we can count and a store
- * we can attribute. It costs one redirect.
+ * we can attribute. It costs one page load.
  *
  * Nothing here can fail loudly. A student's link must open the store even if
  * the code is nonsense, the database is down, or the settings row is missing —
@@ -26,7 +25,7 @@ import type { Enums } from "@/lib/database.types";
  *
  * Lives in a module rather than in the route because there are two routes now:
  * the short `/DMB18` that gets shared, and the original `/r/DMB18` that is
- * already out in the world. Two copies of a redirect that writes analytics is
+ * already out in the world. Two copies of a route that writes analytics is
  * how the short one quietly stops counting.
  */
 
@@ -35,8 +34,8 @@ import type { Enums } from "@/lib/database.types";
  *
  * Matters only for the short route: that one sits at the root, so it is offered
  * every path that no page claimed. Without this, `/favicon.ico` and every
- * mistyped URL would be recorded as a referral click and redirected to the Play
- * Store instead of showing the 404.
+ * mistyped URL would be recorded as a referral click and sent to a store
+ * instead of showing the 404.
  *
  * Deliberately looser than `isStructuredCode`: legacy codes like `DM54JGJ3` are
  * still live on posters, and a code that has been reissued into a shape this
@@ -54,8 +53,7 @@ export function normalizePathCode(raw: string | undefined): string {
 /**
  * Which store the device is asking for.
  *
- * Decides where the click is sent, and is recorded with it so the growth page
- * can split clicks by store.
+ * Recorded with the click so the growth page can split clicks by store.
  *
  * User-agent sniffing is unreliable in general and entirely adequate here, and
  * 'unknown' is recorded honestly rather than guessed at.
@@ -67,6 +65,13 @@ function storeFor(userAgent: string): Enums<"install_store"> {
   return "unknown";
 }
 
+/** The crawlers chat and social apps send to build a link preview. */
+function isLinkPreviewBot(userAgent: string): boolean {
+  return /WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|Discordbot|LinkedInBot|Snap URL Preview|Pinterestbot|SkypeUriPreview|Iframely|redditbot/i.test(
+    userAgent,
+  );
+}
+
 /** Same one-way hash the survey route uses: enough to spot repeats, not an identity. */
 function hashIp(ip: string): string | null {
   if (!ip) return null;
@@ -74,27 +79,24 @@ function hashIp(ip: string): string | null {
 }
 
 /**
- * Record the click and say where to send them.
+ * Record the click.
  *
- * Returns the destination rather than redirecting, because `redirect()` throws
- * to unwind and a helper that throws control flow is a trap for the next
- * caller. The routes do the redirecting.
+ * Only records: where the phone goes is decided by `download-page` in the
+ * browser, which can tell an iPad from a Mac where this header cannot. The
+ * `store` written here is the server's best guess, for the growth page's split.
  */
-export async function resolveReferralClick(
+export async function recordReferralClick(
   request: NextRequest,
   code: string,
-): Promise<string> {
+): Promise<void> {
   const userAgent = request.headers.get("user-agent") ?? "";
-  const store = storeFor(userAgent);
-  const isIos = store === "app_store";
 
-  // iPhones to the App Store, everyone else to the Play Store. Desktop lands
-  // there too: 'unknown' is usually someone checking their own link.
-  let destination = PLAY_STORE_FALLBACK;
+  // A chat app fetching the link to draw its preview card is not a person
+  // tapping it — and WhatsApp does that from the sender's phone on every
+  // share, which would count each share as a click.
+  if (isLinkPreviewBot(userAgent)) return;
 
   try {
-    destination = await (isIos ? getAppStoreUrl() : getPlayStoreUrl());
-
     const db = createAdminClient();
 
     const { data: owner } = await db
@@ -110,14 +112,12 @@ export async function resolveReferralClick(
     await db.from("referral_clicks").insert({
       ambassador_id: owner?.id ?? null,
       code,
-      store,
+      store: storeFor(userAgent),
       ip_hash: hashIp(clientIp(request.headers) ?? ""),
       user_agent: userAgent.slice(0, 400),
     });
   } catch {
-    // Swallowed on purpose. The redirect is the promise this route makes to
-    // the student; analytics is the thing we would rather lose.
+    // Swallowed on purpose. Opening the store is the promise the link makes
+    // to the student; analytics is the thing we would rather lose.
   }
-
-  return destination;
 }

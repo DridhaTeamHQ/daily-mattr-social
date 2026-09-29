@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Share2 } from "lucide-react";
+import { Check, Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { dataUrlToFile } from "@/components/share-qr";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 
 /**
  * Hand over the referral, as the two things a friend actually needs.
@@ -46,34 +46,12 @@ export function ShareReferralButton({
 }) {
   const [busy, setBusy] = React.useState(false);
 
-  /** The ask, without the URL — `url` carries that so it arrives as a link. */
-  const ask = `Get dailymattr — use my referral code ${code}`;
+  const ask = referralAsk(code);
 
   /** The clipboard has no notion of a link field, so this one is glued. */
   const message = `${ask}\n${link}`;
 
-  // The bare QR until the card is drawn, so a tap in the first instant still
-  // shares something. Both are built before the click, not in it: making the
-  // File after the tap would sit in front of `navigator.share` and spend the
-  // activation.
-  const plainQr = React.useMemo(
-    () => (qr ? dataUrlToFile(qr, qrFilename) : null),
-    [qr, qrFilename],
-  );
-  const [card, setCard] = React.useState<File | null>(null);
-  React.useEffect(() => {
-    if (!qr) return;
-    let live = true;
-    drawShareCard(qr, code, link).then((blob) => {
-      if (live && blob) {
-        setCard(new File([blob], qrFilename, { type: "image/png" }));
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, [qr, code, link, qrFilename]);
-  const qrFile = card ?? plainQr;
+  const qrFile = useShareCard(qr, code, link, qrFilename);
 
   async function share() {
     setBusy(true);
@@ -141,6 +119,115 @@ export function ShareReferralButton({
       Share code &amp; link
     </Button>
   );
+}
+
+/**
+ * Copy exactly what Share sends — the QR card and the message — for the places
+ * a share sheet does not reach, like WhatsApp Web on a laptop.
+ *
+ * One clipboard entry holding both: an app that takes pictures pastes the
+ * card, and a text box pastes the message. Browsers that cannot put a picture
+ * on the clipboard get the message alone, which still carries the code and
+ * the link.
+ */
+export function CopyReferralButton({
+  code,
+  link,
+  qr,
+  qrFilename = `dailymattr-${code}-qr.png`,
+  ...props
+}: {
+  code: string;
+  link: string;
+  qr?: string | null;
+  qrFilename?: string;
+} & Omit<ButtonProps, "onClick" | "children">) {
+  const [copied, setCopied] = React.useState(false);
+  const message = `${referralAsk(code)}\n${link}`;
+  const qrFile = useShareCard(qr, code, link, qrFilename);
+
+  React.useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  async function copy() {
+    let withImage = false;
+    try {
+      if (qrFile && typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "image/png": qrFile,
+            "text/plain": new Blob([message], { type: "text/plain" }),
+          }),
+        ]);
+        withImage = true;
+      }
+    } catch {
+      withImage = false;
+    }
+
+    const ok = withImage || (await writeClipboard(message));
+    if (!ok) {
+      // Shown rather than failed silently, so it can be selected by hand.
+      toast.error("Couldn't copy automatically", { description: message });
+      return;
+    }
+
+    setCopied(true);
+    toast.success(
+      withImage
+        ? "QR and message copied — paste them into the chat"
+        : "Code and link copied — paste them anywhere",
+    );
+  }
+
+  return (
+    <Button onClick={copy} {...props}>
+      {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+      {copied ? "Copied!" : "Copy link"}
+    </Button>
+  );
+}
+
+/** The ask, without the URL — a share's `url` field carries that. */
+function referralAsk(code: string): string {
+  return `Get dailymattr — use my referral code ${code}`;
+}
+
+/**
+ * The QR card as a File, for sharing or copying.
+ *
+ * The bare QR until the card is drawn, so a tap in the first instant still
+ * has something. Both are built before the click, not in it: making the File
+ * after the tap would sit in front of `navigator.share` and spend the
+ * activation.
+ */
+function useShareCard(
+  qr: string | null | undefined,
+  code: string,
+  link: string,
+  qrFilename: string,
+): File | null {
+  const plainQr = React.useMemo(
+    () => (qr ? dataUrlToFile(qr, qrFilename) : null),
+    [qr, qrFilename],
+  );
+  const [card, setCard] = React.useState<File | null>(null);
+  React.useEffect(() => {
+    if (!qr) return;
+    let live = true;
+    drawShareCard(qr, code, link).then((blob) => {
+      if (live && blob) {
+        setCard(new File([blob], qrFilename, { type: "image/png" }));
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [qr, code, link, qrFilename]);
+  return card ?? plainQr;
 }
 
 /**

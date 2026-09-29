@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { getReferralStats } from "@/lib/queries";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { getSiteUrl } from "@/lib/site-url";
-import { getAppStoreUrl, getPlayStoreUrl } from "@/lib/store-links";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Referrals" };
@@ -19,14 +18,9 @@ export default async function ReferralsPage() {
   const referrals = await getReferralStats();
   if (!referrals) redirect("/login");
 
-  // Read rather than hard-coded, so the store listing can be corrected without
-  // a deploy — and so this and `/[code]` can never disagree about where the
-  // app lives.
-  const [playStoreUrl, appStoreUrl, siteUrl] = await Promise.all([
-    getPlayStoreUrl(),
-    getAppStoreUrl(),
-    getSiteUrl(),
-  ]);
+  // The store listings are read by the link's own page, so this one only
+  // needs the origin to build `/<code>` from.
+  const siteUrl = await getSiteUrl();
 
   // The link card is finished and switched off until the app is live in the
   // store. `referral_link_unlock_at` in app_settings decides — see getUnlockAt.
@@ -94,8 +88,9 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      {/* The link and the shareable card. `/r/<code>` counts the click on the
-          way through and sends Android to the Play Store.
+      {/* The link and the shareable card. `/<code>` counts the click and sends
+          each phone to its own store, so one link works for iPhone and
+          Android alike.
 
           Locked rather than deleted, and said out loud rather than left blank:
           a card that simply vanished would read as something that failed to
@@ -127,9 +122,7 @@ export default async function ReferralsPage() {
       ) : linkOpen ? (
         <ReferralLinkCard
           code={referrals.code}
-          playStoreUrl={playStoreUrl}
-          appStoreUrl={appStoreUrl}
-          smartLink={`${siteUrl}/${referrals.code}`}
+          shareLink={`${siteUrl}/${referrals.code}`}
         />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
