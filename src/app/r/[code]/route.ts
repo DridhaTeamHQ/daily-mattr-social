@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { downloadPageResponse } from "@/lib/download-page";
+import { downloadResponse } from "@/lib/download-page";
 import { normalizePathCode, recordReferralClick } from "@/lib/referral-click";
 
 /**
@@ -24,5 +24,5 @@ export async function GET(
   const { code: raw } = await params;
   const code = normalizePathCode(raw);
   await recordReferralClick(request, code);
-  return downloadPageResponse(code);
+  return downloadResponse(request, code);
 }

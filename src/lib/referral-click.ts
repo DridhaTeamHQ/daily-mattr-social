@@ -66,7 +66,7 @@ function storeFor(userAgent: string): Enums<"install_store"> {
 }
 
 /** The crawlers chat and social apps send to build a link preview. */
-function isLinkPreviewBot(userAgent: string): boolean {
+export function isLinkPreviewBot(userAgent: string): boolean {
   return /WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|Discordbot|LinkedInBot|Snap URL Preview|Pinterestbot|SkypeUriPreview|Iframely|redditbot/i.test(
     userAgent,
   );

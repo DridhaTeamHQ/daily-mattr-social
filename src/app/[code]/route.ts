@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { NextRequest } from "next/server";
 
-import { downloadPageResponse } from "@/lib/download-page";
+import { downloadResponse } from "@/lib/download-page";
 import {
   looksLikeReferralCode,
   normalizePathCode,
@@ -17,8 +17,8 @@ import {
  * it — the code alone is the whole address.
  *
  * It is the one link the referrals page hands out. The click is counted here,
- * then the phone gets the same page as `/download`, which sends iPhones and
- * iPads to the App Store and Android to Play.
+ * then it answers the same way as `/download`: iPhones, iPads and Macs are
+ * sent to the App Store, everything else to Play.
  *
  * ─── Why this route needs a guard when `/r/[code]` does not ─────────────────
  *
@@ -45,5 +45,5 @@ export async function GET(
   if (!looksLikeReferralCode(code)) notFound();
 
   await recordReferralClick(request, code);
-  return downloadPageResponse(code);
+  return downloadResponse(request, code);
 }
