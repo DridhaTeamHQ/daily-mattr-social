@@ -19,7 +19,7 @@ export default async function ReferralsPage() {
   if (!referrals) redirect("/login");
 
   // The store listings are read by the link's own page, so this one only
-  // needs the origin to build `/<code>` from.
+  // needs the origin to build `/download` from.
   const siteUrl = await getSiteUrl();
 
   // The link card is finished and switched off until the app is live in the
@@ -88,9 +88,10 @@ export default async function ReferralsPage() {
         </div>
       </div>
 
-      {/* The link and the shareable card. `/<code>` counts the click and sends
-          each phone to its own store, so one link works for iPhone and
-          Android alike.
+      {/* The link and the shareable card. `/download` is the same for every
+          ambassador and sends each phone to its own store, so one link works
+          for iPhone and Android alike. Credit comes from the code, which the
+          card and the message carry.
 
           Locked rather than deleted, and said out loud rather than left blank:
           a card that simply vanished would read as something that failed to
@@ -122,7 +123,7 @@ export default async function ReferralsPage() {
       ) : linkOpen ? (
         <ReferralLinkCard
           code={referrals.code}
-          shareLink={`${siteUrl}/${referrals.code}`}
+          shareLink={`${siteUrl}/download`}
         />
       ) : (
         <div className="flex items-center gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">

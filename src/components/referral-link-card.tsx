@@ -9,22 +9,22 @@ import { qrDataUrl } from "@/lib/qr";
 /**
  * The share link: one link, one QR, for any phone.
  *
- * It hands out the ambassador's own `/<code>`, which counts the click and then
+ * It hands out the common `/download`, the same for every ambassador, which
  * decides on the phone doing the opening — iPhones and iPads go to the App
  * Store, Android to Play (see `download-page`). So an ambassador never has to
  * know which phone a friend holds, and an Android student posting into a
  * group still sends its iPhones to the right store.
  *
- * The code is in the link, but credit still comes from the friend typing it
- * into the app — the link only counts the click — which is why
- * `ShareReferralButton` sends the code in the message as well.
+ * The code is not in the link: credit comes from the friend typing it into
+ * the app, which is why `ShareReferralButton` sends the code in the message
+ * and draws it on the QR card.
  */
 export async function ReferralLinkCard({
   code,
   shareLink,
 }: {
   code: string;
-  /** `/<code>` on this site — what gets shown, shared, copied and scanned. */
+  /** `/download` on this site — what gets shown, shared, copied and scanned. */
   shareLink: string;
 }) {
   const qr = await qrDataUrl(shareLink);
