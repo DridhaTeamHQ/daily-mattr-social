@@ -575,38 +575,56 @@ export async function getCompletionByAmbassador(
         left.full_name.localeCompare(right.full_name),
     );
 
-  const campaignPerformance = activeCampaigns
-    .map((campaign) => {
-      const campaignTaskCount = tasksPerCampaign.get(campaign.id) ?? 0;
-      const approved = approvedByCampaign.get(campaign.id)?.size ?? 0;
-      // The people who were in the programme before this campaign closed, not
-      // the whole cohort: counting a January campaign against ambassadors
-      // recruited in March caps it below 100% for reasons that have nothing to
-      // do with the campaign.
-      const closes = closedAt(campaign);
-      const reached = profiles.filter(
-        (profile) => joinedAt(profile) < closes,
-      ).length;
-      const total = campaignTaskCount * reached;
-      return {
-        // Two campaigns can carry the same title — running the same brief a
-        // second month is normal — so the row is identified by the campaign,
-        // not by what it is called.
-        id: campaign.id,
-        label: campaign.title,
-        value: total ? Math.round((approved * 100) / total) : 0,
-        sub: `${approved}/${total} approved tasks`,
-        // The percentage says how far along the task is; the page it opens
-        // says which of the 62 are the ones behind it.
-        href: `/admin/campaigns/${campaign.id}`,
-      };
-    })
-    .sort((left, right) => right.value - left.value)
-    .slice(0, 8);
+  /**
+   * Completion per campaign, over a subset of the cohort — everybody when
+   * `ids` is null. The batch view on /admin/analytics asks this once per
+   * batch, so the per-batch task bars are the same arithmetic as the
+   * programme-wide ones rather than a second copy that could drift from it.
+   */
+  function campaignBreakdown(ids: ReadonlySet<string> | null) {
+    const members = ids
+      ? profiles.filter((profile) => ids.has(profile.id))
+      : profiles;
+    return activeCampaigns
+      .map((campaign) => {
+        const campaignTaskCount = tasksPerCampaign.get(campaign.id) ?? 0;
+        let approved = 0;
+        for (const key of approvedByCampaign.get(campaign.id) ?? []) {
+          if (!ids || ids.has(key.slice(0, key.indexOf(":")))) approved += 1;
+        }
+        // The people who were in the programme before this campaign closed,
+        // not the whole cohort: counting a January campaign against
+        // ambassadors recruited in March caps it below 100% for reasons that
+        // have nothing to do with the campaign.
+        const closes = closedAt(campaign);
+        const reached = members.filter(
+          (profile) => joinedAt(profile) < closes,
+        ).length;
+        const total = campaignTaskCount * reached;
+        return {
+          // Two campaigns can carry the same title — running the same brief a
+          // second month is normal — so the row is identified by the
+          // campaign, not by what it is called.
+          id: campaign.id,
+          label: campaign.title,
+          value: total ? Math.round((approved * 100) / total) : 0,
+          approved,
+          total,
+          sub: `${approved}/${total} approved tasks`,
+          // The percentage says how far along the task is; the page it opens
+          // says which of the 62 are the ones behind it.
+          href: `/admin/campaigns/${campaign.id}`,
+        };
+      })
+      .sort((left, right) => right.value - left.value);
+  }
+
+  const campaignPerformance = campaignBreakdown(null).slice(0, 8);
   return {
     profiles,
     ranked,
     campaignPerformance,
+    campaignBreakdown,
     taskTotal,
     activeCampaigns,
     availableAssignments,

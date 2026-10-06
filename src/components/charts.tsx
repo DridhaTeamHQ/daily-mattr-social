@@ -546,3 +546,225 @@ export function DataTable({
     </details>
   );
 }
+
+/**
+ * Vertical columns, one per group.
+ *
+ * For a handful of short category labels — batches, completion bands — where
+ * a row of columns reads as a comparison at a glance and the labels fit
+ * underneath without rotating. Names and titles still belong in `BarList`.
+ * One series, so one colour; `highlight` lifts a single column (the leader,
+ * the one selected) to the strong colour and leaves the rest muted, which is
+ * the only emphasis the chart needs.
+ */
+export function ColumnChart({
+  data,
+  color = "teal",
+  unit = "",
+  max: fixedMax,
+  emptyMessage = "Nothing yet.",
+}: {
+  data: {
+    id?: string;
+    label: string;
+    value: number;
+    sub?: string;
+    href?: string;
+    highlight?: boolean;
+  }[];
+  color?: SeriesColor;
+  unit?: string;
+  /** A fixed top for the scale — 100 for percentages, so 40% looks like 40%. */
+  max?: number;
+  emptyMessage?: string;
+}) {
+  if (data.length === 0) {
+    return (
+      <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  const max = fixedMax ?? Math.max(...data.map((d) => d.value), 1);
+  const anyHighlight = data.some((d) => d.highlight);
+
+  return (
+    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <ul className="flex min-w-full items-end gap-2">
+        {data.map((d, index) => {
+          const pct = d.value === 0 ? 0 : Math.max(4, (d.value / max) * 100);
+          const strong = !anyHighlight || d.highlight;
+          const column = (
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="tabular text-[13px] font-extrabold text-ink">
+                {formatNumber(d.value)}
+                {unit}
+              </span>
+              <div
+                className="flex h-40 w-full items-end"
+                role="img"
+                aria-label={`${d.label}: ${d.value}${unit}`}
+              >
+                {d.value > 0 ? (
+                  <div
+                    className="w-full rounded-t-md border-2 border-ink transition-[height] duration-500 ease-out group-hover:border-brand"
+                    style={{
+                      height: `${pct}%`,
+                      backgroundColor: SERIES[color],
+                      opacity: strong ? 1 : 0.45,
+                    }}
+                  />
+                ) : (
+                  <div className="h-[3px] w-full rounded-full bg-ink/15" />
+                )}
+              </div>
+              <span
+                className={cn(
+                  "max-w-full truncate text-center text-[12px] font-extrabold text-ink",
+                  d.href && "group-hover:underline",
+                )}
+              >
+                {d.label}
+              </span>
+              {d.sub && (
+                <span className="-mt-1 max-w-full truncate text-center text-[11px] font-semibold text-ink-soft">
+                  {d.sub}
+                </span>
+              )}
+            </div>
+          );
+
+          return (
+            <li
+              key={d.id ?? index}
+              className="min-w-[44px] flex-1"
+              title={`${d.label}: ${formatNumber(d.value)}${unit}${d.sub ? ` · ${d.sub}` : ""}`}
+            >
+              <Row href={d.href} label={d.label}>
+                {column}
+              </Row>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * A grid of percentages — rows by columns — shaded by value.
+ *
+ * Built for "which task is lagging in which batch": the eye finds the pale
+ * cell in a row faster than it reads a table of numbers, and every cell still
+ * prints its figure, so the shade is never the only carrier of the value.
+ * A cell with nothing to measure (nobody in that group could reach the task)
+ * is a dash, not a 0% — zero is a result, the dash is an absence.
+ */
+export function Heatmap({
+  rows,
+  columns,
+  color = "teal",
+  rowHeader = "",
+}: {
+  rows: {
+    id: string;
+    label: string;
+    href?: string;
+    cells: ({ value: number; sub?: string } | null)[];
+  }[];
+  columns: { id: string; label: string; href?: string }[];
+  color?: SeriesColor;
+  rowHeader?: string;
+}) {
+  if (rows.length === 0 || columns.length === 0) {
+    return (
+      <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
+        Nothing yet.
+      </p>
+    );
+  }
+
+  const fill = SERIES[color];
+
+  return (
+    // Capped in height with the batch names pinned, so a long run of tasks
+    // scrolls inside the card instead of pushing everything else off screen.
+    <div className="-mx-1 max-h-[26rem] overflow-auto px-1 pb-1">
+      <table className="w-full min-w-[32rem] border-separate border-spacing-x-1 border-spacing-y-1 text-left">
+        <thead className="sticky top-0 z-10 bg-surface">
+          <tr>
+            <th className="px-1 pb-1 text-[11.5px] font-medium tracking-wide text-ink-faint uppercase">
+              {rowHeader}
+            </th>
+            {columns.map((column) => (
+              <th
+                key={column.id}
+                scope="col"
+                className="min-w-[72px] px-1 pb-1 text-center text-[12px] font-extrabold text-ink"
+              >
+                {column.href ? (
+                  <Link href={column.href} className="hover:underline">
+                    {column.label}
+                  </Link>
+                ) : (
+                  column.label
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <th
+                scope="row"
+                className="max-w-[18rem] truncate pr-2 text-[12.5px] font-bold text-ink"
+              >
+                {row.href ? (
+                  <Link href={row.href} className="hover:underline" title={row.label}>
+                    {row.label}
+                  </Link>
+                ) : (
+                  <span title={row.label}>{row.label}</span>
+                )}
+              </th>
+              {row.cells.map((cell, index) => {
+                if (!cell) {
+                  return (
+                    <td
+                      key={columns[index]?.id ?? index}
+                      className="rounded-md bg-gray-50 py-1.5 text-center text-[12px] font-bold text-ink-faint"
+                    >
+                      —
+                    </td>
+                  );
+                }
+                // Shade from a wash at 0% to the full series colour at 100%,
+                // with the text flipping to white once the fill is dark
+                // enough to need it.
+                const alpha = 0.06 + (cell.value / 100) * 0.74;
+                const dark = cell.value >= 70;
+                return (
+                  <td
+                    key={columns[index]?.id ?? index}
+                    title={`${row.label} · ${columns[index]?.label}: ${cell.value}%${cell.sub ? ` (${cell.sub})` : ""}`}
+                    className={cn(
+                      "tabular rounded-md py-1.5 text-center text-[12px] font-bold",
+                      dark ? "text-white" : "text-ink",
+                    )}
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${fill} ${Math.round(alpha * 100)}%, transparent)`,
+                    }}
+                  >
+                    {cell.value}%
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -27,7 +27,18 @@ const LABELS: Record<Dimension, { title: string; any: string }> = {
 
 const ORDER: Dimension[] = ["city", "college", "batch"];
 
-export function CohortFilter({ cohort }: { cohort: Cohort }) {
+export function CohortFilter({
+  cohort,
+  hide = [],
+}: {
+  cohort: Cohort;
+  /**
+   * Dimensions this page drives some other way. The batch view on
+   * /admin/analytics picks its batch from its own tabs, and a second control
+   * for the same thing would read as a second, independent filter.
+   */
+  hide?: Dimension[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -46,7 +57,7 @@ export function CohortFilter({ cohort }: { cohort: Cohort }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {ORDER.map((dimension) => (
+      {ORDER.filter((dimension) => !hide.includes(dimension)).map((dimension) => (
         <label key={dimension} className="inline-flex items-center gap-2">
           <span className="text-[11.5px] font-bold tracking-wide text-ink-faint uppercase">
             {LABELS[dimension].title}

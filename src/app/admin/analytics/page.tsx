@@ -5,6 +5,8 @@ import {
   ClipboardCheck,
   Clock3,
   Download,
+  LayoutGrid,
+  Layers,
   ListChecks,
   Users,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import { requireAdmin } from "@/lib/admin/queries";
 import { readPeriod, resolvePeriod } from "@/lib/admin/period";
 import {
   DIMENSIONS,
+  cohortLabel,
   getCohort,
   readCohortFilters,
   type Dimension,
@@ -31,7 +34,9 @@ import {
   STIPEND_MIN_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
-import { formatNumber, initials } from "@/lib/utils";
+import { cn, formatNumber, initials } from "@/lib/utils";
+
+import { BatchAnalytics, getBatchStatusCounts } from "./batch-view";
 
 export const metadata = { title: "Analytics" };
 
@@ -39,21 +44,41 @@ export default async function AnalyticsPage({
   searchParams,
 }: {
   searchParams: Promise<
-    Partial<Record<Dimension | "period", string | string[]>>
+    Partial<Record<Dimension | "period" | "view" | "focus", string | string[]>>
   >;
 }) {
   await requireAdmin();
 
   const params = await searchParams;
   const filters = readCohortFilters(params);
-  const cohort = await getCohort(filters.city, filters.college, filters.batch);
   const periodKey = readPeriod(params.period);
   const period = resolvePeriod(periodKey);
+
+  // Two views of the same figures. "batches" compares every batch side by
+  // side and opens one at a time on its own tab, so its batch comes from those
+  // tabs (`focus`) rather than from the batch dropdown — the cohort it groups
+  // has to span every batch, or there would be nothing to compare.
+  const first = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value;
+  const view = first(params.view) === "batches" ? "batches" : "overview";
+  const rawFocus = first(params.focus)?.trim();
+  const focus = rawFocus ? cohortLabel("batch", rawFocus) : null;
+  const cohort = await getCohort(
+    filters.city,
+    filters.college,
+    view === "batches" ? null : filters.batch,
+  );
 
   const supabase = await createClient();
 
   // Every figure on this page, and the CSV behind Download ambassadors, comes
   // out of one function — see `src/lib/admin/completion.ts` for why.
+  const [completion, batchStatuses] = await Promise.all([
+    getCompletionByAmbassador(supabase, { cohort, period }),
+    view === "batches"
+      ? getBatchStatusCounts(supabase, cohort.filters)
+      : Promise.resolve(new Map()),
+  ]);
   const {
     ranked,
     campaignPerformance,
@@ -65,7 +90,23 @@ export default async function AnalyticsPage({
     approvalPct,
     approvedSubmissions,
     pendingReview,
-  } = await getCompletionByAmbassador(supabase, { cohort, period });
+  } = completion;
+
+  /** This page with the view and batch swapped, everything else kept. */
+  const viewHref = (next: "overview" | "batches", batch: string | null) => {
+    const query = new URLSearchParams();
+    if (cohort.filters.city) query.set("city", cohort.filters.city);
+    if (cohort.filters.college) query.set("college", cohort.filters.college);
+    if (next === "batches") {
+      query.set("view", "batches");
+      if (batch) query.set("focus", batch);
+    } else if (batch) {
+      query.set("batch", batch);
+    }
+    if (params.period) query.set("period", periodKey);
+    const text = query.toString();
+    return `/admin/analytics${text ? `?${text}` : ""}`;
+  };
 
   // "Hyderabad · Batch 2 · this month", or just the period when nothing is
   // narrowed. Built from the same cohort object the filter row renders from,
@@ -84,6 +125,7 @@ export default async function AnalyticsPage({
     const value = cohort.filters[key];
     if (value) exportParams.set(key, value);
   }
+  if (view === "batches" && focus) exportParams.set("batch", focus);
   exportParams.set("period", periodKey);
   const exportQuery = exportParams.toString();
   const exportHref = `/admin/analytics/export${exportQuery ? `?${exportQuery}` : ""}`;
@@ -128,12 +170,49 @@ export default async function AnalyticsPage({
         </div>
       </div>
 
+      {/* Overview and Batches as tabs: two different questions about the
+          same ambassadors, kept on separate screens so neither is read
+          against the other's numbers. Switching carries the batch across —
+          the dropdown on one becomes the open tab on the other. */}
+      <nav
+        aria-label="Analytics views"
+        className="-mx-1 flex gap-1 overflow-x-auto border-b border-gray-200 pb-px"
+      >
+        {(
+          [
+            { key: "overview", label: "Overview", icon: LayoutGrid, href: viewHref("overview", focus) },
+            { key: "batches", label: "Batches", icon: Layers, href: viewHref("batches", filters.batch) },
+          ] as const
+        ).map((tab) => {
+          const active = tab.key === view;
+          return (
+            <Link
+              key={tab.key}
+              href={tab.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 rounded-t-lg border-b-2 px-3.5 py-2.5 text-[13.5px] font-bold transition-colors",
+                active
+                  ? "border-brand text-brand"
+                  : "border-transparent text-ink-soft hover:text-ink",
+              )}
+            >
+              <tab.icon className="size-4" aria-hidden />
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+
       {/* The page's one control bar. Given its own surface so it reads as
           something that governs everything below it, rather than as chrome
           belonging to the tiles it happens to sit above. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-surface p-3 shadow-xs">
         <PeriodFilter period={period.key} />
-        <CohortFilter cohort={cohort} />
+        <CohortFilter
+          cohort={cohort}
+          hide={view === "batches" ? ["batch"] : []}
+        />
       </div>
 
       {cohort.empty ? (
@@ -144,6 +223,14 @@ export default async function AnalyticsPage({
             description="No active ambassador is in every one of the selected city, college/office and batch. Clear one of them to widen the view."
           />
         </Card>
+      ) : view === "batches" ? (
+        <BatchAnalytics
+          data={completion}
+          statuses={batchStatuses}
+          focus={focus}
+          period={period}
+          hrefFor={(batch) => viewHref("batches", batch)}
+        />
       ) : (
         <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
