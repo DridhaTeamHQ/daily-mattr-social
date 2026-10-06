@@ -26,9 +26,10 @@ import { archiveCampaign, deleteCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
 import { getActiveVersion } from "@/lib/programme-version";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
-import { cn, formatDate, timeRemaining } from "@/lib/utils";
+import { formatDate, initials, timeRemaining } from "@/lib/utils";
 
 import { ParticipantList } from "./participant-list";
+import { PeopleTabs } from "./people-tabs";
 
 export const metadata = { title: "Campaign" };
 
@@ -75,6 +76,16 @@ export default async function CampaignDetailPage({
     totals.cohort > 0
       ? Math.round((totals.participants / totals.cohort) * 100)
       : 0;
+
+  // One tab each. Waiting beats rejected beats approved, so somebody with
+  // anything still open is filed where it can be acted on.
+  const reviewPeople = data.participants.filter((p) => p.waiting > 0);
+  const rejectedPeople = data.participants.filter(
+    (p) => p.waiting === 0 && p.rejected > 0,
+  );
+  const approvedPeople = data.participants.filter(
+    (p) => p.waiting === 0 && p.rejected === 0,
+  );
 
   const approval =
     totals.approvalRate === null
@@ -268,33 +279,6 @@ export default async function CampaignDetailPage({
         </Note>
       )}
 
-      {/* ─── Tasks ─────────────────────────────────────────────────────────── */}
-      <Card>
-        <CardBody>
-          <h2 className="display text-[16px] text-ink">Task by task</h2>
-          <p className="mt-1 mb-4 text-[12.5px] font-semibold text-ink-soft">
-            Where students drop off, and where you change the ask. A task with
-            submissions but few approvals is usually badly worded, not badly
-            done.
-          </p>
-
-          <CampaignTaskManager
-            campaignId={campaign.id}
-            campaignPlatform={campaign.platform}
-            library={library ?? []}
-            tasks={data.tasks.map((t) => ({
-              id: t.id,
-              label: t.label,
-              platform: t.platform,
-              points: t.points,
-              required: t.required,
-              instructions: t.instructions,
-              submitted: t.submitted,
-            }))}
-          />
-        </CardBody>
-      </Card>
-
       {/* ─── Charts ────────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Fourteen days rather than thirty: a month of columns in a
@@ -322,43 +306,33 @@ export default async function CampaignDetailPage({
         </ChartCard>
       </div>
 
-      {/* ─── People ────────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardBody>
-            <h2 className="display text-[16px] text-ink">Who took part</h2>
+      {/* ─── People ──────────────────────────────────────────────────────────
+          Everyone on the campaign in one card, a tab per outcome. Somebody
+          with a mix of outcomes on a multi-task campaign is filed by what is
+          still open: anything waiting puts them under In review, otherwise
+          anything sent back puts them under Rejected. */}
+      <Card>
+        <CardBody>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="display text-[16px] text-ink">Ambassadors</h2>
+              <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
+                {totals.participants} of {totals.cohort} active ambassadors
+                have submitted. Open a row for their proof and the reason
+                behind a rejection.
+              </p>
+            </div>
 
-            {data.participants.length === 0 ? (
-              <EmptyState title="Nobody yet" />
-            ) : (
-              <ParticipantList participants={data.participants} />
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="display text-[16px] text-ink">
-                  Hasn&apos;t started
-                </h2>
-                <p className="mt-1 text-[12.5px] font-semibold text-ink-soft">
-                  Active ambassadors with nothing submitted — the list worth
-                  chasing.
-                </p>
-              </div>
-
-              {/* Three conditions, and the action re-checks all of them.
-                  Somebody to chase; a live campaign, because a reminder about
-                  an ended one sends them to an upload button that refuses;
-                  and a campaign in the run that is currently open, because
-                  nobody is being asked for an earlier run's work. Hidden
-                  rather than disabled: a greyed button invites a click and
-                  then explains itself, which is a worse way to learn this. */}
-              {data.untouched.length > 0 &&
-                data.campaign.status === "live" &&
-                data.campaign.version === activeVersion && (
+            {/* Three conditions, and the action re-checks all of them.
+                Somebody to chase; a live campaign, because a reminder about
+                an ended one sends them to an upload button that refuses;
+                and a campaign in the run that is currently open, because
+                nobody is being asked for an earlier run's work. Hidden
+                rather than disabled: a greyed button invites a click and
+                then explains itself, which is a worse way to learn this. */}
+            {data.untouched.length > 0 &&
+              data.campaign.status === "live" &&
+              data.campaign.version === activeVersion && (
                 <ActionButton
                   size="sm"
                   variant="secondary"
@@ -368,93 +342,168 @@ export default async function CampaignDetailPage({
                   } who haven't started "${data.campaign.title}"? They'll get it in their notifications, and a push if they've turned those on. Nobody else is told.`}
                 >
                   <BellRing aria-hidden />
-                  Push reminder
+                  Remind {data.untouched.length} not started
                 </ActionButton>
               )}
-            </div>
+          </div>
 
-            {/* A button that is simply not there is a mystery, and this is
-                the one case where its absence has a cause worth naming: the
-                campaign is real, it is live, there are people to chase, and
-                the only thing stopping the nudge is that it belongs to a run
-                of the programme that has been closed. Their dashboards show
-                the open run, so the reminder would send them to a page with
-                nothing on it. */}
-            {data.untouched.length > 0 &&
-              data.campaign.status === "live" &&
-              data.campaign.version !== activeVersion && (
-                <Note tone="warn" size="sm" className="mt-3">
-                  These {data.untouched.length} can&apos;t be reminded about
-                  this campaign. It belongs to an earlier run of the programme,
-                  and students only see the run that is open — the notification
-                  would send them to an empty page. Make that run current again
-                  on Overview, or publish this work in the open one.
-                </Note>
-              )}
-
-            {data.untouched.length === 0 ? (
-              <EmptyState
-                title="Everyone has had a go"
-                description="Every active ambassador has submitted at least one screenshot."
-              />
-            ) : (
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {data.untouched.map((p) => (
-                  <li key={p.id}>
-                    <Link
-                      href={`/admin/ambassadors/${p.id}`}
-                      className={cn(
-                        "brut-sm inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5",
-                        "text-[12.5px] font-extrabold text-ink transition-transform hover:-translate-x-px hover:-translate-y-px",
-                      )}
-                    >
-                      {p.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+          {/* A button that is simply not there is a mystery, and this is
+              the one case where its absence has a cause worth naming: the
+              campaign is live and there are people to chase, but it belongs
+              to a run of the programme that has been closed. Their dashboards
+              show the open run, so the reminder would land on an empty page. */}
+          {data.untouched.length > 0 &&
+            data.campaign.status === "live" &&
+            data.campaign.version !== activeVersion && (
+              <Note tone="warn" size="sm" className="mt-3">
+                These {data.untouched.length} can&apos;t be reminded about
+                this campaign. It belongs to an earlier run of the programme,
+                and students only see the run that is open — the notification
+                would send them to an empty page. Make that run current again
+                on Overview, or publish this work in the open one.
+              </Note>
             )}
-          </CardBody>
-        </Card>
-      </div>
+
+          <div className="mt-4">
+            <PeopleTabs
+              initial={approvedPeople.length ? "approved" : "not-started"}
+              tabs={[
+                {
+                  key: "approved",
+                  label: "Approved",
+                  count: approvedPeople.length,
+                  color: "#16a34a",
+                  content: approvedPeople.length ? (
+                    <ParticipantList participants={approvedPeople} />
+                  ) : (
+                    <EmptyState title="Nobody approved yet" />
+                  ),
+                },
+                {
+                  key: "rejected",
+                  label: "Rejected",
+                  count: rejectedPeople.length,
+                  color: "#ef4444",
+                  content: rejectedPeople.length ? (
+                    <ParticipantList participants={rejectedPeople} />
+                  ) : (
+                    <EmptyState title="Nobody rejected" />
+                  ),
+                },
+                {
+                  key: "review",
+                  label: "In review",
+                  count: reviewPeople.length,
+                  color: "#f59e0b",
+                  content: reviewPeople.length ? (
+                    <ParticipantList participants={reviewPeople} />
+                  ) : (
+                    <EmptyState title="Nothing waiting for review" />
+                  ),
+                },
+                {
+                  key: "not-started",
+                  label: "Not started",
+                  count: data.untouched.length,
+                  color: "#9ca3af",
+                  content:
+                    data.untouched.length === 0 ? (
+                      <EmptyState
+                        title="Everyone has had a go"
+                        description="Every active ambassador has submitted at least one screenshot."
+                      />
+                    ) : (
+                      <ul className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {data.untouched.map((p) => (
+                          <li
+                            key={p.id}
+                            className="flex items-center gap-3 border-b border-line py-2.5"
+                          >
+                            <span
+                              aria-hidden
+                              className="grid size-8 shrink-0 place-items-center rounded-full bg-gray-100 text-[11px] font-extrabold text-ink-soft"
+                            >
+                              {initials(p.name)}
+                            </span>
+                            <Link
+                              href={`/admin/ambassadors/${p.id}`}
+                              className="truncate text-[13px] font-bold text-ink hover:underline"
+                            >
+                              {p.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ),
+                },
+              ]}
+            />
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* ─── Tasks ─────────────────────────────────────────────────────────── */}
+      <Card>
+        <CardBody>
+          <h2 className="display text-[16px] text-ink">Task by task</h2>
+          <p className="mt-1 mb-4 text-[12.5px] font-semibold text-ink-soft">
+            Where students drop off, and where you change the ask. A task with
+            submissions but few approvals is usually badly worded, not badly
+            done.
+          </p>
+
+          <CampaignTaskManager
+            campaignId={campaign.id}
+            campaignPlatform={campaign.platform}
+            library={library ?? []}
+            tasks={data.tasks.map((t) => ({
+              id: t.id,
+              label: t.label,
+              platform: t.platform,
+              points: t.points,
+              required: t.required,
+              instructions: t.instructions,
+              submitted: t.submitted,
+            }))}
+          />
+        </CardBody>
+      </Card>
 
       {/* ─── Danger zone ─────────────────────────────────────────────────────
           At the bottom of the campaign's own page rather than on the list.
           A grid of cards repeats every button, and an irreversible one
           repeated is one mis-aimed click from deleting the wrong campaign;
           here it is unmistakably about the campaign you are reading. */}
-      <Card className="border-bad-line">
-        <CardBody className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="display text-[16px] text-ink">Delete this campaign</h2>
-            <p className="mt-1 text-[13px] text-ink-soft">
-              Removes the campaign, its {data.tasks.length} task
-              {data.tasks.length === 1 ? "" : "s"} and{" "}
-              {totals.submissions} submission
-              {totals.submissions === 1 ? "" : "s"}. Points paid for those
-              submissions are reversed. Archiving keeps all of it and just
-              hides the campaign.
-            </p>
-          </div>
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50/50 px-5 py-4">
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-extrabold text-red-900">Delete this campaign</h2>
+          <p className="mt-1 text-[12.5px] text-red-900/70">
+            Removes the campaign, its {data.tasks.length} task
+            {data.tasks.length === 1 ? "" : "s"} and{" "}
+            {totals.submissions} submission
+            {totals.submissions === 1 ? "" : "s"}. Points paid for those
+            submissions are reversed. Archiving keeps all of it and just
+            hides the campaign.
+          </p>
+        </div>
 
-          <ActionButton
-            size="sm"
-            variant="secondary"
-            className="shrink-0 text-bad hover:bg-bad-tint"
-            action={deleteCampaign.bind(null, campaign.id)}
-            confirmMessage={[
-              `Delete "${campaign.title}" and everything in it?`,
-              "",
-              `· ${data.tasks.length} task${data.tasks.length === 1 ? "" : "s"}`,
-              `· ${totals.submissions} submission${totals.submissions === 1 ? "" : "s"}, including the uploaded screenshots`,
-              "",
-              "Points paid for them are reversed. This cannot be undone.",
-            ].join("\n")}
-          >
-            Delete campaign
-          </ActionButton>
-        </CardBody>
-      </Card>
+        <ActionButton
+          size="sm"
+          variant="secondary"
+          className="shrink-0 text-bad hover:bg-bad-tint"
+          action={deleteCampaign.bind(null, campaign.id)}
+          confirmMessage={[
+            `Delete "${campaign.title}" and everything in it?`,
+            "",
+            `· ${data.tasks.length} task${data.tasks.length === 1 ? "" : "s"}`,
+            `· ${totals.submissions} submission${totals.submissions === 1 ? "" : "s"}, including the uploaded screenshots`,
+            "",
+            "Points paid for them are reversed. This cannot be undone.",
+          ].join("\n")}
+        >
+          Delete campaign
+        </ActionButton>
+      </section>
     </div>
   );
 }

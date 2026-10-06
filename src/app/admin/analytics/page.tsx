@@ -132,8 +132,10 @@ export default async function AnalyticsPage({
 
   return (
     <div className="stagger space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      {/* Title on the left, the two page actions pinned top-right beside it
+          rather than wrapping onto a row of their own under the blurb. */}
+      <div className="flex flex-wrap items-start justify-between gap-4 md:flex-nowrap">
+        <div className="min-w-0">
           <h1 className="display text-[26px] leading-none text-ink">Analytics</h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
             Tasks done or missed since each ambassador joined, across{" "}
@@ -143,10 +145,7 @@ export default async function AnalyticsPage({
             Review and approval rates are {period.noun}.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/analytics/cache" prefetch={false} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-surface px-4 py-2.5 text-[13px] font-extrabold text-ink hover:bg-canvas-sunk">
-            Cache health
-          </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {/* A plain <a>, not <Link>: the response is a file download, and
               client-side navigation to one leaves the router waiting for a
               page that never arrives. `download` keeps the tab put even if a

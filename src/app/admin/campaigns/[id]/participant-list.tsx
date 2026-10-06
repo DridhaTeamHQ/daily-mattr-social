@@ -21,10 +21,11 @@ export function ParticipantList({
   participants: CampaignParticipant[];
 }) {
   return (
-    <ul className="mt-3 divide-y divide-line">
+    <ul className="grid items-start gap-x-8 lg:grid-cols-2">
       {participants.map((p) => (
         <ExpandableRow
           key={p.id}
+          className="border-b border-line"
           label={p.done === 1 ? "View submission" : `View ${p.done} submissions`}
           summary={
             <>
