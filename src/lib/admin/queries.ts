@@ -647,28 +647,102 @@ export async function getAdminSurveys(): Promise<AdminSurvey[]> {
   // the page an admin opens at 9:01 to check that it did.
   await publishScheduledSurveys();
 
-  const [{ data: surveys }, { data: questions }, { data: links }, { data: responses }] =
-    await Promise.all([
-      supabase
-        .from("surveys")
-        .select("*")
-        .eq("version", version)
-        .order("created_at", { ascending: false }),
-      supabase.from("survey_questions").select("survey_id"),
-      // Questions and links are keyed by survey, and the surveys they belong
-      // to are already filtered above — a tally against a survey that is not
-      // in the list is read by nothing.
-      supabase.from("survey_links").select("survey_id"),
-      supabase
-        .from("survey_responses")
-        .select("survey_id")
-        .eq("status", "valid")
-        .eq("version", version),
-    ]);
+  const { data: surveys } = await supabase
+    .from("surveys")
+    .select("*")
+    .eq("version", version)
+    .order("created_at", { ascending: false });
 
-  const tally = (rows: { survey_id: string }[] | null) => {
+  return withSurveyFigures(supabase, version, surveys ?? []);
+}
+
+export const SURVEYS_PAGE_SIZE = 10;
+
+/**
+ * One page of the survey list — ten surveys, read as ten, with their
+ * question, link and response counts read for those ten only. The same
+ * shape as `getAdminCampaignPage`.
+ */
+export async function getAdminSurveyPage(page: number): Promise<{
+  surveys: AdminSurvey[];
+  total: number;
+  page: number;
+  pageCount: number;
+}> {
+  const supabase = await createClient();
+  const version = await getViewingVersion();
+
+  await publishScheduledSurveys();
+
+  const current = Math.max(1, page);
+  const from = (current - 1) * SURVEYS_PAGE_SIZE;
+  const { data: surveys, count } = await supabase
+    .from("surveys")
+    .select("*", { count: "exact" })
+    .eq("version", version)
+    .order("created_at", { ascending: false })
+    .range(from, from + SURVEYS_PAGE_SIZE - 1);
+
+  const total = count ?? 0;
+  return {
+    surveys: await withSurveyFigures(supabase, version, surveys ?? []),
+    total,
+    page: current,
+    pageCount: Math.max(1, Math.ceil(total / SURVEYS_PAGE_SIZE)),
+  };
+}
+
+/**
+ * Questions, issued links and valid responses for the surveys given. Each is
+ * read for those surveys' ids only, and in pages, so a survey past a
+ * thousand responses is counted in full rather than cut at the first batch.
+ */
+async function withSurveyFigures(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  version: number,
+  surveys: Tables<"surveys">[],
+): Promise<AdminSurvey[]> {
+  const ids = surveys.map((s) => s.id);
+  if (ids.length === 0) return [];
+
+  const [questions, links, responses] = await Promise.all([
+    readAll<{ survey_id: string }>(
+      (from, to) =>
+        supabase
+          .from("survey_questions")
+          .select("survey_id")
+          .in("survey_id", ids)
+          .order("id")
+          .range(from, to),
+      "adminSurveys.questions",
+    ),
+    readAll<{ survey_id: string }>(
+      (from, to) =>
+        supabase
+          .from("survey_links")
+          .select("survey_id")
+          .in("survey_id", ids)
+          .order("id")
+          .range(from, to),
+      "adminSurveys.links",
+    ),
+    readAll<{ survey_id: string }>(
+      (from, to) =>
+        supabase
+          .from("survey_responses")
+          .select("survey_id")
+          .eq("status", "valid")
+          .eq("version", version)
+          .in("survey_id", ids)
+          .order("id")
+          .range(from, to),
+      "adminSurveys.responses",
+    ),
+  ]);
+
+  const tally = (rows: { survey_id: string }[]) => {
     const m = new Map<string, number>();
-    for (const r of rows ?? []) m.set(r.survey_id, (m.get(r.survey_id) ?? 0) + 1);
+    for (const r of rows) m.set(r.survey_id, (m.get(r.survey_id) ?? 0) + 1);
     return m;
   };
 
@@ -676,7 +750,7 @@ export async function getAdminSurveys(): Promise<AdminSurvey[]> {
   const l = tally(links);
   const r = tally(responses);
 
-  return (surveys ?? []).map((s) => ({
+  return surveys.map((s) => ({
     ...s,
     questionCount: q.get(s.id) ?? 0,
     linkCount: l.get(s.id) ?? 0,
