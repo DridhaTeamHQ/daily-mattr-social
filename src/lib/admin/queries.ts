@@ -418,29 +418,144 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
 
   // Before the read, not after: a campaign whose deadline passed an hour ago
   // has to come back from this query as ended, not as live with an "Ended"
-  // badge bolted on by the page that draws it.
-  //
-  // So this one keeps the await, deliberately. The student side defers the
-  // same sweep with `closeExpiredCampaignsAfterResponse` because it renders
-  // from the deadline rather than the status column; this page renders the
-  // status column, so here the sweep is part of the read and not a chore that
-  // happens to be on the path.
-  // Both ends of the clock, before the read. The same argument as above runs
-  // the other way for scheduled launches: a draft due at 9am has to come back
-  // from this query as live, because this is the page an admin opens at 9:01
-  // to check that it did.
+  // badge bolted on by the page that draws it. The same runs the other way for
+  // scheduled launches: a draft due at 9am has to come back as live.
   await Promise.all([closeExpiredCampaigns(), publishScheduledCampaigns()]);
 
-  const [{ data: campaigns }, { data: subs }, cohort] = await Promise.all([
-    supabase
-      .from("campaigns")
-      .select("*, campaign_tasks(*, task_library(label, platform))")
-      .eq("version", version)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("submissions")
-      .select("campaign_task_id, status, ambassador_id")
-      .eq("version", version),
+  const { data: campaigns } = await supabase
+    .from("campaigns")
+    .select("*, campaign_tasks(*, task_library(label, platform))")
+    .eq("version", version)
+    .order("created_at", { ascending: false });
+
+  return withCampaignFigures(supabase, version, campaigns ?? []);
+}
+
+export const CAMPAIGNS_PAGE_SIZE = 10;
+
+export type AdminCampaignPage = {
+  campaigns: AdminCampaign[];
+  /** Campaigns matching the filter and search, across every page. */
+  total: number;
+  page: number;
+  pageCount: number;
+  /** Campaigns per network for the filter chips, ignoring the network filter. */
+  networkCounts: Map<string, number>;
+  /** Every campaign in the run, for the "All" chip. */
+  allCount: number;
+};
+
+/**
+ * One page of the campaign list — ten campaigns, read as ten.
+ *
+ * The list used to read every campaign, every task and every submission in
+ * the run and then show a dozen of them. Here the database does the paging:
+ * the filter, the search and the range are all in the query, and the
+ * figures on each card are computed from the submissions of those ten
+ * campaigns' tasks only.
+ *
+ * The one other read is the network column alone, for the counts on the
+ * filter chips — a word per campaign, not the campaign.
+ */
+export async function getAdminCampaignPage({
+  page,
+  network,
+  query,
+}: {
+  page: number;
+  network: string | null;
+  query: string;
+}): Promise<AdminCampaignPage> {
+  const supabase = await createClient();
+  const version = await getViewingVersion();
+
+  await Promise.all([closeExpiredCampaigns(), publishScheduledCampaigns()]);
+
+  // PostgREST's `or` filter is a comma-separated list with parentheses, so
+  // those characters, and the wildcards, cannot be passed through as typed.
+  const needle = query.trim().replace(/[,()%*\\]/g, " ").trim();
+  const statuses = ["live", "draft", "ended", "archived"];
+
+  let list = supabase
+    .from("campaigns")
+    .select("*, campaign_tasks(*, task_library(label, platform))", {
+      count: "exact",
+    })
+    .eq("version", version);
+  if (network) list = list.eq("platform", network);
+  if (needle) {
+    const like = `%${needle}%`;
+    const clauses = [
+      `title.ilike.${like}`,
+      `description.ilike.${like}`,
+      `expected_handle.ilike.${like}`,
+    ];
+    // Status is an enum, which `ilike` cannot read; a search that names one
+    // is matched exactly instead.
+    if (statuses.includes(needle.toLowerCase())) {
+      clauses.push(`status.eq.${needle.toLowerCase()}`);
+    }
+    list = list.or(clauses.join(","));
+  }
+
+  const from = (Math.max(1, page) - 1) * CAMPAIGNS_PAGE_SIZE;
+  const [{ data: campaigns, count }, { data: networks }] = await Promise.all([
+    list
+      .order("created_at", { ascending: false })
+      .range(from, from + CAMPAIGNS_PAGE_SIZE - 1),
+    supabase.from("campaigns").select("platform").eq("version", version),
+  ]);
+
+  const networkCounts = new Map<string, number>();
+  for (const row of networks ?? []) {
+    if (!row.platform) continue;
+    networkCounts.set(row.platform, (networkCounts.get(row.platform) ?? 0) + 1);
+  }
+
+  const total = count ?? 0;
+  return {
+    campaigns: await withCampaignFigures(supabase, version, campaigns ?? []),
+    total,
+    page: Math.max(1, page),
+    pageCount: Math.max(1, Math.ceil(total / CAMPAIGNS_PAGE_SIZE)),
+    networkCounts,
+    allCount: networks?.length ?? 0,
+  };
+}
+
+// `task_library` is read through `taskLabel` / `taskPlatform`, which take the
+// row loosely; the generated types do not know the join, so it stays unknown.
+type CampaignRow = Tables<"campaigns"> & {
+  campaign_tasks: (Tables<"campaign_tasks"> & { task_library: unknown })[] | null;
+};
+
+/**
+ * The figures on a campaign card — submissions, the review queue, and who
+ * has finished — for the campaigns given and nothing else. Submissions are
+ * read for those campaigns' tasks only, so a page of ten costs ten
+ * campaigns' worth of rows.
+ */
+async function withCampaignFigures(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  version: number,
+  campaigns: CampaignRow[],
+): Promise<AdminCampaign[]> {
+  const taskIds = campaigns.flatMap((c) => (c.campaign_tasks ?? []).map((t) => t.id));
+
+  const [subs, cohort] = await Promise.all([
+    taskIds.length
+      ? readAll<{ campaign_task_id: string; status: string; ambassador_id: string }>(
+          (from, to) =>
+            supabase
+              .from("submissions")
+              .select("campaign_task_id, status, ambassador_id")
+              .eq("version", version)
+              .in("campaign_task_id", taskIds)
+              .order("id")
+              .range(from, to),
+          "adminCampaigns.submissions",
+        )
+      : Promise.resolve([]),
     // Ids, not a count: an approval from somebody since suspended must not
     // push the "done" figure above the number of people being counted.
     readAll<{ id: string }>(
@@ -463,7 +578,7 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
   /** task id → the active ambassadors with an approval on it. */
   const approvedByTask = new Map<string, Set<string>>();
 
-  for (const s of subs ?? []) {
+  for (const s of subs) {
     perTask.set(s.campaign_task_id, (perTask.get(s.campaign_task_id) ?? 0) + 1);
     if (s.status === "pending" || s.status === "needs_review") {
       openPerTask.set(
@@ -481,7 +596,7 @@ export async function getAdminCampaigns(): Promise<AdminCampaign[]> {
     }
   }
 
-  return (campaigns ?? []).map((c) => {
+  return campaigns.map((c) => {
     const tasks = [...(c.campaign_tasks ?? [])]
       .sort((a, b) => a.order_index - b.order_index)
       .map((t) => ({

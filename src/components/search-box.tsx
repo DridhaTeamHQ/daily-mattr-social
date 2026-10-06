@@ -39,6 +39,9 @@ export function SearchBox({
       const params = new URLSearchParams(searchParams.toString());
       if (next.trim()) params.set(param, next.trim());
       else params.delete(param);
+      // A new search is a new list, so it starts from its first page; page 3
+      // of the old results may not exist in the new ones.
+      params.delete("page");
 
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, {
