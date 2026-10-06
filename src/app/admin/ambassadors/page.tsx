@@ -13,22 +13,40 @@ import {
   AddAmbassadorDialog,
   ResetPasswordDialog,
 } from "@/components/ambassador-actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
-import { formatDate, initials } from "@/lib/utils";
+import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassadors" };
 
-const STATUS_TONE = {
-  active: "ok",
-  invited: "warn",
-  suspended: "bad",
-} as const;
+/** Green for active, amber for an unopened invite, red for suspended. */
+const STATUS_PILL: Record<string, string> = {
+  active: "bg-emerald-50 text-emerald-700",
+  invited: "bg-amber-50 text-amber-700",
+  suspended: "bg-rose-50 text-rose-700",
+};
+
+const AVATAR_TONES = [
+  "bg-sky-100 text-sky-700",
+  "bg-violet-100 text-violet-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+];
+
+/** The same soft colour for the same name, every time. */
+function avatarTone(name: string): string {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
 
 export default async function AmbassadorsPage({
   searchParams,
@@ -178,36 +196,54 @@ export default async function AmbassadorsPage({
           who were emailed a password and have not used it yet, which is a
           follow-up list rather than a statistic. Suspended appears only when
           there is one — a permanent "0 suspended" is furniture. */}
+      {/* The tiles are the status filter too: press Invited for the follow-up
+          list, Total to see everybody again. The one in force is ringed. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Total"
-          value={all.length}
-          sub="On the programme"
-          icon={Users}
-          tone="brand"
-        />
-        <Stat
-          label="Active"
-          value={active}
-          sub="Signed in and earning"
-          icon={UserCheck}
-          tone="poll"
-        />
-        <Stat
-          label="Invited"
-          value={invited}
-          sub={invited ? "Yet to set a password" : "Everyone is set up"}
-          icon={MailCheck}
-          tone="invite"
-        />
-        {suspended > 0 && (
+        <Link href={listHref({ ...here, status: "" })} className="block">
           <Stat
-            label="Suspended"
-            value={suspended}
-            sub="Not earning"
-            icon={UserMinus}
-            tone="reel"
+            label="Total"
+            value={all.length}
+            sub="On the programme"
+            icon={Users}
+            tone="brand"
+            interactive
+            className={cn("h-full", !statusFilter && "ring-2 ring-brand/40")}
           />
+        </Link>
+        <Link href={listHref({ ...here, status: "active" })} className="block">
+          <Stat
+            label="Active"
+            value={active}
+            sub="Signed in and earning"
+            icon={UserCheck}
+            tone="poll"
+            interactive
+            className={cn("h-full", statusFilter === "active" && "ring-2 ring-emerald-400/60")}
+          />
+        </Link>
+        <Link href={listHref({ ...here, status: "invited" })} className="block">
+          <Stat
+            label="Invited"
+            value={invited}
+            sub={invited ? "Yet to set a password" : "Everyone is set up"}
+            icon={MailCheck}
+            tone="invite"
+            interactive
+            className={cn("h-full", statusFilter === "invited" && "ring-2 ring-violet-400/60")}
+          />
+        </Link>
+        {suspended > 0 && (
+          <Link href={listHref({ ...here, status: "suspended" })} className="block">
+            <Stat
+              label="Suspended"
+              value={suspended}
+              sub="Not earning"
+              icon={UserMinus}
+              tone="reel"
+              interactive
+              className={cn("h-full", statusFilter === "suspended" && "ring-2 ring-rose-400/60")}
+            />
+          </Link>
         )}
       </div>
 
@@ -310,7 +346,7 @@ export default async function AmbassadorsPage({
                 <col className="w-[25%]" />
               </colgroup>
               <thead className="border-b border-line bg-canvas-sunk">
-                <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
+                <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
                   <th className="px-3 py-2.5 font-medium">Ambassador</th>
                   <th className="px-3 py-2.5 font-medium">Code</th>
                   <th className="px-3 py-2.5 font-medium">Batch</th>
@@ -342,12 +378,21 @@ export default async function AmbassadorsPage({
                     </tr>
                   ),
                   ...members.map((row) => (
-                  <tr key={row.id} className="hover:bg-canvas-sunk/50">
-                    <td className="px-3 py-3">
+                  <tr
+                    key={row.id}
+                    className="border-b border-line last:border-0 hover:bg-canvas-sunk/50"
+                  >
+                    <td className="px-3 py-2">
                       <div className="flex items-center gap-2.5">
+                        {/* A colour per person, picked from their name, so the
+                            column has some life and the same person is the
+                            same colour every time. */}
                         <span
                           aria-hidden
-                          className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-extrabold text-ink"
+                          className={cn(
+                            "grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-extrabold",
+                            avatarTone(row.full_name || row.email),
+                          )}
                         >
                           {initials(row.full_name || row.email)}
                         </span>
@@ -359,7 +404,7 @@ export default async function AmbassadorsPage({
                           <Link
                             href={`/admin/ambassadors/${row.id}`}
                             title={row.full_name || row.email}
-                            className="block truncate text-[13.5px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
+                            className="block truncate text-[13.5px] font-extrabold text-ink hover:text-brand hover:underline"
                           >
                             {row.full_name || "—"}
                           </Link>
@@ -372,29 +417,35 @@ export default async function AmbassadorsPage({
                       </div>
                     </td>
 
-                    <td className="px-3 py-3">
-                      <code className="font-mono text-[12.5px] text-ink-soft">
+                    <td className="px-3 py-2">
+                      <code className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[11.5px] font-semibold text-ink-soft">
                         {row.referral_code}
                       </code>
                     </td>
 
-                    <td className="px-3 py-3 text-[12.5px] text-ink-soft">
+                    <td className="px-3 py-2 text-[12.5px] text-ink-soft">
                       {row.batch || <span className="text-ink-faint">—</span>}
                     </td>
 
-                    <td className="px-3 py-3">
-                      <Badge tone={STATUS_TONE[row.status]} dot>
+                    <td className="px-3 py-2">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold capitalize",
+                          STATUS_PILL[row.status],
+                        )}
+                      >
+                        <span aria-hidden className="size-1.5 rounded-full bg-current" />
                         {row.status}
-                      </Badge>
+                      </span>
                     </td>
 
                     {/* Wrapped on purpose: "7 Sept 2026" over two lines is
                         shorter than the column it used to demand. */}
-                    <td className="px-3 py-3 text-[12.5px] text-ink-soft">
+                    <td className="px-3 py-2 text-[12.5px] text-ink-soft">
                       {formatDate(row.created_at)}
                     </td>
 
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex justify-end gap-0.5">
                         {/* Same dialog as the one on their own page. Fixing a
                             misspelled name or a missing batch is the most
@@ -419,6 +470,7 @@ export default async function AmbassadorsPage({
                           <ActionButton
                             variant="ghost"
                             size="sm"
+                            className="text-emerald-700 hover:bg-emerald-50"
                             action={setAmbassadorStatus.bind(null, row.id, "active")}
                           >
                             Reinstate
@@ -436,7 +488,11 @@ export default async function AmbassadorsPage({
                               "suspended",
                             )}
                             trigger={
-                              <Button variant="ghost" size="sm">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              >
                                 Suspend
                               </Button>
                             }

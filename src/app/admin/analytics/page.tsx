@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   BarChart3,
   CheckCircle2,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   Download,
@@ -11,14 +12,15 @@ import {
   Users,
 } from "lucide-react";
 
-import { BarList, ChartCard } from "@/components/charts";
+import { ChartCard } from "@/components/charts";
+import { CompletionRing, RankMark } from "@/components/list-card";
 import { CohortFilter } from "@/components/cohort-filter";
 import { InfiniteTableBody } from "@/components/infinite-scroll";
 import { PeriodFilter } from "@/components/period-filter";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { InfoDot } from "@/components/ui/info-dot";
-import { StackedBar, Stat } from "@/components/ui/stat";
+import { Stat } from "@/components/ui/stat";
 import { requireAdmin } from "@/lib/admin/queries";
 import { readPeriod, resolvePeriod } from "@/lib/admin/period";
 import {
@@ -34,7 +36,7 @@ import {
   STIPEND_MIN_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
-import { cn, formatNumber, initials } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 import { BatchAnalytics, getBatchStatusCounts } from "./batch-view";
 
@@ -81,7 +83,6 @@ export default async function AnalyticsPage({
   ]);
   const {
     ranked,
-    campaignPerformance,
     taskTotal,
     activeCampaigns,
     availableAssignments,
@@ -91,6 +92,8 @@ export default async function AnalyticsPage({
     approvedSubmissions,
     pendingReview,
   } = completion;
+  // Every task in the window, not the top eight the bar chart used to show.
+  const allTasks = completion.campaignBreakdown(null);
 
   /** This page with the view and batch swapped, everything else kept. */
   const viewHref = (next: "overview" | "batches", batch: string | null) => {
@@ -272,56 +275,55 @@ export default async function AnalyticsPage({
           />
         </Card>
       ) : (
+        // Every task, two to a row, each with its ring — the same mark the
+        // campaign cards carry, so a task reads the same on both pages. The
+        // colour is the verdict: green from 70%, amber from 40%, red below.
         <ChartCard
           title="Task completion"
-          hint="Approved tasks divided by the tasks available to the ambassadors who were in the programme before the task closed. Open a bar for who has done it and who has not."
+          hint="Approved tasks over the tasks open to ambassadors who joined before each one closed. Open a task for who has done it and who has not."
         >
-          <BarList
-            data={campaignPerformance}
-            unit="%"
-            color="teal"
-            emptyMessage="No tasks published yet."
-          />
+          <ul className="grid gap-x-6 sm:grid-cols-2">
+            {allTasks.map((task) => (
+              <li key={task.id} className="border-b border-line">
+                <Link
+                  href={task.href}
+                  className="group flex items-center gap-3 py-2.5"
+                >
+                  <CompletionRing
+                    done={task.approved}
+                    of={task.total}
+                    title={`${task.approved} of ${task.total} approved`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold text-ink group-hover:underline">
+                      {task.label}
+                    </p>
+                    <p className="tabular text-[12px] text-ink-soft">
+                      {formatNumber(task.approved)}/{formatNumber(task.total)} approved
+                    </p>
+                  </div>
+                  <ChevronRight
+                    aria-hidden
+                    className="size-4 shrink-0 text-ink-faint group-hover:text-ink"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </ChartCard>
       )}
 
       <Card className="overflow-hidden">
-        <CardBody className="pb-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="display text-[16px] text-ink">Completion by ambassador</h2>
-              {/* No second filter row here. One set of controls, at the top of
-                  the page, scoping everything on it — two identical rows read
-                  as two independent filters even when they drive the same URL.
-                  This line is what tells the table apart from an unfiltered
-                  one: it names the slice the controls above have selected. */}
-              <p className="mt-1 text-[12.5px] text-ink-soft">
-                {formatNumber(ranked.length)}{" "}
-                {ranked.length === 1 ? "ambassador" : "ambassadors"} ·{" "}
-                {scopeSummary}
-              </p>
-            </div>
-            {/* The key to the bar, in the corner the decorative icon used
-                to hold. Three states on one track need naming exactly once,
-                and up here they are read before the first row is. */}
-            <ul className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11.5px] font-bold text-ink-soft">
-              <li className="flex items-center gap-1.5">
-                <span aria-hidden className="size-2 rounded-full bg-brand" />
-                Approved
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span aria-hidden className="size-2 rounded-full bg-bad" />
-                Rejected
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className="size-2 rounded-full border border-gray-300 bg-surface"
-                />
-                Pending
-              </li>
-            </ul>
-          </div>
+        <CardBody className="pb-4">
+          <h2 className="display text-[16px] text-ink">Completion by ambassador</h2>
+          {/* No second filter row here. One set of controls, at the top of
+              the page, scoping everything on it. This line names the slice
+              those controls have selected. */}
+          <p className="mt-1 text-[12.5px] text-ink-soft">
+            {formatNumber(ranked.length)}{" "}
+            {ranked.length === 1 ? "ambassador" : "ambassadors"} ·{" "}
+            {scopeSummary}
+          </p>
         </CardBody>
 
         {ranked.length === 0 ? (
@@ -329,29 +331,24 @@ export default async function AnalyticsPage({
             <EmptyState title="No active ambassadors" />
           </CardBody>
         ) : (
-          // Horizontal scroll rather than dropping columns: the counts have
-          // to stay readable next to the completion they explain. College and
-          // city are not among them — they are the longest fields on the row
-          // and the ones the filters above already say, so they buy nothing
-          // here and cost the width the stipend columns need.
+          // Compact, and in the order an admin reads a row: how far along,
+          // how much, what was sent back, downloads — and last, whether that
+          // adds up to a stipend. The same table the Batches tab draws.
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[56rem] text-left">
+            <table className="w-full min-w-[46rem] text-left">
               <thead className="border-y border-line bg-canvas-sunk">
-                <tr className="text-[11.5px] tracking-wide text-ink-faint uppercase">
-                  <th className="w-12 px-4 py-2.5 text-center font-medium">#</th>
-                  <th className="px-4 py-2.5 font-medium">Ambassador</th>
-                  <th className="px-4 py-2.5 font-medium">Batch</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Total</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Approved</th>
-                  <th className="px-4 py-2.5 text-right font-medium">
-                    Rejections
-                  </th>
-                  <th className="px-4 py-2.5 text-right font-medium">Downloads</th>
-                  {/* The rule lives on the column it governs rather than in
-                      a caption over the table: "Eligible" and "Needs 4 more
-                      tasks" are the only cells anyone has to interpret, and
-                      the "i" is where they are already looking. */}
-                  <th className="px-4 py-2.5 font-medium">
+                <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
+                  <th className="w-12 px-3 py-2 text-center font-medium">#</th>
+                  <th className="px-3 py-2 font-medium">Ambassador</th>
+                  <th className="px-3 py-2 font-medium">Batch</th>
+                  <th className="px-3 py-2 text-right font-medium">Completion</th>
+                  <th className="px-3 py-2 text-right font-medium">Tasks</th>
+                  <th className="px-3 py-2 text-right font-medium">Rejections</th>
+                  <th className="px-3 py-2 text-right font-medium">Downloads</th>
+                  {/* The rule lives on the column it governs: "Eligible" and
+                      "Needs 4 more downloads" are the cells anyone has to
+                      interpret, and the "i" is where they are looking. */}
+                  <th className="px-3 py-2 font-medium">
                     <span className="flex items-center gap-1.5">
                       Stipend
                       <InfoDot label="How stipend eligibility is decided">
@@ -367,162 +364,101 @@ export default async function AnalyticsPage({
                       </InfoDot>
                     </span>
                   </th>
-                  <th className="w-52 px-4 py-2.5 text-right font-medium">
-                    Completion
-                  </th>
                 </tr>
               </thead>
 
               <InfiniteTableBody
                 key={`${period.key}:${cohort.filters.city}:${cohort.filters.college}:${cohort.filters.batch}`}
-                colSpan={9}
-                pageSize={15}
+                colSpan={8}
+                pageSize={25}
               >
-                {ranked.map((ambassador, index) => (
-                  <tr key={ambassador.id} className="hover:bg-canvas-sunk/50">
-                    <td className="px-4 py-3 text-center text-[13px] font-extrabold text-ink-faint tabular">
-                      {index + 1}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          aria-hidden
-                          className="grid size-8 shrink-0 place-items-center rounded-full bg-gray-100 text-[11px] font-extrabold text-ink"
-                        >
-                          {initials(ambassador.full_name)}
-                        </span>
+                {ranked.map((ambassador, index) => {
+                  const measured = ambassador.total > 0;
+                  return (
+                    <tr
+                      key={ambassador.id}
+                      className="border-b border-line last:border-0 hover:bg-canvas-sunk/50"
+                    >
+                      <td className="px-3 py-1.5">
+                        <div className="flex justify-center">
+                          <RankMark rank={measured ? index + 1 : null} />
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5">
                         <Link
                           href={`/admin/ambassadors/${ambassador.id}`}
-                          className="truncate text-[13.5px] font-extrabold text-ink hover:underline"
+                          className="block truncate text-[13px] font-extrabold text-ink hover:underline"
                         >
                           {ambassador.full_name}
                         </Link>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
-                      {ambassador.batch || "—"}
-                    </td>
-
-                    {/* The ambassador's own pool, not the programme's. Two
-                        rows can legitimately show different totals — that is
-                        the column saying one of them joined after a campaign
-                        had already closed. */}
-                    <td className="tabular px-4 py-3 text-right text-[13px] text-ink-soft">
-                      {formatNumber(ambassador.total)}
-                    </td>
-
-                    <td className="tabular px-4 py-3 text-right text-[13px] font-bold text-ink">
-                      {formatNumber(ambassador.approved)}
-                    </td>
-
-                    {/* A dash rather than a column of zeroes: the rejections
-                        worth reading are the ones somebody has, and nought is
-                        the answer for most of the table. */}
-                    <td className="tabular px-4 py-3 text-right text-[13px] font-bold text-ink-soft">
-                      {ambassador.rejected
-                        ? formatNumber(ambassador.rejected)
-                        : "—"}
-                    </td>
-
-                    {/* Counted downloads against their referral code — the
-                        same figure /admin/referrals prints, so the two pages
-                        cannot show one ambassador two numbers. Bold once it
-                        clears the stipend bar, so the column can be read down
-                        for who is there and who is short. */}
-                    <td
-                      className={`tabular px-4 py-3 text-right text-[13px] ${
-                        ambassador.downloads >= STIPEND_MIN_DOWNLOADS
-                          ? "font-bold text-ink"
-                          : "text-ink-soft"
-                      }`}
-                    >
-                      {formatNumber(ambassador.downloads)}
-                    </td>
-
-                    {/* Yes or no, and the gap when it is no. "Needs 7 more
-                        downloads" is something an admin can act on this week;
-                        a bare "No" only says to go and work out why. */}
-                    <td className="px-4 py-3 text-[12px]">
-                      {ambassador.eligible ? (
-                        <span className="font-extrabold text-brand">Eligible</span>
-                      ) : (
-                        <span className="font-bold text-ink-faint">
-                          Needs{" "}
-                          {[
-                            ambassador.downloadsShort > 0
-                              ? `${formatNumber(ambassador.downloadsShort)} more ${ambassador.downloadsShort === 1 ? "download" : "downloads"}`
-                              : null,
-                            ambassador.completion < STIPEND_MIN_COMPLETION_PCT
-                              ? `${STIPEND_MIN_COMPLETION_PCT}% completion`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" and ")}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {/* The bar carries the comparison, the numbers carry the
-                          values — reading a column of percentages for the gap
-                          between 30% and 20% is work a length does for free.
-                          One track, scaled to every task the ambassador has,
-                          filled left to right with approved, then sent back;
-                          whatever stays empty is still pending. The three
-                          figures under it are the same shares in the same
-                          order, and they add to 100 by construction — see
-                          `percentages` above. The bar is given the shares
-                          rather than the counts so that it cannot round
-                          differently from the figures. */}
-                      <div className="ml-auto flex w-40 flex-col gap-1.5">
-                        {/* No campaign was open to this person in the period,
-                            so there is no share to draw. A 0% bar here would
-                            be a judgement, and the one thing the row can say
-                            for certain is that nobody asked them for
-                            anything. */}
-                        {ambassador.total === 0 ? (
-                          <p className="py-1 text-right text-[11.5px] font-bold text-ink-faint">
-                            No tasks open to them {period.noun}
-                          </p>
-                        ) : (
-                          <>
-                          <StackedBar
-                            max={100}
-                            segments={[
-                              { value: ambassador.completion, tone: "brand" },
-                              { value: ambassador.rejection, tone: "bad" },
-                            ]}
-                            label={`${formatNumber(ambassador.approved)} approved, ${formatNumber(ambassador.sentBack)} rejected and ${formatNumber(ambassador.pending)} pending, of ${formatNumber(ambassador.total)} tasks`}
-                            className="h-2 w-full"
-                          />
-                          <ul className="tabular flex items-center justify-between text-[11.5px] font-extrabold text-ink">
-                            <li className="flex items-center gap-1">
-                              <span aria-hidden className="size-1.5 rounded-full bg-brand" />
-                              <span className="sr-only">Approved </span>
-                              {ambassador.completion}%
-                            </li>
-                            <li className="flex items-center gap-1">
-                              <span aria-hidden className="size-1.5 rounded-full bg-bad" />
-                              <span className="sr-only">Rejected </span>
-                              {ambassador.rejection}%
-                            </li>
-                            <li className="flex items-center gap-1 text-ink-faint">
-                              <span
-                                aria-hidden
-                                className="size-1.5 rounded-full border border-gray-300 bg-surface"
-                              />
-                              <span className="sr-only">Pending </span>
-                              {ambassador.remainder}%
-                            </li>
-                          </ul>
-                          </>
+                      </td>
+                      <td className="px-3 py-1.5 text-[12.5px] text-ink-soft">
+                        {ambassador.batch || "—"}
+                      </td>
+                      {/* Coloured by the same thresholds as the rings above,
+                          so a red figure here means the same as a red ring. */}
+                      <td
+                        className={cn(
+                          "tabular px-3 py-1.5 text-right text-[13px] font-extrabold",
+                          !measured
+                            ? "text-ink-faint"
+                            : ambassador.completion >= 70
+                              ? "text-emerald-600"
+                              : ambassador.completion >= 40
+                                ? "text-amber-600"
+                                : "text-rose-600",
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      >
+                        {measured ? `${ambassador.completion}%` : "—"}
+                      </td>
+                      <td className="tabular px-3 py-1.5 text-right text-[13px] text-ink-soft">
+                        {measured
+                          ? `${formatNumber(ambassador.approved)}/${formatNumber(ambassador.total)}`
+                          : "—"}
+                      </td>
+                      {/* A dash rather than a column of zeroes: the
+                          rejections worth reading are the ones somebody has. */}
+                      <td className="tabular px-3 py-1.5 text-right text-[13px] text-ink-soft">
+                        {ambassador.rejected ? formatNumber(ambassador.rejected) : "—"}
+                      </td>
+                      {/* Bold once it clears the stipend bar, so the column
+                          can be read down for who is there and who is short. */}
+                      <td
+                        className={cn(
+                          "tabular px-3 py-1.5 text-right text-[13px]",
+                          ambassador.downloads >= STIPEND_MIN_DOWNLOADS
+                            ? "font-bold text-ink"
+                            : "text-ink-soft",
+                        )}
+                      >
+                        {formatNumber(ambassador.downloads)}
+                      </td>
+                      {/* Yes or no, and the gap when it is no — "Needs 7 more
+                          downloads" is something an admin can act on. */}
+                      <td className="px-3 py-1.5 text-[12px]">
+                        {ambassador.eligible ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-extrabold text-emerald-700">
+                            Eligible
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-ink-faint">
+                            Needs{" "}
+                            {[
+                              ambassador.downloadsShort > 0
+                                ? `${formatNumber(ambassador.downloadsShort)} more ${ambassador.downloadsShort === 1 ? "download" : "downloads"}`
+                                : null,
+                              ambassador.completion < STIPEND_MIN_COMPLETION_PCT
+                                ? `${STIPEND_MIN_COMPLETION_PCT}% completion`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" and ")}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </InfiniteTableBody>
             </table>
           </div>

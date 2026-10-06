@@ -243,3 +243,33 @@ export function Pagination({
     </nav>
   );
 }
+
+/** 1, 2, 3 in medal colours; everyone else plain. */
+export function RankMark({ rank }: { rank: number | null }) {
+  if (rank === null) {
+    return (
+      <span className="grid size-7 shrink-0 place-items-center text-[13px] font-bold text-ink-faint">
+        —
+      </span>
+    );
+  }
+  const medal =
+    rank === 1
+      ? "bg-amber-400 text-ink"
+      : rank === 2
+        ? "bg-gray-300 text-ink"
+        : rank === 3
+          ? "bg-orange-300 text-ink"
+          : "text-ink-faint";
+  return (
+    <span
+      aria-label={`Rank ${rank}`}
+      className={cn(
+        "tabular grid size-7 shrink-0 place-items-center rounded-full text-[12.5px] font-black",
+        medal,
+      )}
+    >
+      {rank}
+    </span>
+  );
+}

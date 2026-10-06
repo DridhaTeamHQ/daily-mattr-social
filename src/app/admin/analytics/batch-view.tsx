@@ -6,6 +6,7 @@ import { ChartCard, Heatmap } from "@/components/charts";
 import { InfiniteTableBody } from "@/components/infinite-scroll";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { RankMark } from "@/components/list-card";
 import { StackedBar } from "@/components/ui/stat";
 import {
   STIPEND_MIN_COMPLETION_PCT,
@@ -275,35 +276,6 @@ function Segment({
   );
 }
 
-/** 1, 2, 3 in medal colours; everyone else plain. */
-function RankMark({ rank }: { rank: number | null }) {
-  if (rank === null) {
-    return (
-      <span className="grid size-7 shrink-0 place-items-center text-[13px] font-bold text-ink-faint">
-        —
-      </span>
-    );
-  }
-  const medal =
-    rank === 1
-      ? "bg-amber-400 text-ink"
-      : rank === 2
-        ? "bg-gray-300 text-ink"
-        : rank === 3
-          ? "bg-orange-300 text-ink"
-          : "text-ink-faint";
-  return (
-    <span
-      aria-label={`Rank ${rank}`}
-      className={cn(
-        "tabular grid size-7 shrink-0 place-items-center rounded-full text-[12.5px] font-black",
-        medal,
-      )}
-    >
-      {rank}
-    </span>
-  );
-}
 
 /** A plain progress track, the one the ambassador table already uses. */
 function Meter({ value, label }: { value: number; label: string }) {
