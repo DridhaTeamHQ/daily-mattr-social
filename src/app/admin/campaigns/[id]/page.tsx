@@ -8,13 +8,14 @@ import {
   ExternalLink,
   Percent,
   Users,
+  XCircle,
 } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { CampaignEditDialog } from "@/components/edit-dialogs";
 import { SchedulePublishDialog } from "@/components/schedule-publish";
 import { CampaignTaskManager } from "@/components/campaign-task-manager";
-import { BarList, ChartCard, DataTable, DayBars } from "@/components/charts";
+import { ChartCard, DataTable, DayBars, Donut } from "@/components/charts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -25,7 +26,9 @@ import { archiveCampaign, deleteCampaign } from "@/lib/admin/edit-actions";
 import { getCampaignDetail, requireAdmin } from "@/lib/admin/queries";
 import { getActiveVersion } from "@/lib/programme-version";
 import { createCachedAdminClient as createAdminClient } from "@/lib/admin/cached-client";
-import { cn, formatDate, formatNumber, initials, timeRemaining } from "@/lib/utils";
+import { cn, formatDate, timeRemaining } from "@/lib/utils";
+
+import { ParticipantList } from "./participant-list";
 
 export const metadata = { title: "Campaign" };
 
@@ -37,12 +40,12 @@ const STATUS_TONE = {
 } as const;
 
 const STATUS_FILL: Record<string, string> = {
-  "Auto-approved": "#00a650",
-  Approved: "#00a650",
-  "Needs review": "#b06a00",
-  Checking: "#8a8a8a",
-  Rejected: "#e00b0b",
-  Revoked: "#e00b0b",
+  "Auto-approved": "#34d399",
+  Approved: "#16a34a",
+  "Needs review": "#f59e0b",
+  Checking: "#9ca3af",
+  Rejected: "#ef4444",
+  Revoked: "#b91c1c",
 };
 
 export default async function CampaignDetailPage({
@@ -244,6 +247,17 @@ export default async function CampaignDetailPage({
           icon={Percent}
           tone="poll"
         />
+        <Stat
+          label="Rejection rate"
+          value={
+            totals.rejectionRate === null
+              ? "—"
+              : `${Math.round(totals.rejectionRate * 100)}%`
+          }
+          sub={`${totals.rejected} rejected screenshot${totals.rejected === 1 ? "" : "s"}`}
+          icon={XCircle}
+          tone="invite"
+        />
       </div>
 
       {totals.submissions === 0 && campaign.status === "live" && (
@@ -289,18 +303,19 @@ export default async function CampaignDetailPage({
             goes out. A fortnight is wide enough to hold the burst and narrow
             enough that every bar gets its own date underneath. */}
         <ChartCard title="Uploads per day" hint="Last 14 days.">
-          <DayBars data={data.submissionsByDay} color="pink" />
+          <DayBars data={data.submissionsByDay} color="violet" noun="uploads" />
         </ChartCard>
 
         <ChartCard
           title="Screenshot outcomes"
           hint="What happened to submissions on this campaign."
         >
-          <BarList
+          <Donut
             data={data.statusBreakdown.map((row) => ({
               ...row,
-              color: STATUS_FILL[row.label],
+              color: STATUS_FILL[row.label] ?? "#9ca3af",
             }))}
+            totalLabel="submissions"
             emptyMessage="Nothing submitted yet."
           />
           <DataTable caption="Outcomes" rows={data.statusBreakdown} />
@@ -316,32 +331,7 @@ export default async function CampaignDetailPage({
             {data.participants.length === 0 ? (
               <EmptyState title="Nobody yet" />
             ) : (
-              <ul className="mt-3 divide-y-[3px] divide-ink">
-                {data.participants.map((p) => (
-                  <li key={p.id} className="flex items-center gap-3 py-2.5">
-                    <span
-                      aria-hidden
-                      className="brut-sm grid size-8 shrink-0 place-items-center rounded-full bg-surface text-[11px] font-extrabold text-ink"
-                    >
-                      {initials(p.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/admin/ambassadors/${p.id}`}
-                        className="truncate text-[13.5px] font-extrabold text-ink underline decoration-[3px] underline-offset-4 hover:decoration-reel"
-                      >
-                        {p.name}
-                      </Link>
-                      <p className="truncate text-[12px] text-ink-soft">
-                        {p.approved} of {p.done} approved
-                      </p>
-                    </div>
-                    <span className="tabular display shrink-0 text-[15px] text-ink">
-                      {p.approved}/{p.done} approved
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <ParticipantList participants={data.participants} />
             )}
           </CardBody>
         </Card>

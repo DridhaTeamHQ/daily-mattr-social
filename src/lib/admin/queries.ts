@@ -1436,13 +1436,35 @@ export type CampaignTaskStat = {
   pointsPaid: number;
 };
 
+/** One upload on a campaign, with what the reviewer decided and why. */
+export type CampaignAttempt = {
+  id: string;
+  taskLabel: string;
+  status: string;
+  attempt: number;
+  uploaded_at: string;
+  reviewed_at: string | null;
+  reject_reason: string | null;
+  review_note: string | null;
+  /** Short-lived URL for the screenshot, when the proof is one. */
+  signedUrl: string | null;
+  proof_url: string | null;
+  proof_text: string | null;
+};
+
 export type CampaignParticipant = {
   id: string;
   name: string;
   college: string | null;
+  /** Uploads, not tasks — a re-upload after a rejection is a second one. */
   done: number;
   approved: number;
+  rejected: number;
+  /** Uploaded and not yet decided. */
+  waiting: number;
   pointsEarned: number;
+  /** Their uploads on this campaign, newest first. */
+  attempts: CampaignAttempt[];
 };
 
 export type CampaignDetail = {
@@ -1460,6 +1482,9 @@ export type CampaignDetail = {
     participants: number;
     cohort: number;
     approvalRate: number | null;
+    /** Rejected out of decided — the other side of `approvalRate`. */
+    rejectionRate: number | null;
+    rejected: number;
   };
 };
 
@@ -1489,7 +1514,7 @@ export async function getCampaignDetail(
     taskIds.length
       ? supabase
           .from("submissions")
-          .select("id, campaign_task_id, ambassador_id, status, uploaded_at, profiles!submissions_ambassador_id_fkey(full_name, college)")
+          .select("id, campaign_task_id, ambassador_id, status, attempt, uploaded_at, reviewed_at, reject_reason, review_note, screenshot_path, proof_url, proof_text, profiles!submissions_ambassador_id_fkey(full_name, college)")
           .in("campaign_task_id", taskIds)
       : Promise.resolve({ data: [] as never[] }),
     readAll<{ id: string; full_name: string; college: string | null }>(
@@ -1560,6 +1585,20 @@ export async function getCampaignDetail(
   });
 
   // ── Per person ────────────────────────────────────────────────────────────
+  // Screenshots are in a private bucket, so each one gets a short-lived URL —
+  // the same ten minutes the review queue hands out. Link and text proofs
+  // have no path and are left out, or a null would fail the whole batch.
+  const paths = submissions
+    .map((s) => s.screenshot_path)
+    .filter((path): path is string => Boolean(path));
+  const { data: signed } = paths.length
+    ? await supabase.storage.from("screenshots").createSignedUrls(paths, 60 * 10)
+    : { data: [] as { path: string | null; signedUrl: string }[] };
+  const urlByPath = new Map(
+    (signed ?? []).map((row) => [row.path ?? "", row.signedUrl]),
+  );
+  const labelByTask = new Map(taskStats.map((t) => [t.id, t.label]));
+
   const byPerson = new Map<string, CampaignParticipant>();
   for (const s of submissions) {
     const existing = byPerson.get(s.ambassador_id) ?? {
@@ -1568,13 +1607,34 @@ export async function getCampaignDetail(
       college: s.profiles?.college ?? null,
       done: 0,
       approved: 0,
+      rejected: 0,
+      waiting: 0,
       pointsEarned: 0,
+      attempts: [],
     };
 
     existing.done += 1;
     if (APPROVED.has(s.status)) existing.approved += 1;
+    else if (s.status === "rejected" || s.status === "revoked") existing.rejected += 1;
+    else existing.waiting += 1;
     existing.pointsEarned += paidBySubmission.get(s.id) ?? 0;
+    existing.attempts.push({
+      id: s.id,
+      taskLabel: labelByTask.get(s.campaign_task_id) ?? "Task",
+      status: s.status,
+      attempt: s.attempt,
+      uploaded_at: s.uploaded_at,
+      reviewed_at: s.reviewed_at,
+      reject_reason: s.reject_reason,
+      review_note: s.review_note,
+      signedUrl: s.screenshot_path ? (urlByPath.get(s.screenshot_path) ?? null) : null,
+      proof_url: s.proof_url,
+      proof_text: s.proof_text,
+    });
     byPerson.set(s.ambassador_id, existing);
+  }
+  for (const person of byPerson.values()) {
+    person.attempts.sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
   }
 
   const participants = [...byPerson.values()].sort(
@@ -1591,7 +1651,10 @@ export async function getCampaignDetail(
       college: p.college,
       done: 0,
       approved: 0,
+      rejected: 0,
+      waiting: 0,
       pointsEarned: 0,
+      attempts: [],
     }));
 
   // ── Over time ─────────────────────────────────────────────────────────────
@@ -1618,8 +1681,8 @@ export async function getCampaignDetail(
   }
 
   const approvedTotal = submissions.filter((s) => APPROVED.has(s.status)).length;
-  const decided =
-    approvedTotal + submissions.filter((s) => s.status === "rejected").length;
+  const rejectedTotal = submissions.filter((s) => s.status === "rejected").length;
+  const decided = approvedTotal + rejectedTotal;
 
   const cohort = cohortRes.length;
 
@@ -1639,6 +1702,8 @@ export async function getCampaignDetail(
       participants: byPerson.size,
       cohort,
       approvalRate: decided > 0 ? approvedTotal / decided : null,
+      rejectionRate: decided > 0 ? rejectedTotal / decided : null,
+      rejected: rejectedTotal,
     },
   };
 }

@@ -202,109 +202,254 @@ export function BarList({
  *
  * Every day in the window is rendered, including the empty ones — dropping zero
  * days silently compresses a quiet week into a busy-looking chart.
+ *
+ * Drawn soft rather than outlined: rounded columns with a gradient, faint
+ * gridlines for scale, and the figure printed on every day that has one, so
+ * nobody has to read a height against an axis. The summary above gives the
+ * total and the busiest day, which is what the chart is usually opened for.
  */
 export function DayBars({
   data,
   color = "violet",
   unit = "",
+  noun = "in this window",
 }: {
   data: { day: string; value: number }[];
   color?: SeriesColor;
   unit?: string;
+  /** What a bar counts, for the summary line: "48 uploads". */
+  noun?: string;
 }) {
-  const max = Math.max(...data.map((d) => d.value), 1);
   const total = data.reduce((n, d) => n + d.value, 0);
 
   if (total === 0) {
     return (
       <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
-        Nothing earned in this window yet.
+        Nothing in this window yet.
       </p>
     );
   }
 
-  /**
-   * How often to print a date under a bar.
-   *
-   * Every bar gets one where they fit, which is what makes the chart
-   * readable — a run of bars with a date at each end tells you the range and
-   * nothing about any particular day, so finding "the spike on the 9th"
-   * meant counting columns with a finger. Past about sixteen days the labels
-   * would collide, so they thin out to every second, third or fourth,
-   * anchored on the last day so the right-hand end always reads "today".
-   */
+  // A rounded top for the scale, so the gridlines land on whole numbers.
+  const peak = Math.max(...data.map((d) => d.value), 1);
+  const stepSize = Math.max(1, Math.ceil(peak / 4));
+  const max = stepSize * 4;
+  const grid = [4, 3, 2, 1, 0].map((n) => n * stepSize);
+
+  const busiest = data.reduce((best, d) => (d.value > best.value ? d : best));
+  const activeDays = data.filter((d) => d.value > 0).length;
+  const fill = SERIES[color];
+
+  // Thin the date labels past about sixteen days, anchored on the last day
+  // so the right-hand end always reads "today".
   const step = Math.ceil(data.length / 16);
 
-  /**
-   * Bars are drawn on a fixed track rather than stretched to fill.
-   *
-   * A campaign with three days of data used to get three columns a third of
-   * the card wide each, which reads as a different chart from the same
-   * campaign a week later. Fixed-width bars keep a day the same size
-   * whatever else is on screen, and the row scrolls if there are more than
-   * fit — which is also what keeps a fat bar fat.
-   */
   return (
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
-      <div className="flex min-w-full items-end justify-between gap-1.5">
-        {data.map((d, index) => {
-          const pct = d.value === 0 ? 0 : Math.max(6, (d.value / max) * 100);
-          const at = new Date(d.day);
-          const label = at.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          });
-          // Counted back from the end, so today is always labelled.
-          const labelled = (data.length - 1 - index) % step === 0;
+    <>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="text-[28px] leading-none font-black text-ink">
+          {formatNumber(total)}
+        </p>
+        <p className="text-[12.5px] font-semibold text-ink-soft">
+          {noun} · busiest {dayLabel(busiest.day)} ({formatNumber(busiest.value)}) ·{" "}
+          {activeDays} active {activeDays === 1 ? "day" : "days"}
+        </p>
+      </div>
 
-          return (
-            <div
-              key={d.day}
-              className="flex min-w-[18px] flex-1 flex-col items-center gap-1.5"
-              // Native tooltip: an admin chart doesn't need a bespoke hover
-              // layer to answer "what was that day".
-              title={`${label}: ${formatNumber(d.value)}${unit}`}
+      <div className="mt-2 flex gap-2">
+        {/* Y axis: the gridline values against the plot. The top padding on
+            both sides is room for the figure printed over the tallest bar,
+            which the scroll container would otherwise clip. */}
+        <div className="relative mt-6 h-40 w-6 shrink-0">
+          {grid.map((value) => (
+            <span
+              key={value}
+              className="tabular absolute right-0 -translate-y-1/2 text-[10.5px] font-semibold text-ink-faint"
+              style={{ top: `${100 - (value / max) * 100}%` }}
             >
-              <div className="flex h-36 w-full items-end">
-                {d.value > 0 ? (
-                  <div
-                    className="w-full rounded-t-md border-2 border-ink transition-[height] duration-500 ease-out"
-                    style={{
-                      height: `${pct}%`,
-                      backgroundColor: SERIES[color],
-                    }}
-                  />
-                ) : (
-                  // A visible floor for empty days, so the gap reads as
-                  // "zero" rather than as missing data.
-                  <div className="h-[3px] w-full rounded-full bg-ink/15" />
-                )}
-              </div>
+              {value}
+            </span>
+          ))}
+        </div>
 
-              {/* The day number under every labelled bar, with the month only
-                  where it changes — thirty repetitions of "Aug" is noise, and
-                  the one place the month turns over is the one place you
-                  need it. */}
-              <span className="h-7 text-center text-[10.5px] leading-tight font-bold whitespace-nowrap text-ink-soft">
-                {labelled && (
-                  <>
-                    {at.getDate()}
-                    {(index === 0 ||
-                      at.getMonth() !== new Date(data[index - 1].day).getMonth()) && (
-                      <>
-                        <br />
-                        <span className="text-ink-faint">
-                          {at.toLocaleDateString("en-IN", { month: "short" })}
-                        </span>
-                      </>
-                    )}
-                  </>
-                )}
-              </span>
+        <div className="min-w-0 flex-1 overflow-x-auto pt-6 pb-1">
+          <div className="relative min-w-full">
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40">
+              {grid.map((value) => (
+                <div
+                  key={value}
+                  className={cn(
+                    "absolute inset-x-0 border-t",
+                    value === 0 ? "border-gray-300" : "border-dashed border-gray-200",
+                  )}
+                  style={{ top: `${100 - (value / max) * 100}%` }}
+                />
+              ))}
             </div>
+
+            <div className="relative flex items-end gap-1.5">
+              {data.map((d, index) => {
+                const pct = (d.value / max) * 100;
+                const at = new Date(d.day);
+                const label = dayLabel(d.day);
+                const labelled = (data.length - 1 - index) % step === 0;
+                const isPeak = d.value > 0 && d.value === busiest.value;
+
+                return (
+                  <div
+                    key={d.day}
+                    className="group flex min-w-[18px] flex-1 flex-col items-center"
+                    title={`${label}: ${formatNumber(d.value)}${unit}`}
+                  >
+                    <div className="flex h-40 w-full items-end justify-center">
+                      {d.value > 0 && (
+                        <div
+                          className="relative w-full max-w-[34px] rounded-t-lg transition-[height,filter] duration-500 ease-out group-hover:brightness-110"
+                          style={{
+                            height: `${pct}%`,
+                            background: `linear-gradient(to top, color-mix(in srgb, ${fill} ${isPeak ? 100 : 75}%, white), color-mix(in srgb, ${fill} ${isPeak ? 80 : 45}%, white))`,
+                          }}
+                        >
+                          <span className="tabular absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-extrabold text-ink">
+                            {formatNumber(d.value)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="mt-1.5 h-7 text-center text-[10.5px] leading-tight font-semibold whitespace-nowrap text-ink-soft">
+                      {labelled && (
+                        <>
+                          {at.getDate()}
+                          {(index === 0 ||
+                            at.getMonth() !== new Date(data[index - 1].day).getMonth()) && (
+                            <>
+                              <br />
+                              <span className="text-ink-faint">
+                                {at.toLocaleDateString("en-IN", { month: "short" })}
+                              </span>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Parts of a whole, as a ring.
+ *
+ * For a status split with a handful of parts — approved, rejected, waiting —
+ * where the question is "what share". The total sits in the middle and every
+ * part is named in the legend with its count and share, so the ring is never
+ * the only place a number lives.
+ */
+export function Donut({
+  data,
+  totalLabel = "total",
+  emptyMessage = "Nothing yet.",
+}: {
+  data: { label: string; value: number; color: string }[];
+  /** Under the figure in the middle: "submissions". */
+  totalLabel?: string;
+  emptyMessage?: string;
+}) {
+  const parts = data.filter((d) => d.value > 0);
+  const total = parts.reduce((sum, d) => sum + d.value, 0);
+
+  if (total === 0) {
+    return (
+      <p className="py-6 text-center text-[13px] font-semibold text-ink-soft">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  // A circle whose circumference is 100, so every arc length is a percentage.
+  const radius = 15.9155;
+  const gap = parts.length > 1 ? 1.2 : 0;
+  // Each arc starts where the ones before it ended, from twelve o'clock.
+  const arcs = parts.map((d, index) => {
+    const share = (d.value / total) * 100;
+    const before = parts
+      .slice(0, index)
+      .reduce((sum, p) => sum + (p.value / total) * 100, 0);
+    return { ...d, share, length: Math.max(0, share - gap), offset: 25 - before };
+  });
+
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="relative size-40 shrink-0">
+        <svg
+          viewBox="0 0 42 42"
+          className="size-full"
+          role="img"
+          aria-label={parts.map((d) => `${d.label}: ${d.value}`).join(", ")}
+        >
+          <circle cx="21" cy="21" r={radius} fill="none" stroke="#f1f1f3" strokeWidth="5" />
+          {arcs.map((d) => (
+            <circle
+              key={d.label}
+              cx="21"
+              cy="21"
+              r={radius}
+              fill="none"
+              stroke={d.color}
+              strokeWidth="5"
+              strokeDasharray={`${d.length} ${100 - d.length}`}
+              strokeDashoffset={d.offset}
+            >
+              <title>{`${d.label}: ${d.value} (${Math.round(d.share)}%)`}</title>
+            </circle>
+          ))}
+        </svg>
+        <div className="absolute inset-0 grid place-items-center text-center">
+          <div>
+            <p className="text-[26px] leading-none font-black text-ink">
+              {formatNumber(total)}
+            </p>
+            <p className="mt-1 text-[11px] font-semibold text-ink-soft">{totalLabel}</p>
+          </div>
+        </div>
+      </div>
+
+      <ul className="min-w-[10rem] flex-1 space-y-3">
+        {arcs.map((d) => {
+          const share = Math.round(d.share);
+          return (
+            <li key={d.label}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-[13px] font-bold text-ink">
+                  <span
+                    aria-hidden
+                    className="size-2.5 rounded-full"
+                    style={{ backgroundColor: d.color }}
+                  />
+                  {d.label}
+                </span>
+                <span className="tabular text-[13px] font-extrabold text-ink">
+                  {formatNumber(d.value)}
+                  <span className="ml-1.5 font-semibold text-ink-faint">{share}%</span>
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${share}%`, backgroundColor: d.color }}
+                />
+              </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }
