@@ -8,8 +8,8 @@ import {
 /**
  * Fallback for the reward structure page.
  *
- * Shaped like `rewards/page.tsx`: the outline header, two stat tiles
- * (completion and stipend), then the achievements card.
+ * Shaped like `rewards/page.tsx`: the outline header, the completion tile,
+ * then the achievements card.
  */
 export default function RewardsLoading() {
   return (
@@ -22,11 +22,7 @@ export default function RewardsLoading() {
         className="bg-gray-50"
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {[0, 1].map((i) => (
-          <StatSkeleton key={i} />
-        ))}
-      </div>
+      <StatSkeleton />
 
       {/* Achievements */}
       <div className="rounded-xl border border-gray-200 bg-surface p-5 shadow-sm">

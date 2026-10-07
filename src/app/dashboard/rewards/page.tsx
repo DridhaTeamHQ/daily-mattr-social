@@ -27,7 +27,6 @@ export default async function RewardsPage() {
   if (!viewer) redirect("/login?next=/dashboard/rewards");
 
   const month = stipend.current;
-  const met = month?.met ?? false;
   const stipendOpen = isUnlocked(stipendUnlockAt);
 
   return (
@@ -45,30 +44,20 @@ export default async function RewardsPage() {
         className="border-gray-200 bg-gray-50"
       />
 
-      {/* Two tiles, no captions. The approved/total count was on all three of
-          them — as the headline of one and the caption of another — and the
-          panel below repeats it a third time as the formula it feeds.
+      {/* Completion only. No stipend amount is ever shown to students — the
+          team settles and communicates the figure themselves.
 
-          Shut, they are replaced rather than blanked: a tile reading "-" is
-          what this page shows somebody who has not qualified, and a student
-          must not read "the team has not settled the month" as "you missed
-          it". The work behind the figure carries on being counted, and the
-          note says so, because that is the question being locked out raises. */}
+          Shut, the tile is replaced rather than blanked: a student must not
+          read "the team has not settled the month" as "you missed it". The
+          work behind the figure carries on being counted, and the note says
+          so, because that is the question being locked out raises. */}
       {stipendOpen ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Stat
-            label="Completion"
-            value={`${formatNumber(month?.completionPct ?? 0)}%`}
-            icon={CheckCircle2}
-            tone="rank"
-          />
-          <Stat
-            label="Stipend"
-            value={met ? `Rs ${formatNumber(stipend.thresholds.amountInr)}` : "-"}
-            icon={BadgeIndianRupee}
-            tone="invite"
-          />
-        </div>
+        <Stat
+          label="Completion"
+          value={`${formatNumber(month?.completionPct ?? 0)}%`}
+          icon={CheckCircle2}
+          tone="rank"
+        />
       ) : (
         <Card>
           <CardBody>
