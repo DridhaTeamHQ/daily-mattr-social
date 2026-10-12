@@ -3,6 +3,11 @@ import { MailCheck, Upload, UserCheck, UserMinus, Users } from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
+import {
+  AmbassadorSelection,
+  SelectAllAmbassadors,
+  SelectAmbassador,
+} from "@/components/ambassador-selection";
 import { NavSelect } from "@/components/nav-select";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
@@ -315,198 +320,213 @@ export default async function AmbassadorsPage({
           />
         </Card>
       ) : (
-        <Card className="overflow-hidden">
-          {/* ─── Why this fits now ──────────────────────────────────────────
-              The column that broke the table was never a column: it was the
-              line under each name, which joined college, city and batch into
-              one string. College is optional and mostly not filled in, and
-              when it is, it is a whole sentence — "Gayatri Vidya Parishad
-              College of Degree and PG courses" — so one row could be twice
-              the width of the next and push Suspend off the right edge for
-              everybody.
+        <AmbassadorSelection
+          rows={grouped.flatMap(([, members]) =>
+            members.map((r) => ({ id: r.id, status: r.status })),
+          )}
+        >
+          <Card className="overflow-hidden">
+            {/* ─── Why this fits now ──────────────────────────────────────────
+                The column that broke the table was never a column: it was the
+                line under each name, which joined college, city and batch into
+                one string. College is optional and mostly not filled in, and
+                when it is, it is a whole sentence — "Gayatri Vidya Parishad
+                College of Degree and PG courses" — so one row could be twice
+                the width of the next and push Suspend off the right edge for
+                everybody.
 
-              So the college comes out of the table altogether. It is still
-              searchable, still on the ambassador's own page, and still
-              editable; it is simply not what identifies somebody at a glance.
-              City goes under the name, batch gets a column of its own, and
-              what was a run-on sentence is now two things you can sort your
-              eye down. The scroll stays for narrow screens, but at a normal
-              width there is nothing left to scroll to. */}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] table-fixed text-left">
-              {/* Fixed layout with shares rather than letting the content
-                  decide: one long name or one long city must change how much
-                  room it gets, not how much room every other column has. */}
-              <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[12%]" />
-                <col className="w-[11%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[25%]" />
-              </colgroup>
-              <thead className="border-b border-line bg-canvas-sunk">
-                <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
-                  <th className="px-3 py-2.5 font-medium">Ambassador</th>
-                  <th className="px-3 py-2.5 font-medium">Code</th>
-                  <th className="px-3 py-2.5 font-medium">Batch</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 font-medium">Joined</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-
-              <InfiniteTableBody
-                key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${query}`}
-                colSpan={6}
-                pageSize={25}
-              >
-                {grouped.flatMap(([heading, members]) => [
-                  // A header row rather than a table per group: the columns
-                  // have to keep lining up down the whole page.
-                  heading !== null && (
-                    <tr key={`h-${heading}`} className="bg-canvas-sunk">
-                      <td
-                        colSpan={6}
-                        className="px-3 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
-                      >
-                        {heading}
-                        <span className="tabular ml-2 font-bold text-ink-faint">
-                          {members.length}
-                        </span>
-                      </td>
-                    </tr>
-                  ),
-                  ...members.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-line last:border-0 hover:bg-canvas-sunk/50"
-                  >
-                    <td className="px-3 py-2">
+                So the college comes out of the table altogether. It is still
+                searchable, still on the ambassador's own page, and still
+                editable; it is simply not what identifies somebody at a glance.
+                City goes under the name, batch gets a column of its own, and
+                what was a run-on sentence is now two things you can sort your
+                eye down. The scroll stays for narrow screens, but at a normal
+                width there is nothing left to scroll to. */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[52rem] table-fixed text-left">
+                {/* Fixed layout with shares rather than letting the content
+                    decide: one long name or one long city must change how much
+                    room it gets, not how much room every other column has. */}
+                <colgroup>
+                  <col className="w-[28%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[25%]" />
+                </colgroup>
+                <thead className="border-b border-line bg-canvas-sunk">
+                  <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
+                    <th className="px-3 py-2.5 font-medium">
                       <div className="flex items-center gap-2.5">
-                        {/* A colour per person, picked from their name, so the
-                            column has some life and the same person is the
-                            same colour every time. */}
+                        <SelectAllAmbassadors />
+                        Ambassador
+                      </div>
+                    </th>
+                    <th className="px-3 py-2.5 font-medium">Code</th>
+                    <th className="px-3 py-2.5 font-medium">Batch</th>
+                    <th className="px-3 py-2.5 font-medium">Status</th>
+                    <th className="px-3 py-2.5 font-medium">Joined</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+
+                <InfiniteTableBody
+                  key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${query}`}
+                  colSpan={6}
+                  pageSize={25}
+                >
+                  {grouped.flatMap(([heading, members]) => [
+                    // A header row rather than a table per group: the columns
+                    // have to keep lining up down the whole page.
+                    heading !== null && (
+                      <tr key={`h-${heading}`} className="bg-canvas-sunk">
+                        <td
+                          colSpan={6}
+                          className="px-3 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
+                        >
+                          {heading}
+                          <span className="tabular ml-2 font-bold text-ink-faint">
+                            {members.length}
+                          </span>
+                        </td>
+                      </tr>
+                    ),
+                    ...members.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-line last:border-0 hover:bg-canvas-sunk/50"
+                    >
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2.5">
+                          <SelectAmbassador
+                            id={row.id}
+                            name={row.full_name || row.email}
+                          />
+                          {/* A colour per person, picked from their name, so the
+                              column has some life and the same person is the
+                              same colour every time. */}
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-extrabold",
+                              avatarTone(row.full_name || row.email),
+                            )}
+                          >
+                            {initials(row.full_name || row.email)}
+                          </span>
+                          <div className="min-w-0">
+                            {/* `block truncate` rather than bare truncate: an
+                                inline element ignores both, which is why a long
+                                name used to widen the column instead of being
+                                cut off inside it. */}
+                            <Link
+                              href={`/admin/ambassadors/${row.id}`}
+                              title={row.full_name || row.email}
+                              className="block truncate text-[13.5px] font-extrabold text-ink hover:text-brand hover:underline"
+                            >
+                              {row.full_name || "—"}
+                            </Link>
+                            {/* City, or the email when there is no city. Never
+                                the college — see the note above the table. */}
+                            <p className="truncate text-[12px] text-ink-soft">
+                              {row.city || row.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <code className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[11.5px] font-semibold text-ink-soft">
+                          {row.referral_code}
+                        </code>
+                      </td>
+
+                      <td className="px-3 py-2 text-[12.5px] text-ink-soft">
+                        {row.batch || <span className="text-ink-faint">—</span>}
+                      </td>
+
+                      <td className="px-3 py-2">
                         <span
-                          aria-hidden
                           className={cn(
-                            "grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-extrabold",
-                            avatarTone(row.full_name || row.email),
+                            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold capitalize",
+                            STATUS_PILL[row.status],
                           )}
                         >
-                          {initials(row.full_name || row.email)}
+                          <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                          {row.status}
                         </span>
-                        <div className="min-w-0">
-                          {/* `block truncate` rather than bare truncate: an
-                              inline element ignores both, which is why a long
-                              name used to widen the column instead of being
-                              cut off inside it. */}
-                          <Link
-                            href={`/admin/ambassadors/${row.id}`}
-                            title={row.full_name || row.email}
-                            className="block truncate text-[13.5px] font-extrabold text-ink hover:text-brand hover:underline"
-                          >
-                            {row.full_name || "—"}
-                          </Link>
-                          {/* City, or the email when there is no city. Never
-                              the college — see the note above the table. */}
-                          <p className="truncate text-[12px] text-ink-soft">
-                            {row.city || row.email}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="px-3 py-2">
-                      <code className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[11.5px] font-semibold text-ink-soft">
-                        {row.referral_code}
-                      </code>
-                    </td>
+                      {/* Wrapped on purpose: "7 Sept 2026" over two lines is
+                          shorter than the column it used to demand. */}
+                      <td className="px-3 py-2 text-[12.5px] text-ink-soft">
+                        {formatDate(row.created_at)}
+                      </td>
 
-                    <td className="px-3 py-2 text-[12.5px] text-ink-soft">
-                      {row.batch || <span className="text-ink-faint">—</span>}
-                    </td>
-
-                    <td className="px-3 py-2">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold capitalize",
-                          STATUS_PILL[row.status],
-                        )}
-                      >
-                        <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                        {row.status}
-                      </span>
-                    </td>
-
-                    {/* Wrapped on purpose: "7 Sept 2026" over two lines is
-                        shorter than the column it used to demand. */}
-                    <td className="px-3 py-2 text-[12.5px] text-ink-soft">
-                      {formatDate(row.created_at)}
-                    </td>
-
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-0.5">
-                        {/* Same dialog as the one on their own page. Fixing a
-                            misspelled name or a missing batch is the most
-                            common thing an admin does from this list, and
-                            opening a whole page to do it is a detour. */}
-                        <AmbassadorDetailsDialog
-                          profile={row}
-                          trigger={
-                            <Button variant="ghost" size="sm">
-                              Edit
-                            </Button>
-                          }
-                        />
-
-                        <ResetPasswordDialog
-                          profileId={row.id}
-                          name={row.full_name || row.email}
-                          label="Password"
-                        />
-
-                        {row.status === "suspended" ? (
-                          <ActionButton
-                            variant="ghost"
-                            size="sm"
-                            className="text-emerald-700 hover:bg-emerald-50"
-                            action={setAmbassadorStatus.bind(null, row.id, "active")}
-                          >
-                            Reinstate
-                          </ActionButton>
-                        ) : (
-<ReasonDialog
-                            title={`Suspend ${row.full_name || row.email}`}
-                            description="They keep their login and history but stop earning. The reason is sent to them and stays on their record."
-                            label="Reason"
-                            placeholder="Screenshots did not match the campaign"
-                            confirmLabel="Suspend"
-                            action={setAmbassadorStatus.bind(
-                              null,
-                              row.id,
-                              "suspended",
-                            )}
+                      <td className="px-3 py-2">
+                        <div className="flex justify-end gap-0.5">
+                          {/* Same dialog as the one on their own page. Fixing a
+                              misspelled name or a missing batch is the most
+                              common thing an admin does from this list, and
+                              opening a whole page to do it is a detour. */}
+                          <AmbassadorDetailsDialog
+                            profile={row}
                             trigger={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                              >
-                                Suspend
+                              <Button variant="ghost" size="sm">
+                                Edit
                               </Button>
                             }
                           />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  )),
-                ])}
-              </InfiniteTableBody>
-            </table>
-          </div>
-        </Card>
+
+                          <ResetPasswordDialog
+                            profileId={row.id}
+                            name={row.full_name || row.email}
+                            label="Password"
+                          />
+
+                          {row.status === "suspended" ? (
+                            <ActionButton
+                              variant="ghost"
+                              size="sm"
+                              className="text-emerald-700 hover:bg-emerald-50"
+                              action={setAmbassadorStatus.bind(null, row.id, "active")}
+                            >
+                              Reinstate
+                            </ActionButton>
+                          ) : (
+                            <ReasonDialog
+                              title={`Suspend ${row.full_name || row.email}`}
+                              description="They keep their login and history but stop earning. The reason is sent to them and stays on their record."
+                              label="Reason"
+                              placeholder="Screenshots did not match the campaign"
+                              confirmLabel="Suspend"
+                              action={setAmbassadorStatus.bind(
+                                null,
+                                row.id,
+                                "suspended",
+                              )}
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                >
+                                  Suspend
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    )),
+                  ])}
+                </InfiniteTableBody>
+              </table>
+            </div>
+          </Card>
+        </AmbassadorSelection>
       )}
     </div>
   );

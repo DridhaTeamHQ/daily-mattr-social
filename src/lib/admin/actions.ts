@@ -754,6 +754,101 @@ export async function setAmbassadorStatus(
   }
 }
 
+/**
+ * Suspend or reinstate a hand-picked set of ambassadors with one reason.
+ *
+ * The same rules as `setAmbassadorStatus` — a suspension needs a reason, and
+ * the reason reaches every one of them — applied in one update rather than a
+ * loop, so forty ticks are one round trip and not forty.
+ *
+ * Only rows that would actually change are touched: suspending somebody who
+ * is already suspended would overwrite the reason they were first given, and
+ * "reinstate" only ever moves suspended back to active — it must not quietly
+ * mark an unopened invite as signed in.
+ */
+export async function setAmbassadorsStatus(
+  profileIds: string[],
+  status: Enums<"user_status">,
+  reason?: string,
+): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+    const supabase = await createClient();
+
+    const note = (reason ?? "").trim();
+    if (status === "suspended" && note.length < 3) {
+      return { ok: false, message: "Give a reason for the suspension." };
+    }
+
+    const requested = [...new Set(profileIds)];
+    if (requested.length === 0) {
+      return { ok: false, message: "Nothing selected." };
+    }
+
+    const update = supabase
+      .from("profiles")
+      .update({
+        status,
+        status_reason: note || null,
+        status_changed_at: new Date().toISOString(),
+        status_changed_by: actorId,
+      })
+      .in("id", requested)
+      .eq("role", "ambassador");
+
+    const { data, error } = await (status === "active"
+      ? update.eq("status", "suspended")
+      : update.neq("status", status)
+    ).select("id");
+    if (error) throw error;
+
+    const changed = (data ?? []).map((row) => row.id);
+    const skipped = requested.length - changed.length;
+
+    if (changed.length === 0) {
+      return {
+        ok: false,
+        message:
+          status === "suspended"
+            ? "They are all suspended already."
+            : "None of those are suspended.",
+      };
+    }
+
+    await createAdminClient()
+      .from("audit_log")
+      .insert(
+        changed.map((id) => ({
+          actor_id: actorId,
+          action: "ambassador.status",
+          entity_type: "profile",
+          entity_id: id,
+          meta: { status, reason: note || null, bulk: true } as never,
+        })),
+      );
+
+    if (status === "suspended") {
+      await notifyMany(changed, {
+        type: "account",
+        title: "Your account has been paused",
+        body: note,
+        href: "/dashboard",
+      });
+    }
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/ambassadors");
+
+    const verb = status === "suspended" ? "Suspended" : "Reinstated";
+    const tail = skipped
+      ? ` · ${skipped} ${status === "suspended" ? "already suspended" : "not suspended"}`
+      : "";
+    return { ok: true, message: `${verb} ${changed.length}${tail}` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function adjustPoints(
   profileId: string,
   delta: number,
