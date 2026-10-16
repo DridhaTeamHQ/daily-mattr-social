@@ -10,6 +10,7 @@ import { activeAmbassadorIds, notify, notifyMany } from "@/lib/notifications";
 import { assertAdminWrite, fail } from "@/lib/admin/guards";
 import { readAll } from "@/lib/admin/read-all";
 import { getActiveVersion } from "@/lib/programme-version";
+import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
@@ -1182,6 +1183,17 @@ export async function setReferralCount(
 
     // ─── Add ────────────────────────────────────────────────────────────────
     if (count > counted.length) {
+      // Locked means the standings are final. Installs referred after the
+      // board shut are not this month's, so nothing new is counted until it
+      // reopens. Lowering a count is still allowed — that is a correction.
+      if (!isUnlocked(await getUnlockAt("stipend_unlock_at"))) {
+        return {
+          ok: false,
+          message:
+            "The board is locked, so no new installs can be counted. Reopen it to add more.",
+        };
+      }
+
       const toAdd = count - counted.length;
       const rows = Array.from({ length: toAdd }, (_, i) => ({
         ambassador_id: profileId,

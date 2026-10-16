@@ -4,6 +4,7 @@ import { cache } from "react";
 import { redisCache } from "@/lib/cache/redis";
 
 import { earningRoute } from "@/lib/admin/participation";
+import { readAll } from "@/lib/admin/read-all";
 import { getActiveVersion } from "@/lib/programme-version";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -317,15 +318,23 @@ async function getInstallBoard(subjectId: string): Promise<{
       // The run is part of the cache key, not just the query. Sharing one key
       // across runs would serve the previous programme's podium for the first
       // thirty seconds of the new one.
+      // Paged, not one select: PostgREST stops at 1,000 rows, and once the run
+      // passed that the podium silently dropped the newest installs and fell
+      // behind the viewer's own count beside it.
       redisCache.remember(`install-counts:v${version}`, 30, async () => {
-        const conversions = await db
-          .from("referral_conversions")
-          .select("ambassador_id")
-          .eq("status", "counted")
-          .eq("version", version);
-        if (conversions.error) throw conversions.error;
+        const conversions = await readAll<{ ambassador_id: string | null }>(
+          (from, to) =>
+            db
+              .from("referral_conversions")
+              .select("ambassador_id")
+              .eq("status", "counted")
+              .eq("version", version)
+              .order("id")
+              .range(from, to),
+          "install-counts",
+        );
         const totals = new Map<string, number>();
-        for (const row of conversions.data ?? []) {
+        for (const row of conversions) {
           if (row.ambassador_id) totals.set(row.ambassador_id, (totals.get(row.ambassador_id) ?? 0) + 1);
         }
         return [...totals.entries()];
