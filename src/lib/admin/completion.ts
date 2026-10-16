@@ -23,14 +23,17 @@ import type { Cohort } from "@/lib/admin/scope";
 const APPROVED = new Set(["approved", "auto_approved"]);
 
 /**
- * What the monthly stipend asks for: 80% of their tasks approved and fifteen
+ * What the Stipend column asks for: 80% of their tasks approved and thirty
  * counted downloads, and both of them — one without the other is not a
  * qualifying month.
  *
- * The same rule `stipend_eligibility()` pays on (migration 0043), read from
- * the same two `app_settings` rows. Hard-coded here rather than fetched
- * because this is a column on a page that already makes six round trips; if
- * the bar moves, it moves in one migration and in these two lines.
+ * The same shape of rule `stipend_eligibility()` pays on (migration 0043),
+ * but not the same download bar: this column was raised to thirty on its
+ * own, and the `stipend_min_downloads` row the payout reads was left at
+ * fifteen on purpose. So an ambassador on 15–29 downloads reads "Needs N
+ * more downloads" here and can still be paid on /admin/stipend. Hard-coded
+ * rather than fetched because this is a column on a page that already makes
+ * six round trips.
  *
  * Know this before reading the Stipend column against /admin/stipend: the
  * two count different spans. This page answers "of the work open to you
@@ -44,7 +47,7 @@ const APPROVED = new Set(["approved", "auto_approved"]);
  * one that pays. Moving the SQL onto the same rule is a migration, not an
  * edit here — see the note in the commit that introduced this.
  */
-export const STIPEND_MIN_DOWNLOADS = 15;
+export const STIPEND_MIN_DOWNLOADS = 30;
 export const STIPEND_MIN_COMPLETION_PCT = 80;
 const DECIDED = new Set(["approved", "auto_approved", "rejected", "revoked"]);
 const REJECTED = new Set(["rejected", "revoked"]);
