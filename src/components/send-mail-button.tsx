@@ -6,6 +6,7 @@ import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { sendWelcomeEmails } from "@/lib/admin/welcome-actions";
 
 /** Matches MAX_PER_CALL in welcome-actions.ts. */
@@ -24,6 +25,7 @@ export function SendMailButton({
   label,
   variant = "secondary",
   size = "sm",
+  iconOnly = false,
   className,
   onDone,
 }: {
@@ -31,6 +33,11 @@ export function SendMailButton({
   label?: string;
   variant?: "primary" | "secondary" | "ghost";
   size?: "sm" | "md";
+  /**
+   * Just the envelope, with the label as its accessible name and tooltip —
+   * for a table row, where the words pushed the button over the next column.
+   */
+  iconOnly?: boolean;
   className?: string;
   onDone?: () => void;
 }) {
@@ -84,16 +91,20 @@ export function SendMailButton({
     }
   }
 
+  const text = label ?? (count === 1 ? "Send mail" : `Send mail ${count}`);
+
   return (
     <Button
-      size={size}
+      size={iconOnly ? "icon" : size}
       variant={variant}
-      className={className}
+      className={cn(iconOnly && "size-8", className)}
       disabled={busy || count === 0}
       onClick={send}
+      aria-label={iconOnly ? text : undefined}
+      title={iconOnly ? text : undefined}
     >
       {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />}
-      {label ?? (count === 1 ? "Send mail" : `Send mail ${count}`)}
+      {!iconOnly && text}
     </Button>
   );
 }

@@ -375,18 +375,21 @@ export default async function AmbassadorsPage({
                 eye down. The scroll stays for narrow screens, but at a normal
                 width there is nothing left to scroll to. */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[58rem] table-fixed text-left">
+              <table className="w-full min-w-[66rem] table-fixed text-left">
                 {/* Fixed layout with shares rather than letting the content
                     decide: one long name or one long city must change how much
                     room it gets, not how much room every other column has. */}
                 <colgroup>
-                  <col className="w-[25%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
+                  {/* Actions is the widest it has been: an invited row carries
+                      four buttons (Send mail, Edit, Password, Suspend), and at
+                      22% they spilled left over the Joined date. */}
                   <col className="w-[22%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[27%]" />
                 </colgroup>
                 <thead className="border-b border-line bg-canvas-sunk">
                   <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
@@ -529,7 +532,8 @@ export default async function AmbassadorsPage({
                             <SendMailButton
                               ids={[row.id]}
                               variant="ghost"
-                              label={mails.get(row.id)?.status === "sent" ? "Resend" : "Send mail"}
+                              iconOnly
+                              label={mails.get(row.id)?.status === "sent" ? "Resend mail" : "Send mail"}
                               className="text-brand-strong"
                             />
                           )}
