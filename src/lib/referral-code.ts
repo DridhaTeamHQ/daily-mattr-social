@@ -3,15 +3,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
-import { batchLetter } from "@/lib/referral-code-shape";
+import { codePrefix } from "@/lib/referral-code-shape";
 
 /**
  * Issuing a code. The shape of one lives in referral-code-shape, which is a
  * plain module because the admin UI needs to read a code without dragging a
  * server-only import into a client component.
  */
-
-const PREFIX = "DM";
 
 /**
  * The next free code for a batch.
@@ -27,7 +25,7 @@ export async function nextReferralCode(
   batch: string | null | undefined,
   attempt = 0,
 ): Promise<string> {
-  const prefix = `${PREFIX}${batchLetter(batch)}`;
+  const prefix = codePrefix(batch);
 
   const { data } = await db
     .from("profiles")
@@ -36,7 +34,7 @@ export async function nextReferralCode(
 
   let highest = 0;
   for (const row of data ?? []) {
-    // Only the trailing digits — a legacy code that happens to start DMA
+    // Only the trailing digits — a legacy code that happens to start DMSA
     // must not be read as a serial.
     const tail = row.referral_code.slice(prefix.length);
     if (!/^\d+$/.test(tail)) continue;

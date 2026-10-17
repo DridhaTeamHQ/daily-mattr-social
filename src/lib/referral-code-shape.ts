@@ -1,8 +1,8 @@
 /**
  * Referral codes that mean something.
  *
- * A code is `DM` + the batch letter + a serial: batch A's first ambassador is
- * `DMA01`, then `DMA02`; batch B starts again at `DMB01`. Read one off a
+ * A code is `DMS` + the batch letter + a serial: batch A's first ambassador is
+ * `DMSA01`, then `DMSA02`; batch B starts again at `DMSB01`. Read one off a
  * poster or a support message and you know the batch without looking anything
  * up — which is the whole point, and the reason the letter is the letter
  * rather than its position in the alphabet.
@@ -10,11 +10,21 @@
  * The serial is per batch, not global, so every batch starts at 01 — "which
  * person in this batch" stays true as batches grow at different rates.
  *
- * `0` stands in for a batch nobody has set. `DM001` is honest about being
+ * `0` stands in for a batch nobody has set. `DMS001` is honest about being
  * unassigned instead of quietly claiming batch A.
+ *
+ * Codes issued before the programme restart are `DM` + letter + serial
+ * (`DMB05`). They are never reissued — they are links students have already
+ * shared — so both shapes count as structured.
  */
 
-const PREFIX = "DM";
+const PREFIX = "DMS";
+
+/** The scheme before the restart. Read, never issued. */
+const OLD_PREFIX = "DM";
+
+const STRUCTURED = new RegExp(`^${PREFIX}([A-Z0])\\d{2,}$`);
+const OLD_STRUCTURED = new RegExp(`^${OLD_PREFIX}([A-Z0])\\d{2,}$`);
 
 /** The stand-in when nobody has said which batch someone is in. */
 export const NO_BATCH = "0";
@@ -49,21 +59,27 @@ export function batchLetter(batch: string | null | undefined): string {
   return NO_BATCH;
 }
 
+/** What every new code for a batch starts with: `DMSA`, `DMSB`, `DMS0`. */
+export function codePrefix(batch: string | null | undefined): string {
+  return `${PREFIX}${batchLetter(batch)}`;
+}
+
 /**
- * True for codes that follow the scheme, so old random ones stay readable.
+ * True for codes that follow either scheme, so old random ones stay readable.
  *
  * One batch character, then at least two digits of serial. `DM54JGJ3` fails on
  * the letters in the serial, which is what keeps a legacy code identifiable as
- * legacy.
+ * legacy. The new shape is tried first; `DMS01` has digits straight after the
+ * S, so it can only be an old batch-S code.
  */
 export function isStructuredCode(code: string): boolean {
-  return new RegExp(`^${PREFIX}[A-Z0]\\d{2,}$`).test(code);
+  return STRUCTURED.test(code) || OLD_STRUCTURED.test(code);
 }
 
 /** The batch a structured code belongs to, or null for a legacy code. */
 export function batchFromCode(code: string): string | null {
-  if (!isStructuredCode(code)) return null;
-  const key = code.charAt(PREFIX.length);
+  const key = (code.match(STRUCTURED) ?? code.match(OLD_STRUCTURED))?.[1];
+  if (!key) return null;
   return key === NO_BATCH ? null : key;
 }
 

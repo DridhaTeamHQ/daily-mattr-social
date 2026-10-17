@@ -16,7 +16,7 @@ import {
 } from "@/lib/admin/actions";
 import { publicEnv } from "@/lib/env";
 import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
-import { batchLetter } from "@/lib/referral-code-shape";
+import { codePrefix } from "@/lib/referral-code-shape";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -238,7 +238,7 @@ export function AddAmbassadorDialog() {
                   </Field>
 
                   {/* Picked, not typed. The batch chooses the letter in their
-                      referral code — DMA·01 is batch A — so a free text box
+                      referral code — DMSA·01 is batch A — so a free text box
                       that accepted "67" or "2" was writing code prefixes
                       nobody meant. */}
                   <Field
@@ -246,7 +246,7 @@ export function AddAmbassadorDialog() {
                     htmlFor="batch"
                     hint={
                       batch
-                        ? `Their code will start DM${batchLetter(batch)}`
+                        ? `Their code will start ${codePrefix(batch)}`
                         : "Sets the digit in their referral code"
                     }
                   >
@@ -319,9 +319,12 @@ export function ResetPasswordDialog({
   profileId,
   name,
   label = "Reset password",
+  variant = "ghost",
 }: {
   profileId: string;
   name: string;
+  /** Ghost in the table; secondary on the ambassador's coloured header. */
+  variant?: "ghost" | "secondary";
   /**
    * What the trigger says. Shortened to "Password" in the ambassadors table,
    * where three actions share a column and the full phrase is what pushed the
@@ -368,7 +371,7 @@ export function ResetPasswordDialog({
       onOpenChange={(next) => (next ? setOpen(true) : reset())}
     >
       <Dialog.Trigger asChild>
-        <Button variant="ghost" size="sm" title={`Reset ${name}'s password`}>
+        <Button variant={variant} size="sm" title={`Reset ${name}'s password`}>
           {label}
         </Button>
       </Dialog.Trigger>
