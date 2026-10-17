@@ -14,6 +14,7 @@ import {
   isStructuredCode,
   normalizeCode,
 } from "@/lib/referral-code-shape";
+import { DialogOpener } from "@/components/dialog-opener";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -93,13 +94,15 @@ export function AmbassadorDetailsDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Trigger asChild>
+      {/* Not `Dialog.Trigger asChild`: the list page passes its own
+          trigger from the server. See DialogOpener. */}
+      <DialogOpener onOpen={() => onOpenChange(true)}>
         {trigger ?? (
           <Button size="sm" variant="secondary">
             Edit details
           </Button>
         )}
-      </Dialog.Trigger>
+      </DialogOpener>
 
       <Dialog.Portal>
         <Dialog.Overlay className="animate-fade fixed inset-0 z-40 bg-ink/25 backdrop-blur-[2px]" />

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Field, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/admin/guards";
+import { DialogOpener } from "@/components/dialog-opener";
 
 /**
  * A destructive action with a written reason attached.
@@ -69,7 +70,8 @@ export function ReasonDialog({
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+      {/* Not `Dialog.Trigger asChild`: see DialogOpener. */}
+      <DialogOpener onOpen={() => setOpen(true)}>{trigger}</DialogOpener>
 
       <Dialog.Portal>
         <Dialog.Overlay className="animate-fade fixed inset-0 z-40 bg-ink/25 backdrop-blur-[2px]" />
