@@ -110,3 +110,59 @@ export async function xlsxToCsv(buffer: ArrayBuffer): Promise<XlsxReadResult> {
     rows: table.length - 1,
   };
 }
+
+/**
+ * A finished .xlsx download — the other direction.
+ *
+ * Numbers stay numbers, so a column of downloads sorts and sums in Excel
+ * without the "number stored as text" triangle a CSV produces. The header is
+ * bold, frozen and filterable, and each column is sized to its longest cell
+ * so the file opens readable rather than as a wall of `####`.
+ */
+export async function xlsxResponse(
+  filename: string,
+  sheetName: string,
+  header: string[],
+  rows: (string | number | boolean | null)[][],
+): Promise<Response> {
+  const ExcelJS = (await import("exceljs")).default;
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName, {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+
+  sheet.addRow(header);
+  for (const row of rows) sheet.addRow(row.map((cell) => cell ?? ""));
+
+  const top = sheet.getRow(1);
+  top.font = { bold: true };
+  top.alignment = { vertical: "middle", wrapText: true };
+  top.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFEFEF" } };
+
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: header.length },
+  };
+
+  header.forEach((title, i) => {
+    const longest = rows.reduce(
+      (n, row) => Math.max(n, String(row[i] ?? "").length),
+      Math.min(title.length, 24),
+    );
+    sheet.getColumn(i + 1).width = Math.min(48, Math.max(10, longest + 2));
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return new Response(buffer as ArrayBuffer, {
+    headers: {
+      "content-type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "content-disposition": `attachment; filename="${filename}"`,
+      // These files carry names, emails and phone numbers. Nothing in front of
+      // the app should be holding a copy.
+      "cache-control": "no-store",
+    },
+  });
+}

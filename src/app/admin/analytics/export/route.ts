@@ -1,4 +1,4 @@
-import { csvResponse } from "@/lib/admin/csv-export";
+import { xlsxResponse } from "@/lib/admin/xlsx";
 import {
   STIPEND_MIN_COMPLETION_PCT,
   STIPEND_MIN_DOWNLOADS,
@@ -13,10 +13,11 @@ import {
   readCohortFilters,
   DIMENSIONS,
 } from "@/lib/admin/scope";
+import { listVersions } from "@/lib/programme-version";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The ambassador roster, with referral codes, as a CSV.
+ * The ambassador roster, with referral codes, as an Excel workbook.
  *
  * ─── What it is scoped by, and what it deliberately is not ──────────────────
  *
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
   });
   const measured = new Map(ranked.map((row) => [row.id, row]));
 
-  const [profiles, conversions, submissions, responses] =
+  const [profiles, conversions, submissions, responses, versions] =
     await Promise.all([
       readAll<Profile>(
         (from, to) =>
@@ -119,11 +120,16 @@ export async function GET(request: Request) {
             .range(from, to),
           "export.profiles",
       ),
-      readAll<{ ambassador_id: string; status: string; converted_at: string | null }>(
+      readAll<{
+        ambassador_id: string;
+        status: string;
+        converted_at: string | null;
+        version: number;
+      }>(
         (from, to) =>
           supabase
             .from("referral_conversions")
-            .select("ambassador_id, status, converted_at")
+            .select("ambassador_id, status, converted_at, version")
             .order("id")
             .range(from, to),
         "export.conversions",
@@ -146,6 +152,7 @@ export async function GET(request: Request) {
             .range(from, to),
         "export.responses",
       ),
+      listVersions(),
     ]);
 
   // ─── Roll the raw rows up per person ──────────────────────────────────────
@@ -153,11 +160,22 @@ export async function GET(request: Request) {
   // Counted conversions only. A voided one is a row the programme decided not
   // to credit, and it is not in this file at all — it answered a question
   // about imports that nobody opens the roster to ask.
+  //
+  // Split by run as well. Installs are the one thing a new run starts again
+  // (0053 leaves them where they were recorded), so "how many in V1, how many
+  // in V2" is the question the file is opened to answer. One column per run
+  // that exists, so a V3 gets its own without this file changing.
   const confirmed = new Map<string, number>();
+  const confirmedByRun = new Map<number, Map<string, number>>(
+    versions.map((v) => [v.id, new Map()]),
+  );
   const lastDownload = new Map<string, string>();
   for (const row of conversions) {
     if (row.status !== "counted") continue;
     confirmed.set(row.ambassador_id, (confirmed.get(row.ambassador_id) ?? 0) + 1);
+
+    const run = confirmedByRun.get(row.version);
+    if (run) run.set(row.ambassador_id, (run.get(row.ambassador_id) ?? 0) + 1);
 
     if (row.converted_at) {
       const seen = lastDownload.get(row.ambassador_id);
@@ -225,7 +243,8 @@ export async function GET(request: Request) {
     "Completion % (since joining)",
     `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_DOWNLOADS} downloads)`,
     "Approved tasks (lifetime)",
-    "Confirmed downloads (lifetime)",
+    ...versions.map((v) => `${v.label} downloads`),
+    "Confirmed downloads (all runs)",
     "Last download",
     "Valid survey responses (lifetime)",
   ];
@@ -249,7 +268,7 @@ export async function GET(request: Request) {
     measured.get(profile.id)?.approved ?? "",
     measured.get(profile.id)?.rejected ?? "",
     // No downloads column here: it held the same number as "Confirmed
-    // downloads (lifetime)" below from the moment the page stopped scoping
+    // downloads (all runs)" below from the moment the page stopped scoping
     // them to the period, and two identical columns in a spreadsheet is a
     // question rather than an answer. The Stipend column is judged on that
     // one.
@@ -262,13 +281,14 @@ export async function GET(request: Request) {
         : "Not met"
       : "",
     approvedTasks.get(profile.id)?.size ?? 0,
+    ...versions.map((v) => confirmedByRun.get(v.id)?.get(profile.id) ?? 0),
     confirmed.get(profile.id) ?? 0,
     lastDownload.get(profile.id) ? istDay(lastDownload.get(profile.id)!) : "",
     validResponses.get(profile.id) ?? 0,
   ]);
 
   // The filename carries the scope, so two downloads taken minutes apart under
-  // different filters do not end up as "ambassadors (1).csv" in a folder with
+  // different filters do not end up as "ambassadors (1).xlsx" in a folder with
   // no way to tell which is which.
   const scope = DIMENSIONS.map(({ key }) => filters[key])
     .filter((value): value is string => Boolean(value))
@@ -277,7 +297,7 @@ export async function GET(request: Request) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-  const filename = `ambassadors${scope ? `-${scope}` : ""}-${istDay(new Date())}.csv`;
+  const filename = `ambassadors${scope ? `-${scope}` : ""}-${istDay(new Date())}.xlsx`;
 
-  return csvResponse(filename, header, rows);
+  return xlsxResponse(filename, "Ambassadors", header, rows);
 }

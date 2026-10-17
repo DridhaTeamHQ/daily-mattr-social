@@ -152,7 +152,7 @@ export default async function AnalyticsPage({
           {/* A plain <a>, not <Link>: the response is a file download, and
               client-side navigation to one leaves the router waiting for a
               page that never arrives. `download` keeps the tab put even if a
-              browser decides it would rather render the CSV. */}
+              browser decides it would rather render the file. */}
           <a
             href={exportHref}
             download
