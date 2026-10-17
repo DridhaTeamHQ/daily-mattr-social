@@ -1399,19 +1399,22 @@ function streakFrom(rows: { delta: number; created_at: string }[]): number {
 export async function getAmbassadorDetail(
   profileId: string,
   days = 30,
+  /**
+   * Whether to work out `points.rank`. It reads the whole programme's ledger
+   * and every active profile, page by page, to place one person — by far the
+   * slowest thing here. The admin page does not show it, so it opts out; the
+   * assistant, which quotes it, keeps the default.
+   */
+  { withRank = true }: { withRank?: boolean } = {},
 ): Promise<AmbassadorDetail | null> {
   const supabase = await createClient();
   const version = await getViewingVersion();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", profileId)
-    .maybeSingle();
-
-  if (!profile || profile.role !== "ambassador") return null;
-
+  // The profile is read alongside everything else rather than first: the
+  // other queries are all keyed by this id, so they are harmless if it turns
+  // out not to be an ambassador, and waiting for it cost a whole round trip.
   const [
+    { data: profile },
     ledgerRes,
     allLedger,
     cohortRows,
@@ -1421,6 +1424,7 @@ export async function getAmbassadorDetail(
     conversionsRes,
     achievementsRes,
   ] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", profileId).maybeSingle(),
     supabase
       .from("point_ledger")
       .select("id, delta, reason, source_type, note, created_at")
@@ -1431,27 +1435,31 @@ export async function getAmbassadorDetail(
     // cohort rather than a number that only makes sense on its own. Paged:
     // truncating this would rank them against the first thousand rows of the
     // ledger and quietly promote them.
-    readAll<{ ambassador_id: string; delta: number }>(
-      (from, to) =>
-        supabase
-          .from("point_ledger")
-          .select("ambassador_id, delta")
-          .eq("version", version)
-          .order("id")
-          .range(from, to),
-      "ambassadorDetail.allLedger",
-    ),
-    readAll<{ id: string }>(
-      (from, to) =>
-        supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "ambassador")
-          .eq("status", "active")
-          .order("id")
-          .range(from, to),
-      "ambassadorDetail.cohort",
-    ),
+    withRank
+      ? readAll<{ ambassador_id: string; delta: number }>(
+          (from, to) =>
+            supabase
+              .from("point_ledger")
+              .select("ambassador_id, delta")
+              .eq("version", version)
+              .order("id")
+              .range(from, to),
+          "ambassadorDetail.allLedger",
+        )
+      : Promise.resolve([]),
+    withRank
+      ? readAll<{ id: string }>(
+          (from, to) =>
+            supabase
+              .from("profiles")
+              .select("id")
+              .eq("role", "ambassador")
+              .eq("status", "active")
+              .order("id")
+              .range(from, to),
+          "ambassadorDetail.cohort",
+        )
+      : Promise.resolve([]),
     // `surveys!inner` so the run filter can reach the parent: a link belongs
     // to a survey and has no version of its own to filter on.
     supabase
@@ -1483,6 +1491,8 @@ export async function getAmbassadorDetail(
       .order("awarded_at", { ascending: false }),
   ]);
 
+  if (!profile || profile.role !== "ambassador") return null;
+
   const ledger = ledgerRes.data ?? [];
   const deltas = ledger.map((r) => r.delta);
 
@@ -1496,7 +1506,7 @@ export async function getAmbassadorDetail(
   }
 
   const mine = totals.get(profileId) ?? 0;
-  const rank = activeIds.has(profileId)
+  const rank = withRank && activeIds.has(profileId)
     ? [...totals.values()].filter((v) => v > mine).length + 1
     : null;
 

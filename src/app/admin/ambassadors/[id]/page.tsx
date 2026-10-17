@@ -25,20 +25,18 @@ export const metadata = { title: "Ambassador" };
 const STATUS_TONE = { active: "ok", invited: "warn", suspended: "bad" } as const;
 
 export default async function AmbassadorDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
-  const { id } = await params;
-  const data = await getAmbassadorDetail(id);
-  if (!data) notFound();
-
-  const { profile, streak, referrals } = data;
-  const name = profile.full_name || profile.email;
-  const approved = data.submissions.filter((submission) => submission.status === "approved" || submission.status === "auto_approved").length;
+  const [, { id }, supabase, version] = await Promise.all([
+    requireAdmin(),
+    params,
+    createClient(),
+    getViewingVersion(),
+  ]);
 
   /**
    * The same figure the ambassador sees on their own dashboard.
    *
    * Read from `ambassador_completion` rather than recomputed from the
-   * submissions above, because those two would drift: the list here is every
+   * submissions below, because those two would drift: the list here is every
    * submission ever made, while completion is about this month's task pool and
    * counts a task once however many attempts it took. An admin quoting a
    * number back to a student needs it to be the student's number.
@@ -53,16 +51,27 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
    * Rank still comes from the board, because a rank only means anything
    * relative to the people being ranked; when they are not on it, the line
    * simply omits the rank instead of inventing one.
+   *
+   * All three are fetched at once. They used to wait on each other, and the
+   * detail query was also paging through the whole programme's ledger for a
+   * points rank this page never shows — `withRank: false` skips that.
    */
-  const supabase = await createClient();
-  const version = await getViewingVersion();
-  const [{ data: completion }, { data: board }] = await Promise.all([
+  const [data, { data: completion }, { data: board }] = await Promise.all([
+    getAmbassadorDetail(id, 30, { withRank: false }),
     supabase.rpc("ambassador_completion", { target: id, p_version: version }),
     supabase.rpc("completion_leaderboard", {
       limit_count: 1000,
       p_version: version,
     }),
   ]);
+  if (!data) notFound();
+
+  const { profile, streak, referrals } = data;
+  const name = profile.full_name || profile.email;
+  const approved = data.submissions.filter(
+    (submission) => submission.status === "approved" || submission.status === "auto_approved",
+  ).length;
+  const responses = data.surveys.reduce((total, survey) => total + survey.responses, 0);
 
   const progress = completion?.[0] ?? null;
   const completionPct = progress?.completion_pct ?? 0;
@@ -84,30 +93,119 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
     ? peers.filter((row) => row.position < mine.position).length + 1
     : null;
 
+  const meta = [profile.college, profile.city, profile.batch].filter(Boolean).join(" · ");
+
   return (
     <div className="stagger space-y-5">
-      <Link href="/admin/ambassadors" className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-ink-soft hover:text-ink"><ArrowLeft className="size-3.5" />Ambassadors</Link>
+      <div>
+        <Link
+          href="/admin/ambassadors"
+          className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-ink-soft hover:text-ink"
+        >
+          <ArrowLeft className="size-3.5" />
+          Ambassadors
+        </Link>
+      </div>
 
+      {/* ─── Header ──────────────────────────────────────────────────────────
+          Drawn like the campaign page's: a saturated card with white text,
+          the initials on a white tile in the card's own colour. */}
       <Card className="bg-brand">
         <CardBody className="flex flex-wrap items-center gap-4">
-          <span aria-hidden className="brut display grid size-14 shrink-0 place-items-center rounded-full bg-surface text-[16px] text-ink">{initials(name)}</span>
+          <span
+            aria-hidden
+            className="display grid size-14 shrink-0 place-items-center rounded-xl bg-white text-[17px] text-brand"
+          >
+            {initials(name)}
+          </span>
+
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><h1 className="display text-[24px] leading-none text-ink">{profile.full_name || "-"}</h1><Badge tone={STATUS_TONE[profile.status]} dot>{profile.status}</Badge>{streak > 0 && <span className="brut-sm inline-flex items-center gap-1 rounded-full bg-flame-tint px-2.5 py-1 text-[12px] font-extrabold text-ink"><Flame className="size-3.5 text-flame" fill="currentColor" />{streak} day{streak === 1 ? "" : "s"}</span>}</div>
-            <p className="mt-1.5 text-[13px] font-semibold text-ink/75">{profile.email}{profile.college ? ` - ${profile.college}` : ""}</p>
-            <p className="mt-0.5 text-[12.5px] font-semibold text-ink/60">Joined {formatDate(profile.created_at)}{[profile.city, profile.batch].filter(Boolean).length > 0 ? ` - ${[profile.city, profile.batch].filter(Boolean).join(" - ")}` : ""}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="display text-[24px] leading-none text-white">
+                {profile.full_name || "-"}
+              </h1>
+              <Badge tone={STATUS_TONE[profile.status]} dot>
+                {profile.status}
+              </Badge>
+              {streak > 0 && (
+                <Badge tone="neutral">
+                  <Flame className="size-3.5 text-flame" fill="currentColor" />
+                  {streak} day{streak === 1 ? "" : "s"}
+                </Badge>
+              )}
+            </div>
+
+            <p className="mt-2 text-[13.5px] font-semibold text-white/95">
+              {profile.email}
+              {meta ? ` · ${meta}` : ""}
+            </p>
+            <p className="mt-1 text-[12.5px] font-semibold text-white/85">
+              Code <span className="font-extrabold text-white">{profile.referral_code}</span>
+              {" · "}joined {formatDate(profile.created_at)}
+            </p>
           </div>
+
           <div className="flex flex-wrap gap-2">
-            <AmbassadorDetailsDialog profile={{ id: profile.id, full_name: profile.full_name, college: profile.college, city: profile.city, batch: profile.batch, referral_code: profile.referral_code }} />
-            <ResetPasswordDialog profileId={profile.id} name={name} />
-            {profile.status === "suspended" ? <ActionButton size="sm" variant="secondary" action={setAmbassadorStatus.bind(null, profile.id, "active")}>Reinstate</ActionButton> : <ReasonDialog title={`Suspend ${name}`} description="They keep their login and history but cannot participate. The reason is sent to them and stays on their record." label="Reason" placeholder="Screenshots did not match the campaign" confirmLabel="Suspend" action={setAmbassadorStatus.bind(null, profile.id, "suspended")} trigger={<Button size="sm" variant="secondary">Suspend</Button>} />}
+            <AmbassadorDetailsDialog
+              profile={{
+                id: profile.id,
+                full_name: profile.full_name,
+                college: profile.college,
+                city: profile.city,
+                batch: profile.batch,
+                referral_code: profile.referral_code,
+              }}
+            />
+            <ResetPasswordDialog profileId={profile.id} name={name} variant="secondary" />
+            {profile.status === "suspended" ? (
+              <ActionButton
+                size="sm"
+                variant="secondary"
+                action={setAmbassadorStatus.bind(null, profile.id, "active")}
+              >
+                Reinstate
+              </ActionButton>
+            ) : (
+              <ReasonDialog
+                title={`Suspend ${name}`}
+                description="They keep their login and history but cannot participate. The reason is sent to them and stays on their record."
+                label="Reason"
+                placeholder="Screenshots did not match the campaign"
+                confirmLabel="Suspend"
+                action={setAmbassadorStatus.bind(null, profile.id, "suspended")}
+                trigger={
+                  <Button size="sm" variant="secondary">
+                    Suspend
+                  </Button>
+                }
+              />
+            )}
           </div>
         </CardBody>
       </Card>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Stat label="Approved tasks" value={approved} sub={`${data.submissions.length} submitted`} icon={Clapperboard} tone="reel" />
-        <Stat label="Survey responses" value={data.surveys.reduce((total, survey) => total + survey.responses, 0)} sub={`${data.surveys.length} link${data.surveys.length === 1 ? "" : "s"} issued`} icon={ClipboardList} tone="poll" />
-        <Stat label="Installs" value={referrals.counted} sub={referrals.last ? `Last ${formatDate(referrals.last)}` : "None confirmed"} icon={Gift} tone="invite" />
+        <Stat
+          label="Approved tasks"
+          value={approved}
+          sub={`${data.submissions.length} submitted`}
+          icon={Clapperboard}
+          tone="reel"
+        />
+        <Stat
+          label="Survey responses"
+          value={responses}
+          sub={`${data.surveys.length} link${data.surveys.length === 1 ? "" : "s"} issued`}
+          icon={ClipboardList}
+          tone="poll"
+        />
+        <Stat
+          label="Installs"
+          value={referrals.counted}
+          sub={referrals.last ? `Last ${formatDate(referrals.last)}` : "None confirmed"}
+          icon={Gift}
+          tone="invite"
+        />
       </div>
 
       {/* The same track the ambassador sees, so a conversation about "where am
@@ -129,9 +227,58 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
         </CardBody>
       </Card>
 
-      <Card><CardBody><h2 className="display text-[16px] text-ink">Task submissions</h2>{data.submissions.length === 0 ? <EmptyState icon={Clapperboard} title="Nothing submitted" description="They have not uploaded proof for any campaign task yet." /> : <ul className="mt-3 divide-y divide-gray-100">{data.submissions.map((submission) => <li key={submission.id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-[13.5px] font-extrabold text-ink">{submission.campaign}</p><p className="text-[12px] font-semibold text-ink-soft">{submission.taskLabel} - {formatDate(submission.uploadedAt)}</p></div><StatusBadge status={submission.status} /></li>)}</ul>}</CardBody></Card>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card>
+          <CardBody>
+            <SectionTitle title="Task submissions" count={data.submissions.length} />
+            {data.submissions.length === 0 ? (
+              <EmptyState
+                icon={Clapperboard}
+                title="Nothing submitted"
+                description="They have not uploaded proof for any campaign task yet."
+              />
+            ) : (
+              <ul className="mt-3 divide-y divide-gray-100">
+                {data.submissions.map((submission) => (
+                  <li key={submission.id} className="flex items-center gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-extrabold text-ink">
+                        {submission.campaign}
+                      </p>
+                      <p className="truncate text-[12px] font-semibold text-ink-soft">
+                        {submission.taskLabel} · {formatDate(submission.uploadedAt)}
+                      </p>
+                    </div>
+                    <StatusBadge status={submission.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
 
-      <Card><CardBody><h2 className="display text-[16px] text-ink">Survey links</h2>{data.surveys.length === 0 ? <EmptyState title="No survey links issued" /> : <ul className="mt-3 divide-y divide-gray-100">{data.surveys.map((survey) => <li key={survey.surveyId} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-[13.5px] font-extrabold text-ink">{survey.title}</p><p className="text-[12px] text-ink-soft">{survey.clicks} clicks - {survey.responses} responses</p></div></li>)}</ul>}</CardBody></Card>
+        <Card>
+          <CardBody>
+            <SectionTitle title="Survey links" count={data.surveys.length} />
+            {data.surveys.length === 0 ? (
+              <EmptyState icon={ClipboardList} title="No survey links issued" />
+            ) : (
+              <ul className="mt-3 divide-y divide-gray-100">
+                {data.surveys.map((survey) => (
+                  <li key={survey.surveyId} className="flex items-center gap-3 py-3">
+                    <p className="min-w-0 flex-1 truncate text-[13.5px] font-extrabold text-ink">
+                      {survey.title}
+                    </p>
+                    <p className="shrink-0 text-[12px] font-semibold text-ink-soft">
+                      {survey.clicks} clicks · {survey.responses} responses
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+      </div>
 
       {/* ─── Achievements ────────────────────────────────────────────────────
           Everything else on this page is counted by the system. This is the
@@ -195,6 +342,17 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
           )}
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+function SectionTitle({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <h2 className="display text-[16px] text-ink">{title}</h2>
+      {count > 0 && (
+        <span className="text-[12.5px] font-semibold text-ink-soft">{count}</span>
+      )}
     </div>
   );
 }
