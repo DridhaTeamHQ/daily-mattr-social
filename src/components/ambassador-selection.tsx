@@ -5,6 +5,7 @@ import { UserCheck, UserMinus } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
+import { SendMailButton } from "@/components/send-mail-button";
 import { Button } from "@/components/ui/button";
 import { setAmbassadorsStatus } from "@/lib/admin/actions";
 
@@ -79,6 +80,11 @@ export function AmbassadorSelection({
   );
   const toSuspend = ids.filter((id) => !suspended.has(id));
   const toReinstate = ids.filter((id) => suspended.has(id));
+  // Only invited people can be sent a welcome email — see welcome-actions.
+  const invited = new Set(
+    rows.filter((r) => r.status === "invited").map((r) => r.id),
+  );
+  const toMail = ids.filter((id) => invited.has(id));
 
   return (
     <SelectionContext.Provider value={value}>
@@ -87,6 +93,7 @@ export function AmbassadorSelection({
           count={ids.length}
           toSuspend={toSuspend}
           toReinstate={toReinstate}
+          toMail={toMail}
           onClear={clear}
         />
       )}
@@ -149,11 +156,13 @@ function SelectionBar({
   count,
   toSuspend,
   toReinstate,
+  toMail,
   onClear,
 }: {
   count: number;
   toSuspend: string[];
   toReinstate: string[];
+  toMail: string[];
   onClear: () => void;
 }) {
   const suspendCount = toSuspend.length;
@@ -166,6 +175,10 @@ function SelectionBar({
       </p>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
+        {toMail.length > 0 && (
+          <SendMailButton ids={toMail} variant="primary" onDone={onClear} />
+        )}
+
         {/* Hidden rather than disabled when it would act on nobody: a
             greyed-out "Suspend 0" describes an action nobody asked for. */}
         {suspendCount > 0 && (

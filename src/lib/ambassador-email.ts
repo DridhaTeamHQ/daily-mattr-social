@@ -13,6 +13,16 @@ export type WelcomeEmailResult =
   | { ok: true; message: string }
   | { ok: false; reason: "disabled" | "failed"; message: string };
 
+/**
+ * Whether a welcome email can be sent at all. Checked before a password is
+ * reset for sending, so a missing key never leaves someone with a new
+ * password nobody was told.
+ */
+export function welcomeEmailConfigured(): boolean {
+  const env = serverEnv();
+  return Boolean(env.brevoApiKey && env.brevoSenderEmail && publicEnv.appDownloadUrl);
+}
+
 export async function sendAmbassadorWelcomeEmail(
   input: WelcomeEmailInput,
 ): Promise<WelcomeEmailResult> {

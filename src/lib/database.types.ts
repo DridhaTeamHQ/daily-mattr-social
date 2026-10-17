@@ -102,6 +102,33 @@ export type Database = {
         ];
       };
 
+      ambassador_welcome_emails: {
+        Row: {
+          ambassador_id: string;
+          last_attempt_at: string;
+          last_status: string;
+          sent_at: string | null;
+          sent_count: number;
+          sent_by: string | null;
+        };
+        Insert: {
+          ambassador_id: string;
+          last_attempt_at?: string;
+          last_status: string;
+          sent_at?: string | null;
+          sent_count?: number;
+          sent_by?: string | null;
+        };
+        Update: {
+          ambassador_id?: string;
+          last_attempt_at?: string;
+          last_status?: string;
+          sent_at?: string | null;
+          sent_count?: number;
+          sent_by?: string | null;
+        };
+        Relationships: [];
+      };
       ambassador_zones: {
         Row: {
           ambassador_id: string;

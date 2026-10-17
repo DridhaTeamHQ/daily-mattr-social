@@ -1029,33 +1029,19 @@ export async function createAmbassador(
 
     await audit(actorId, "ambassador.create", "profile", created.user.id, { email });
 
-    const emailResult = await sendAmbassadorWelcomeEmail({
-      email,
-      fullName,
-      password,
-    }).catch((error) => {
-      console.error("Unexpected welcome email failure", error);
-      return {
-        ok: false as const,
-        reason: "failed" as const,
-        message: "Account created, but the welcome email could not be sent.",
-      };
-    });
-
+    // No email here, the same as an import: the welcome email goes out when
+    // an admin presses Send mail on the ambassadors page.
     await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
-      message: emailResult.ok
-        ? `${fullName} added and emailed`
-        : `${fullName} added - share the credentials below`,
+      message: `${fullName} added as invited`,
       credentials: { email, password, fullName },
-      emailDelivery: emailResult.ok
-        ? { status: "sent", message: emailResult.message }
-        : {
-            status: emailResult.reason === "disabled" ? "skipped" : "failed",
-            message: emailResult.message,
-          },
+      emailDelivery: {
+        status: "skipped",
+        message:
+          "No email sent yet. Press Send mail on their row when they should get it — that issues a new password — or pass this one on yourself.",
+      },
     };
   } catch (err) {
     return fail(err);

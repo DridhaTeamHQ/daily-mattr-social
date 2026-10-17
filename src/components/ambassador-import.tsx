@@ -25,7 +25,6 @@ export function AmbassadorImport() {
   const [csvText, setCsvText] = React.useState("");
   const [missing, setMissing] = React.useState<string[]>([]);
   const [result, setResult] = React.useState<ImportResult | null>(null);
-  const [sendEmails, setSendEmails] = React.useState(true);
   const [reading, setReading] = React.useState(false);
   const [fileNote, setFileNote] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -96,14 +95,9 @@ export function AmbassadorImport() {
       `"${(/^[=+\-@]/.test(value) ? `'${value}` : value).replace(/"/g, '""')}"`;
 
     const csv = [
-      ["Name", "Email", "Temporary password", "Emailed"].map(escape).join(","),
+      ["Name", "Email", "Temporary password"].map(escape).join(","),
       ...result.created.map((c) =>
-        [
-          c.fullName,
-          c.email,
-          c.password,
-          c.emailed === "sent" ? "yes" : c.emailed === "failed" ? "FAILED" : "no",
-        ]
+        [c.fullName, c.email, c.password]
           .map(escape)
           .join(","),
       ),
@@ -174,27 +168,18 @@ export function AmbassadorImport() {
               </span>
             )}
             <div className="ml-auto flex items-center gap-3">
-              {/* On by default: the reason to import a list is to get those
-                  people into the programme, and an ambassador who was never
-                  told their password is not in it. Off exists for a re-import
-                  or a migration, where mailing everyone again is the wrong
-                  thing. */}
-              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-bold text-ink">
-                <input
-                  type="checkbox"
-                  checked={sendEmails}
-                  onChange={(e) => setSendEmails(e.target.checked)}
-                  className="size-4 accent-[var(--color-brand)]"
-                />
-                Email them their login
-              </label>
+              {/* No email option: imports never mail anyone. The welcome
+                  email is Send mail on the ambassadors page. */}
+              <span className="text-[12.5px] font-bold text-ink-soft">
+                Added as invited · no emails sent
+              </span>
 
               <Button
                 size="sm"
                 disabled={valid.length === 0 || pending}
                 onClick={() =>
                   startTransition(async () => {
-                    setResult(await importAmbassadors(csvText, sendEmails));
+                    setResult(await importAmbassadors(csvText));
                   })
                 }
               >
@@ -208,9 +193,9 @@ export function AmbassadorImport() {
             </div>
           </div>
 
-          {pending && sendEmails && valid.length > 20 && (
+          {pending && valid.length > 20 && (
             <p className="border-t border-gray-200 px-4 py-2 text-[12px] font-semibold text-ink-soft">
-              Sending {valid.length} emails one at a time — this takes a
+              Creating {valid.length} accounts one at a time — this takes a
               moment. Don&apos;t close the tab.
             </p>
           )}
@@ -273,12 +258,11 @@ export function AmbassadorImport() {
                 {/* What to do next depends entirely on whether the email
                     landed, so that is the sentence here rather than a generic
                     warning. */}
+                {/* Only good until Send mail, which issues a new one — said
+                    here so nobody hands these out and then mails everyone. */}
                 <span className="text-[12px] font-semibold text-ink-soft">
-                  {result.emailSummary.failed > 0
-                    ? `${result.emailSummary.failed} couldn't be emailed — pass those on yourself.`
-                    : result.emailSummary.sent === result.created.length
-                      ? "All of them were emailed. Keep these in case someone says it never arrived."
-                      : "Save these now — they can't be shown again."}
+                  Only needed if you pass logins on yourself. Send mail on the
+                  Ambassadors page issues new ones.
                 </span>
                 <div className="ml-auto flex gap-2">
                   <Button size="sm" variant="secondary" onClick={copyCredentials}>
@@ -303,29 +287,6 @@ export function AmbassadorImport() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-ink-soft">
                       {c.email}
-                    </span>
-                    <span
-                      title={
-                        c.emailed === "sent"
-                          ? "Welcome email sent"
-                          : c.emailed === "failed"
-                            ? "The welcome email did not send — pass this on yourself"
-                            : "No email was sent"
-                      }
-                      className={cn(
-                        "shrink-0 text-[11.5px] font-bold",
-                        c.emailed === "sent"
-                          ? "text-ok"
-                          : c.emailed === "failed"
-                            ? "text-bad"
-                            : "text-ink-faint",
-                      )}
-                    >
-                      {c.emailed === "sent"
-                        ? "emailed"
-                        : c.emailed === "failed"
-                          ? "not emailed"
-                          : "no email"}
                     </span>
                     <code className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-[12.5px] font-bold text-ink">
                       {c.password}

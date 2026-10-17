@@ -6,7 +6,6 @@ import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { readAmbassadorCsv, tempPassword } from "@/lib/admin/csv";
 import { xlsxToCsv } from "@/lib/admin/xlsx";
-import { sendAmbassadorWelcomeEmail } from "@/lib/ambassador-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nextReferralCode } from "@/lib/referral-code";
 import { canonicalBatch, canonicalCity } from "@/lib/batches";
@@ -20,23 +19,22 @@ import { canonicalBatch, canonicalCity } from "@/lib/batches";
  * list of rows would let anyone with a session create accounts with whatever
  * fields they liked.
  *
+ * Nobody is emailed. Accounts land as 'invited', and the welcome email is
+ * sent later from the ambassadors page with Send mail (welcome-actions.ts),
+ * once the admin has checked the batch and is ready for it to start.
+ *
  * Each row is created independently and failures are collected rather than
  * thrown. One bad address in a file of two hundred must not roll back the
  * other 199 — and the admin needs to know precisely which ones did not land.
  */
-
-/** Whether the student was told their login, and if not, why not. */
-export type EmailStatus = "sent" | "skipped" | "failed";
 
 export type ImportResult = ActionResult & {
   created: {
     email: string;
     fullName: string;
     password: string;
-    emailed: EmailStatus;
   }[];
   failed: { line: number; email: string; reason: string }[];
-  emailSummary: { sent: number; failed: number; skipped: number };
 };
 
 /**
@@ -86,19 +84,8 @@ export async function convertSpreadsheet(
 
 export async function importAmbassadors(
   csvText: string,
-  /**
-   * Off is a real choice. Importing a list of people who already have their
-   * logins — a migration, or a re-import after a failure — should not send two
-   * hundred students an email telling them their password changed when it did
-   * not.
-   */
-  sendEmails = true,
 ): Promise<ImportResult> {
-  const empty = {
-    created: [],
-    failed: [],
-    emailSummary: { sent: 0, failed: 0, skipped: 0 },
-  };
+  const empty = { created: [], failed: [] };
 
   try {
     await assertAdmin();
@@ -192,66 +179,26 @@ export async function importAmbassadors(
         continue;
       }
 
-      /**
-       * The email goes out here, per row, and never decides whether the import
-       * succeeded.
-       *
-       * The account already exists at this point. If Brevo rejects the message
-       * — a rate limit at row 300, a bounced domain, a key that expired — the
-       * right outcome is an ambassador who exists and an admin who is told to
-       * pass the password on by hand, not a half-imported file. So the failure
-       * is recorded against the row and the loop continues.
-       */
-      let emailed: EmailStatus = "skipped";
-
-      if (sendEmails) {
-        const delivery = await sendAmbassadorWelcomeEmail({
-          email: row.email,
-          fullName: row.full_name,
-          password,
-        }).catch(() => ({ ok: false as const, reason: "failed" as const }));
-
-        emailed = delivery.ok
-          ? "sent"
-          : delivery.reason === "disabled"
-            ? "skipped"
-            : "failed";
-      }
-
       created.push({
         email: row.email,
         fullName: row.full_name,
         password,
-        emailed,
       });
     }
 
     await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
 
-    const emailSummary = {
-      sent: created.filter((c) => c.emailed === "sent").length,
-      failed: created.filter((c) => c.emailed === "failed").length,
-      skipped: created.filter((c) => c.emailed === "skipped").length,
-    };
-
-    // The headline says what happened to the people AND to their emails,
-    // because "added 40" reads as done when 40 of them were never told.
     const parts = [
-      `Added ${created.length} ambassador${created.length === 1 ? "" : "s"}`,
+      `Added ${created.length} ambassador${created.length === 1 ? "" : "s"} as invited`,
     ];
     if (failed.length) parts.push(`skipped ${failed.length}`);
-    if (emailSummary.sent) parts.push(`emailed ${emailSummary.sent}`);
-    if (emailSummary.failed) {
-      parts.push(`${emailSummary.failed} email${emailSummary.failed === 1 ? "" : "s"} failed`);
-    }
 
     return {
       ok: created.length > 0,
-      message: `${parts.join(" · ")}.`,
+      message: `${parts.join(" · ")}. No emails sent yet.`,
       created,
       failed,
-      emailSummary,
     };
   } catch (err) {
     return { ...empty, ...fail(err) };

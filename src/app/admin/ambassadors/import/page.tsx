@@ -30,11 +30,11 @@ export default async function ImportPage() {
         </p>
       </div>
 
-      <Note tone="brand" title="Nobody gets an email">
-        Accounts are created with a temporary password that you pass on however
-        you already talk to them. They choose their own on first sign-in. That
-        is deliberate — it means the programme needs no mail server, and an
-        invite can never sit unread in a spam folder.
+      <Note tone="brand" title="Nobody gets an email yet">
+        Everyone in the file is added as Invited, with &ldquo;Mail not
+        sent&rdquo; on the Ambassadors page. When the batch is ready, select
+        them there and press Send mail — each person gets their login and a
+        fresh temporary password then, and chooses their own on first sign-in.
       </Note>
 
       <Card>

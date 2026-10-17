@@ -172,11 +172,10 @@ export function tempPassword(): string {
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const digits = "23456789";
 
+  // `crypto.getRandomValues`, not Math.random: this is a password, and it
+  // now goes out by email. Available in the browser and in Node alike.
   const pick = (set: string, n: number) =>
-    Array.from(
-      { length: n },
-      () => set[Math.floor(Math.random() * set.length)],
-    ).join("");
+    Array.from(crypto.getRandomValues(new Uint32Array(n)), (v) => set[v % set.length]).join("");
 
   return `${pick(upper, 1)}${pick(letters, 5)}${pick(digits, 3)}#`;
 }

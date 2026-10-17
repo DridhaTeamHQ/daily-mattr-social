@@ -27,6 +27,8 @@ import { ZoneSelect } from "@/components/zone-select";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
 import { getZones } from "@/lib/admin/zones";
+import { getWelcomeMails } from "@/lib/admin/welcome-emails";
+import { SendMailButton } from "@/components/send-mail-button";
 import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassadors" };
@@ -69,8 +71,13 @@ export default async function AmbassadorsPage({
     zone?: string;
   }>;
 }) {
-  const [{ q, group, batch, city, status, zone }, all, zones] =
-    await Promise.all([searchParams, getAmbassadors(), getZones()]);
+  const [{ q, group, batch, city, status, zone }, all, zones, mails] =
+    await Promise.all([
+      searchParams,
+      getAmbassadors(),
+      getZones(),
+      getWelcomeMails(),
+    ]);
 
   const zoneFor = (row: { id: string }) => zoneOf(row.id, zones);
   const query = q ?? "";
@@ -499,6 +506,11 @@ export default async function AmbassadorsPage({
                           <span aria-hidden className="size-1.5 rounded-full bg-current" />
                           {row.status}
                         </span>
+                        {/* Invited people are waiting on an email, so say
+                            whether it has gone. Nobody else needs the line. */}
+                        {row.status === "invited" && (
+                          <MailTag mail={mails.get(row.id)} />
+                        )}
                       </td>
 
                       {/* Wrapped on purpose: "7 Sept 2026" over two lines is
@@ -513,6 +525,15 @@ export default async function AmbassadorsPage({
                               misspelled name or a missing batch is the most
                               common thing an admin does from this list, and
                               opening a whole page to do it is a detour. */}
+                          {row.status === "invited" && (
+                            <SendMailButton
+                              ids={[row.id]}
+                              variant="ghost"
+                              label={mails.get(row.id)?.status === "sent" ? "Resend" : "Send mail"}
+                              className="text-brand-strong"
+                            />
+                          )}
+
                           <AmbassadorDetailsDialog
                             profile={row}
                             trigger={
@@ -572,6 +593,27 @@ export default async function AmbassadorsPage({
         </AmbassadorSelection>
       )}
     </div>
+  );
+}
+
+/** "Mail not sent", "Mailed 17 Oct" or "Mail failed", under an Invited pill. */
+function MailTag({
+  mail,
+}: {
+  mail: { status: "sent" | "failed"; sentAt: string | null } | undefined;
+}) {
+  if (!mail) {
+    return (
+      <p className="mt-1 text-[11px] font-bold text-amber-700">Mail not sent</p>
+    );
+  }
+  if (mail.status === "failed") {
+    return <p className="mt-1 text-[11px] font-bold text-rose-700">Mail failed</p>;
+  }
+  return (
+    <p className="mt-1 text-[11px] font-semibold text-ink-faint">
+      Mailed {mail.sentAt ? formatDate(mail.sentAt) : ""}
+    </p>
   );
 }
 
