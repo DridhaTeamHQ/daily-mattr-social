@@ -161,6 +161,8 @@ export type AmbassadorRow = {
   status: Enums<"user_status">;
   referral_code: string;
   points: number;
+  /** Confirmed installs in the run being viewed — what the zones are cut on. */
+  downloads: number;
   created_at: string;
 };
 
@@ -168,8 +170,8 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   const supabase = await createClient();
   const version = await getViewingVersion();
 
-  const [profiles, ledger] = await Promise.all([
-    readAll<Omit<AmbassadorRow, "points">>(
+  const [profiles, ledger, conversions] = await Promise.all([
+    readAll<Omit<AmbassadorRow, "points" | "downloads">>(
       (from, to) =>
         supabase
           .from("profiles")
@@ -197,6 +199,17 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
           .range(from, to),
       "ambassadors.ledger",
     ),
+    readAll<{ ambassador_id: string }>(
+      (from, to) =>
+        supabase
+          .from("referral_conversions")
+          .select("ambassador_id")
+          .eq("version", version)
+          .eq("status", "counted")
+          .order("id")
+          .range(from, to),
+      "ambassadors.conversions",
+    ),
   ]);
 
   const totals = new Map<string, number>();
@@ -204,7 +217,16 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
     totals.set(row.ambassador_id, (totals.get(row.ambassador_id) ?? 0) + row.delta);
   }
 
-  return (profiles ?? []).map((p) => ({ ...p, points: totals.get(p.id) ?? 0 }));
+  const downloads = new Map<string, number>();
+  for (const row of conversions) {
+    downloads.set(row.ambassador_id, (downloads.get(row.ambassador_id) ?? 0) + 1);
+  }
+
+  return (profiles ?? []).map((p) => ({
+    ...p,
+    points: totals.get(p.id) ?? 0,
+    downloads: downloads.get(p.id) ?? 0,
+  }));
 }
 
 /**

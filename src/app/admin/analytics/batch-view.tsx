@@ -20,6 +20,7 @@ import {
   type CohortFilters,
 } from "@/lib/admin/scope";
 import { cn, formatNumber } from "@/lib/utils";
+import { ZonePill, zoneOf, type Zone } from "@/components/zone-pill";
 
 /**
  * The batch view of /admin/analytics.
@@ -141,10 +142,13 @@ export function BatchAnalytics({
   statuses,
   focus,
   period,
+  zones,
   hrefFor,
 }: {
   data: Completion;
   statuses: Map<string, StatusCounts>;
+  /** Hand-set zones by ambassador id; anyone missing is green. */
+  zones: Map<string, Zone>;
   /** The batch that is open, or null for "All batches". */
   focus: string | null;
   period: Period;
@@ -233,6 +237,7 @@ export function BatchAnalytics({
         </Card>
       ) : selected ? (
         <BatchDetail
+          zones={zones}
           batch={selected}
           batchCount={ranked.length}
           statuses={
@@ -421,7 +426,9 @@ function BatchDetail({
   statuses,
   data,
   period,
+  zones,
 }: {
+  zones: Map<string, Zone>;
   batch: BatchSummary;
   batchCount: number;
   statuses: StatusCounts;
@@ -655,7 +662,7 @@ function BatchDetail({
               say everything a bar would. Read left to right in the order an
               admin asks — how far along, how much, how many downloads, and
               finally whether that adds up to a stipend. */}
-          <table className="w-full min-w-[36rem] text-left">
+          <table className="w-full min-w-[42rem] text-left">
             <thead className="border-y border-line bg-canvas-sunk">
               <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
                 <th className="w-12 px-3 py-2 text-center font-medium">#</th>
@@ -663,10 +670,11 @@ function BatchDetail({
                 <th className="px-3 py-2 text-right font-medium">Completion</th>
                 <th className="px-3 py-2 text-right font-medium">Tasks</th>
                 <th className="px-3 py-2 text-right font-medium">Downloads</th>
+                <th className="px-3 py-2 font-medium">Zone</th>
                 <th className="px-3 py-2 font-medium">Stipend</th>
               </tr>
             </thead>
-            <InfiniteTableBody key={batch.label} colSpan={6} pageSize={25}>
+            <InfiniteTableBody key={batch.label} colSpan={7} pageSize={25}>
               {batch.members.map((row, index) => (
                 <tr
                   key={row.id}
@@ -695,6 +703,9 @@ function BatchDetail({
                   </td>
                   <td className="tabular px-3 py-1.5 text-right text-[13px] text-ink-soft">
                     {formatNumber(row.downloads)}
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <ZonePill zone={zoneOf(row.id, zones)} />
                   </td>
                   <td className="px-3 py-1.5 text-[12px]">
                     {row.eligible ? (

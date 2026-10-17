@@ -22,11 +22,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
+import { ZONES, ZONE_LABEL, zoneOf, type Zone } from "@/components/zone-pill";
+import { ZoneSelect } from "@/components/zone-select";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
+import { getZones } from "@/lib/admin/zones";
 import { cn, formatDate, initials } from "@/lib/utils";
 
 export const metadata = { title: "Ambassadors" };
+
 
 /** Green for active, amber for an unopened invite, red for suspended. */
 const STATUS_PILL: Record<string, string> = {
@@ -62,12 +66,13 @@ export default async function AmbassadorsPage({
     batch?: string;
     city?: string;
     status?: string;
+    zone?: string;
   }>;
 }) {
-  const [{ q, group, batch, city, status }, all] = await Promise.all([
-    searchParams,
-    getAmbassadors(),
-  ]);
+  const [{ q, group, batch, city, status, zone }, all, zones] =
+    await Promise.all([searchParams, getAmbassadors(), getZones()]);
+
+  const zoneFor = (row: { id: string }) => zoneOf(row.id, zones);
   const query = q ?? "";
   const groupBy: Grouping = GROUPINGS.some((g) => g.key === group)
     ? (group as Grouping)
@@ -91,12 +96,14 @@ export default async function AmbassadorsPage({
   const statusFilter = STATUSES.some((name) => name === status)
     ? (status as Status)
     : "";
+  const zoneFilter = ZONES.some((name) => name === zone) ? (zone as Zone) : "";
 
   const rows = all.filter(
     (r) =>
       (!batchFilter || (r.batch || NOT_SET) === batchFilter) &&
       (!cityFilter || (r.city || NOT_SET) === cityFilter) &&
       (!statusFilter || r.status === statusFilter) &&
+      (!zoneFilter || zoneFor(r) === zoneFilter) &&
       matches(query, r.full_name, r.email, r.college, r.city, r.batch, r.referral_code),
   );
 
@@ -107,6 +114,7 @@ export default async function AmbassadorsPage({
     batch: batchFilter,
     city: cityFilter,
     status: statusFilter,
+    zone: zoneFilter,
   };
 
   /**
@@ -152,6 +160,11 @@ export default async function AmbassadorsPage({
   const invited = all.filter((r) => r.status === "invited").length;
   const suspended = all.filter((r) => r.status === "suspended").length;
   const statusCounts = { active, invited, suspended };
+  const zoneCounts: Record<Zone, number> = {
+    red: all.filter((r) => zoneFor(r) === "red").length,
+    orange: all.filter((r) => zoneFor(r) === "orange").length,
+    green: all.filter((r) => zoneFor(r) === "green").length,
+  };
 
   return (
     <div className="stagger space-y-5">
@@ -161,11 +174,12 @@ export default async function AmbassadorsPage({
             Ambassadors
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
-            {query || batchFilter || cityFilter || statusFilter
+            {query || batchFilter || cityFilter || statusFilter || zoneFilter
               ? `${rows.length} of ${all.length}${
-                  batchFilter || cityFilter || statusFilter
+                  batchFilter || cityFilter || statusFilter || zoneFilter
                     ? ` in ${[
                         statusFilter ? STATUS_LABEL[statusFilter] : "",
+                        zoneFilter ? ZONE_LABEL[zoneFilter] : "",
                         batchFilter,
                         cityFilter,
                       ]
@@ -275,6 +289,17 @@ export default async function AmbassadorsPage({
             })),
           ]}
         />
+        <NavSelect
+          label="Zone"
+          value={listHref(here)}
+          options={[
+            { value: listHref({ ...here, zone: "" }), label: "Any zone" },
+            ...ZONES.map((name) => ({
+              value: listHref({ ...here, zone: name }),
+              label: `${ZONE_LABEL[name]} (${zoneCounts[name]})`,
+            })),
+          ]}
+        />
         {batches.length > 1 && (
           <NavSelect
             label="Batch"
@@ -308,13 +333,13 @@ export default async function AmbassadorsPage({
           <EmptyState
             icon={Users}
             title={
-              query || batchFilter || cityFilter || statusFilter
+              query || batchFilter || cityFilter || statusFilter || zoneFilter
                 ? "Nobody matches that"
                 : "No ambassadors yet"
             }
             description={
-              query || batchFilter || cityFilter || statusFilter
-                ? "Try a different name or code — or another status, batch or city."
+              query || batchFilter || cityFilter || statusFilter || zoneFilter
+                ? "Try a different name or code — or another status, zone, batch or city."
                 : "Add your first student — you'll get a temporary password to pass on, and they pick their own on first sign-in."
             }
           />
@@ -343,17 +368,18 @@ export default async function AmbassadorsPage({
                 eye down. The scroll stays for narrow screens, but at a normal
                 width there is nothing left to scroll to. */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[52rem] table-fixed text-left">
+              <table className="w-full min-w-[58rem] table-fixed text-left">
                 {/* Fixed layout with shares rather than letting the content
                     decide: one long name or one long city must change how much
                     room it gets, not how much room every other column has. */}
                 <colgroup>
-                  <col className="w-[28%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[12%]" />
                   <col className="w-[25%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[22%]" />
                 </colgroup>
                 <thead className="border-b border-line bg-canvas-sunk">
                   <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
@@ -365,6 +391,7 @@ export default async function AmbassadorsPage({
                     </th>
                     <th className="px-3 py-2.5 font-medium">Code</th>
                     <th className="px-3 py-2.5 font-medium">Batch</th>
+                    <th className="px-3 py-2.5 font-medium">Zone</th>
                     <th className="px-3 py-2.5 font-medium">Status</th>
                     <th className="px-3 py-2.5 font-medium">Joined</th>
                     <th className="px-3 py-2.5 text-right font-medium">Actions</th>
@@ -372,8 +399,8 @@ export default async function AmbassadorsPage({
                 </thead>
 
                 <InfiniteTableBody
-                  key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${query}`}
-                  colSpan={6}
+                  key={`${groupBy}:${batchFilter}:${cityFilter}:${statusFilter}:${zoneFilter}:${query}`}
+                  colSpan={7}
                   pageSize={25}
                 >
                   {grouped.flatMap(([heading, members]) => [
@@ -382,7 +409,7 @@ export default async function AmbassadorsPage({
                     heading !== null && (
                       <tr key={`h-${heading}`} className="bg-canvas-sunk">
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-3 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
                         >
                           {heading}
@@ -444,6 +471,22 @@ export default async function AmbassadorsPage({
 
                       <td className="px-3 py-2 text-[12.5px] text-ink-soft">
                         {row.batch || <span className="text-ink-faint">—</span>}
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <ZoneSelect
+                            profileId={row.id}
+                            zone={zoneFor(row)}
+                            name={row.full_name || row.email}
+                          />
+                          <span
+                            title="Downloads this run"
+                            className="tabular text-[11.5px] text-ink-faint"
+                          >
+                            {row.downloads}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="px-3 py-2">
@@ -560,16 +603,18 @@ type View = {
   batch: string;
   city: string;
   status: Status | "";
+  zone: Zone | "";
 };
 
 /** One URL for the whole view, so changing one control keeps the others. */
-function listHref({ group, q, batch, city, status }: View): string {
+function listHref({ group, q, batch, city, status, zone }: View): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (group !== "none") params.set("group", group);
   if (batch) params.set("batch", batch);
   if (city) params.set("city", city);
   if (status) params.set("status", status);
+  if (zone) params.set("zone", zone);
   const query = params.toString();
   return query ? `/admin/ambassadors?${query}` : "/admin/ambassadors";
 }

@@ -16,6 +16,9 @@ import { Stat } from "@/components/ui/stat";
 import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { deleteAchievement } from "@/lib/admin/edit-actions";
 import { getAmbassadorDetail, requireAdmin } from "@/lib/admin/queries";
+import { getZones } from "@/lib/admin/zones";
+import { zoneOf } from "@/components/zone-pill";
+import { ZoneSelect } from "@/components/zone-select";
 import { getViewingVersion } from "@/lib/programme-version";
 import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import { formatDate, initials } from "@/lib/utils";
@@ -56,13 +59,14 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
    * detail query was also paging through the whole programme's ledger for a
    * points rank this page never shows — `withRank: false` skips that.
    */
-  const [data, { data: completion }, { data: board }] = await Promise.all([
+  const [data, { data: completion }, { data: board }, zones] = await Promise.all([
     getAmbassadorDetail(id, 30, { withRank: false }),
     supabase.rpc("ambassador_completion", { target: id, p_version: version }),
     supabase.rpc("completion_leaderboard", {
       limit_count: 1000,
       p_version: version,
     }),
+    getZones(),
   ]);
   if (!data) notFound();
 
@@ -127,6 +131,11 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
               <Badge tone={STATUS_TONE[profile.status]} dot>
                 {profile.status}
               </Badge>
+              <ZoneSelect
+                profileId={profile.id}
+                zone={zoneOf(profile.id, zones)}
+                name={name}
+              />
               {streak > 0 && (
                 <Badge tone="neutral">
                   <Flame className="size-3.5 text-flame" fill="currentColor" />

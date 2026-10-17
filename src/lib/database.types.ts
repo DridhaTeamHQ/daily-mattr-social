@@ -102,6 +102,27 @@ export type Database = {
         ];
       };
 
+      ambassador_zones: {
+        Row: {
+          ambassador_id: string;
+          zone: string;
+          set_by: string | null;
+          set_at: string;
+        };
+        Insert: {
+          ambassador_id: string;
+          zone: string;
+          set_by?: string | null;
+          set_at?: string;
+        };
+        Update: {
+          ambassador_id?: string;
+          zone?: string;
+          set_by?: string | null;
+          set_at?: string;
+        };
+        Relationships: [];
+      };
       app_settings: {
         Row: {
           key: string;

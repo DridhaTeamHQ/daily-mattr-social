@@ -39,6 +39,8 @@ import {
 import { cn, formatNumber } from "@/lib/utils";
 
 import { BatchAnalytics, getBatchStatusCounts } from "./batch-view";
+import { ZonePill, zoneOf } from "@/components/zone-pill";
+import { getZones } from "@/lib/admin/zones";
 
 export const metadata = { title: "Analytics" };
 
@@ -75,11 +77,12 @@ export default async function AnalyticsPage({
 
   // Every figure on this page, and the CSV behind Download ambassadors, comes
   // out of one function — see `src/lib/admin/completion.ts` for why.
-  const [completion, batchStatuses] = await Promise.all([
+  const [completion, batchStatuses, zones] = await Promise.all([
     getCompletionByAmbassador(supabase, { cohort, period }),
     view === "batches"
       ? getBatchStatusCounts(supabase, cohort.filters)
       : Promise.resolve(new Map()),
+    getZones(),
   ]);
   const {
     ranked,
@@ -231,6 +234,7 @@ export default async function AnalyticsPage({
           statuses={batchStatuses}
           focus={focus}
           period={period}
+          zones={zones}
           hrefFor={(batch) => viewHref("batches", batch)}
         />
       ) : (
@@ -335,7 +339,7 @@ export default async function AnalyticsPage({
           // how much, what was sent back, downloads — and last, whether that
           // adds up to a stipend. The same table the Batches tab draws.
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-left">
+            <table className="w-full min-w-[52rem] text-left">
               <thead className="border-y border-line bg-canvas-sunk">
                 <tr className="text-[11px] tracking-wide text-ink-faint uppercase">
                   <th className="w-12 px-3 py-2 text-center font-medium">#</th>
@@ -345,6 +349,7 @@ export default async function AnalyticsPage({
                   <th className="px-3 py-2 text-right font-medium">Tasks</th>
                   <th className="px-3 py-2 text-right font-medium">Rejections</th>
                   <th className="px-3 py-2 text-right font-medium">Downloads</th>
+                  <th className="px-3 py-2 font-medium">Zone</th>
                   {/* The rule lives on the column it governs: "Eligible" and
                       "Needs 4 more downloads" are the cells anyone has to
                       interpret, and the "i" is where they are looking. */}
@@ -369,7 +374,7 @@ export default async function AnalyticsPage({
 
               <InfiniteTableBody
                 key={`${period.key}:${cohort.filters.city}:${cohort.filters.college}:${cohort.filters.batch}`}
-                colSpan={8}
+                colSpan={9}
                 pageSize={25}
               >
                 {ranked.map((ambassador, index) => {
@@ -432,6 +437,9 @@ export default async function AnalyticsPage({
                         )}
                       >
                         {formatNumber(ambassador.downloads)}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <ZonePill zone={zoneOf(ambassador.id, zones)} />
                       </td>
                       {/* Yes or no, and the gap when it is no — "Needs 7 more
                           downloads" is something an admin can act on. */}
