@@ -100,6 +100,48 @@ export type ImportRow = {
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE = /^\+?[\d\s()-]{8,}$/;
+
+/**
+ * Columns for a file with no header row, read off its contents.
+ *
+ * Lists pasted out of a form or a WhatsApp export often start straight at the
+ * first person — "Yukesh kiran, 9042722414, yukesh@…" — and refusing them
+ * with "needs a name and an email column" sends the admin off to type a
+ * header row the importer could have worked out. So when no header matches
+ * and the first row itself holds an email address, each column is judged by
+ * what most of its first rows look like: the one of addresses is the email,
+ * the one of long digit strings is the phone, and the first column left that
+ * has letters in it is the name. Anything less clear-cut than that is not
+ * guessed at; the admin gets the usual message.
+ */
+function inferHeaderless(table: string[][]): Record<string, number> | null {
+  const first = table[0] ?? [];
+  if (!first.some((cell) => EMAIL.test(cell.trim()))) return null;
+
+  const sample = table.slice(0, 20);
+  const width = Math.max(...sample.map((row) => row.length));
+  const share = (index: number, test: (cell: string) => boolean) =>
+    sample.filter((row) => test((row[index] ?? "").trim())).length / sample.length;
+
+  const columns = Array.from({ length: width }, (_, index) => index);
+  const email = columns.find((i) => share(i, (c) => EMAIL.test(c)) >= 0.6);
+  if (email === undefined) return null;
+
+  const phone = columns.find(
+    (i) => i !== email && share(i, (c) => PHONE.test(c)) >= 0.6,
+  );
+  const name = columns.find(
+    (i) => i !== email && i !== phone && share(i, (c) => /[a-z]/i.test(c)) >= 0.6,
+  );
+  if (name === undefined) return null;
+
+  return {
+    full_name: name,
+    email,
+    ...(phone === undefined ? {} : { phone }),
+  };
+}
 
 /**
  * Turns CSV text into candidate rows, each carrying its own error.
@@ -109,20 +151,41 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * file of 200 rows importing 190 people with no indication which ten are
  * missing.
  */
-export function readAmbassadorCsv(text: string): {
+export function readAmbassadorCsv(
+  text: string,
+  /**
+   * The batch for every row that does not name its own — the "Batch" picker
+   * on the import page. A batch column in the file still wins row by row.
+   */
+  defaultBatch = "",
+): {
   rows: ImportRow[];
   missingColumns: string[];
+  /** True when there was no header row and the columns were inferred. */
+  headerless: boolean;
 } {
   const table = parseCsv(text);
-  if (table.length === 0) return { rows: [], missingColumns: ["full_name", "email"] };
+  if (table.length === 0) {
+    return { rows: [], missingColumns: ["full_name", "email"], headerless: false };
+  }
 
-  const [header, ...body] = table;
-  const map = mapHeaders(header);
+  let headerless = false;
+  let map = mapHeaders(table[0]);
+  let body = table.slice(1);
+
+  if (map.full_name === undefined && map.email === undefined) {
+    const inferred = inferHeaderless(table);
+    if (inferred) {
+      map = inferred;
+      body = table;
+      headerless = true;
+    }
+  }
 
   const missingColumns = ["full_name", "email"].filter(
     (field) => map[field] === undefined,
   );
-  if (missingColumns.length > 0) return { rows: [], missingColumns };
+  if (missingColumns.length > 0) return { rows: [], missingColumns, headerless };
 
   const at = (cells: string[], field: string) =>
     map[field] === undefined ? "" : (cells[map[field]] ?? "").trim();
@@ -131,6 +194,7 @@ export function readAmbassadorCsv(text: string): {
 
   return {
     missingColumns: [],
+    headerless,
     rows: body.map((cells, i) => {
       const email = at(cells, "email").toLowerCase();
       const fullName = at(cells, "full_name");
@@ -145,14 +209,14 @@ export function readAmbassadorCsv(text: string): {
       if (email) seen.add(email);
 
       return {
-        // +2 because the header is line 1 and humans count from 1.
-        line: i + 2,
+        // Spreadsheet line numbers: the header, when there is one, is line 1.
+        line: i + (headerless ? 1 : 2),
         full_name: fullName,
         email,
         phone: at(cells, "phone"),
         college: at(cells, "college"),
         city: at(cells, "city"),
-        batch: at(cells, "batch"),
+        batch: at(cells, "batch") || defaultBatch,
         joined_as: type.startsWith("prof") ? "professional" : "student",
         error,
       };

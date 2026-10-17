@@ -5,6 +5,7 @@ import { CircleAlert, Copy, Download, Loader2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { readAmbassadorCsv, type ImportRow } from "@/lib/admin/csv";
+import { BATCH_OPTIONS } from "@/lib/batches";
 import {
   convertSpreadsheet,
   importAmbassadors,
@@ -24,6 +25,9 @@ export function AmbassadorImport() {
   const [rows, setRows] = React.useState<ImportRow[] | null>(null);
   const [csvText, setCsvText] = React.useState("");
   const [missing, setMissing] = React.useState<string[]>([]);
+  const [headerless, setHeaderless] = React.useState(false);
+  // The batch for rows that do not name one. Empty is "leave them unset".
+  const [batch, setBatch] = React.useState("");
   const [result, setResult] = React.useState<ImportResult | null>(null);
   const [reading, setReading] = React.useState(false);
   const [fileNote, setFileNote] = React.useState<string | null>(null);
@@ -74,10 +78,21 @@ export function AmbassadorImport() {
       text = await file.text();
     }
 
-    const parsed = readAmbassadorCsv(text);
     setCsvText(text);
+    show(text, batch);
+  }
+
+  /** The dry run, redone whenever the file or the Batch picker changes. */
+  function show(text: string, forBatch: string) {
+    const parsed = readAmbassadorCsv(text, forBatch);
     setRows(parsed.rows);
     setMissing(parsed.missingColumns);
+    setHeaderless(parsed.headerless);
+  }
+
+  function chooseBatch(next: string) {
+    setBatch(next);
+    if (csvText) show(csvText, next);
   }
 
   function copyCredentials() {
@@ -151,7 +166,15 @@ export function AmbassadorImport() {
       {missing.length > 0 && (
         <p className="flex items-center gap-2 text-[13px] font-bold text-bad">
           <CircleAlert className="size-4" />
-          That file needs a {missing.join(" and ")} column.
+          That file needs a {missing.join(" and ")} column. Add a header row
+          — Name, Email — or make sure every row has an email address.
+        </p>
+      )}
+
+      {headerless && rows && rows.length > 0 && !result && (
+        <p className="text-[12.5px] font-semibold text-ink-soft">
+          No header row, so the columns were read from what&apos;s in them —
+          check the names and emails below look right.
         </p>
       )}
 
@@ -167,7 +190,26 @@ export function AmbassadorImport() {
                 · {invalid.length} will be skipped
               </span>
             )}
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              {/* For a file with no batch column: one batch for all of it.
+                  A row that names its own batch keeps it. */}
+              <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink">
+                Batch
+                <select
+                  value={batch}
+                  onChange={(event) => chooseBatch(event.target.value)}
+                  disabled={pending}
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-[12.5px] font-bold text-ink"
+                >
+                  <option value="">From file / not set</option>
+                  {BATCH_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               {/* No email option: imports never mail anyone. The welcome
                   email is Send mail on the ambassadors page. */}
               <span className="text-[12.5px] font-bold text-ink-soft">
@@ -179,7 +221,7 @@ export function AmbassadorImport() {
                 disabled={valid.length === 0 || pending}
                 onClick={() =>
                   startTransition(async () => {
-                    setResult(await importAmbassadors(csvText));
+                    setResult(await importAmbassadors(csvText, batch));
                   })
                 }
               >

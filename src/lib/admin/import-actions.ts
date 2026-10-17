@@ -84,13 +84,18 @@ export async function convertSpreadsheet(
 
 export async function importAmbassadors(
   csvText: string,
+  /** The import page's Batch picker; applied to rows without a batch. */
+  defaultBatch = "",
 ): Promise<ImportResult> {
   const empty = { created: [], failed: [] };
 
   try {
     await assertAdmin();
 
-    const { rows, missingColumns } = readAmbassadorCsv(csvText);
+    const { rows, missingColumns } = readAmbassadorCsv(
+      csvText,
+      canonicalBatch(defaultBatch) ?? "",
+    );
 
     if (missingColumns.length > 0) {
       return {
