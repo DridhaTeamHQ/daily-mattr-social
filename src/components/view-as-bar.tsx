@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 
+import { AmbassadorPicker } from "@/components/ambassador-picker";
 import { Note } from "@/components/ui/feedback";
 import {
   listPreviewablePeople,
@@ -66,35 +67,9 @@ export async function ViewAsBar() {
         Pick an ambassador to see their screens exactly as they do.
       </p>
 
-      <form action={startViewingAs} className="mt-3 flex flex-wrap items-center gap-2">
-        <label htmlFor="view-as-person" className="sr-only">
-          Ambassador to preview
-        </label>
-        <select
-          id="view-as-person"
-          name="ambassadorId"
-          defaultValue=""
-          className="min-w-0 max-w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-[13.5px] font-semibold text-ink"
-        >
-          <option value="" disabled>
-            Choose an ambassador…
-          </option>
-          {people.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-              {person.college ? ` · ${person.college}` : ""}
-            </option>
-          ))}
-        </select>
-
-        <button
-          type="submit"
-          className="tap inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-gray-800"
-        >
-          <Eye className="size-3.5" aria-hidden />
-          View as
-        </button>
-      </form>
+      {/* Active ambassadors only — invited and suspended people are left out
+          by listPreviewablePeople. */}
+      <AmbassadorPicker people={people} action={startViewingAs} />
 
       <div className="mt-3">
         <Link href="/admin" className="font-semibold underline hover:no-underline">
