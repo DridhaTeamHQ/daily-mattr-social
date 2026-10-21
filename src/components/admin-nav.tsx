@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
-  Trophy,
   Users,
 } from "lucide-react";
 
@@ -51,7 +50,7 @@ const ITEMS = [
 /**
  * Everything with a page but no room in the bar.
  *
- * All three belong to Ambassadors and are reachable from inside it. Reachable
+ * Both belong to Ambassadors and are reachable from inside it. Reachable
  * was doing a lot of work, though: Installs is two clicks and a dropdown away,
  * behind a section switcher labelled "View", and the top bar went completely
  * dark once you arrived, because no item here matched the path. A page you
@@ -74,7 +73,6 @@ const ITEMS = [
  * people somewhere whose name they never see.
  */
 const MORE_ITEMS = [
-  { href: "/admin/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/admin/referrals", label: "Installs", icon: Gift },
   { href: "/admin/stipend", label: "Stipend & payouts", icon: Coins },
 ];
