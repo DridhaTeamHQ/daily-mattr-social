@@ -60,7 +60,11 @@ export async function resetPassword(
   // active, the same as finishing the welcome flow.
   await createAdminClient()
     .from("profiles")
-    .update({ must_change_password: false, status: "active" })
+    .update({
+      must_change_password: false,
+      temp_password_expires_at: null,
+      status: "active",
+    })
     .eq("id", user.id)
     .eq("status", "invited");
 

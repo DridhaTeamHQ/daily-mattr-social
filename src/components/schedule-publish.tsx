@@ -8,7 +8,6 @@ import { CalendarClock, X } from "lucide-react";
 import { ActionButton } from "@/components/action-button";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { Note } from "@/components/ui/feedback";
 import {
   cancelCampaignSchedule,
   cancelSurveySchedule,
@@ -102,8 +101,8 @@ export function SchedulePublishDialog({
   id,
   publishAt,
   /**
-   * A deadline the launch has to land before, when the thing has one.
-   * Campaigns do; surveys run until somebody closes them.
+   * The current deadline, which the dialog's Ends fields start from.
+   * Campaigns have one; surveys run until somebody closes them.
    */
   endsAt = null,
   className,
@@ -120,6 +119,7 @@ export function SchedulePublishDialog({
   const { blurb, schedule, cancel } = KINDS[kind];
   const scheduled = Boolean(publishAt);
   const current = toLocalInput(publishAt);
+  const currentEnd = toLocalInput(endsAt);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -143,19 +143,6 @@ export function SchedulePublishDialog({
           <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
             {blurb}
           </Dialog.Description>
-
-          {endsAt && (
-            <Note tone="neutral" className="mt-3">
-              This campaign ends{" "}
-              {new Date(endsAt).toLocaleString(undefined, {
-                day: "numeric",
-                month: "short",
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-              . Publishing has to be before that.
-            </Note>
-          )}
 
           <form
             onSubmit={(event) => {
@@ -204,6 +191,35 @@ export function SchedulePublishDialog({
                 in your own timezone.
               </p>
             </Field>
+
+            {/* Campaigns only: a survey runs until somebody closes it. Here
+                rather than only in Edit, because when it starts and when it
+                stops are one decision, made at the same moment. Prefilled
+                with the current deadline, so clearing it is deliberate. */}
+            {kind === "campaign" && (
+              <Field label="Ends" htmlFor={`sched-end-date-${id}`}>
+                <div className="grid grid-cols-[1fr_9rem] gap-2">
+                  <Input
+                    id={`sched-end-date-${id}`}
+                    name="ends_date"
+                    type="date"
+                    min={today()}
+                    defaultValue={currentEnd.date}
+                  />
+                  <Input
+                    id={`sched-end-time-${id}`}
+                    name="ends_time"
+                    type="time"
+                    aria-label="Ends, time"
+                    defaultValue={currentEnd.time}
+                  />
+                </div>
+                <p className="mt-1.5 text-[12px] text-ink-soft">
+                  Has to be after it goes live. A date on its own ends it at
+                  11:59 PM that day; clear the date for no deadline.
+                </p>
+              </Field>
+            )}
 
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               {/* Cancelling is offered here rather than as another button on

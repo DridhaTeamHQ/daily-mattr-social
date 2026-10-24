@@ -32,6 +32,7 @@ if (process.env.SITE_URL_OVERRIDE) {
 const { readAmbassadorCsv, tempPassword } = await import("../src/lib/admin/csv");
 const { canonicalBatch, canonicalCity } = await import("../src/lib/batches");
 const { nextReferralCode } = await import("../src/lib/referral-code");
+const { tempPasswordExpiry } = await import("../src/lib/temp-password");
 const { sendAmbassadorWelcomeEmail } = await import("../src/lib/ambassador-email");
 
 const file = process.argv[2];
@@ -97,6 +98,7 @@ for (const row of valid) {
     .update({
       status: "invited",
       must_change_password: true,
+      temp_password_expires_at: tempPasswordExpiry(),
       full_name: row.full_name,
       phone: row.phone || null,
       college: row.college || null,

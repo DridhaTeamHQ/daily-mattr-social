@@ -4,6 +4,7 @@ import { KeyRound } from "lucide-react";
 import { WelcomeForm } from "./welcome-form";
 import { Card, CardBody } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { isTempPasswordExpired } from "@/lib/temp-password";
 
 export const metadata = { title: "Choose a password" };
 
@@ -17,12 +18,19 @@ export default async function WelcomePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, must_change_password")
+    .select("full_name, must_change_password, temp_password_expires_at")
     .eq("id", user.id)
     .maybeSingle();
 
   // Nothing to do here once they've picked their own password.
   if (!profile?.must_change_password) redirect("/dashboard");
+
+  // Signed in before the 5 days ran out and came back after: the session is
+  // still good, but the temporary password it was opened with is not.
+  if (isTempPasswordExpired(profile)) {
+    await supabase.auth.signOut();
+    redirect("/link-expired");
+  }
 
   const firstName = (profile.full_name || "").split(" ")[0];
 

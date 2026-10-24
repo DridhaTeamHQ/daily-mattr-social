@@ -49,6 +49,13 @@ export const publicEnv = {
   get appDownloadUrl() {
     return process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL?.trim() || null;
   },
+  /**
+   * Optional. Where "Contact us" goes — a `mailto:`, a `https://wa.me/…`
+   * link, a form. Without it the button mails the welcome-email sender.
+   */
+  get contactUrl() {
+    return process.env.NEXT_PUBLIC_CONTACT_URL?.trim() || null;
+  },
 };
 
 export function serverEnv() {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { isTempPasswordExpired } from "@/lib/temp-password";
 
 export type SignInState = { error: string | null };
 
@@ -36,9 +37,18 @@ export async function signIn(
   // ambassador dashboard is a confusing place to land them.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, must_change_password, temp_password_expires_at")
     .eq("id", data.user.id)
     .maybeSingle();
+
+  // A temporary password past its 5 days (0059). The password was right, so
+  // this is not a "wrong password" — it is a login that has run out, and the
+  // page says so and who to ask for a new one. Signed straight back out, or
+  // the session would carry them past the expiry anyway.
+  if (profile && isTempPasswordExpired(profile)) {
+    await supabase.auth.signOut();
+    redirect("/link-expired");
+  }
 
   const home = profile?.role === "admin" ? "/admin" : "/dashboard";
 

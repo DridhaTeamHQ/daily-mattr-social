@@ -14,6 +14,7 @@ import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
+import { tempPasswordExpiry } from "@/lib/temp-password";
 import {
   checkReusableCode,
   claimReusableCode,
@@ -1223,6 +1224,7 @@ export async function createAmbassador(
       .update({
         status: "invited",
         must_change_password: true,
+        temp_password_expires_at: tempPasswordExpiry(),
         full_name: fullName,
         city: city || null,
         batch: batch || null,
@@ -1296,7 +1298,10 @@ export async function resetAmbassadorPassword(
 
     const { data: profile, error: profileError } = await db
       .from("profiles")
-      .update({ must_change_password: true })
+      .update({
+        must_change_password: true,
+        temp_password_expires_at: tempPasswordExpiry(),
+      })
       .eq("id", profileId)
       .select("email, full_name")
       .single();
@@ -1889,6 +1894,24 @@ export async function scheduleCampaignPublish(
       return { ok: false, message: "That is not a date I can read." };
     }
 
+    // The deadline, set in the same dialog so launch and end are decided
+    // together. Only when the dialog sent the fields: absent means "leave the
+    // deadline alone", an empty date means "no deadline". A date on its own
+    // closes at 11:59 PM, the same as the Ends at field in Edit.
+    const setsEnd = formData.has("ends_date");
+    const endsDate = String(formData.get("ends_date") ?? "").trim();
+    const endsTime = String(formData.get("ends_time") ?? "").trim();
+    let newEndsAt: Date | null = null;
+    if (endsDate) {
+      const localEnd = `${endsDate}T${endsTime || "23:59"}`;
+      newEndsAt = Number.isFinite(tzOffset)
+        ? new Date(new Date(`${localEnd}:00.000Z`).getTime() + tzOffset * 60_000)
+        : new Date(localEnd);
+      if (Number.isNaN(newEndsAt.getTime())) {
+        return { ok: false, message: "That end date is not one I can read." };
+      }
+    }
+
     const { data: campaign, error: readError } = await supabase
       .from("campaigns")
       .select("title, status, ends_at")
@@ -1917,16 +1940,26 @@ export async function scheduleCampaignPublish(
 
     // Checked here as well as by `campaigns_publish_before_end`, so the admin
     // gets a sentence rather than a constraint name.
-    if (campaign.ends_at && publishAt >= new Date(campaign.ends_at)) {
+    const endsAt = setsEnd
+      ? newEndsAt
+      : campaign.ends_at
+        ? new Date(campaign.ends_at)
+        : null;
+    if (endsAt && publishAt >= endsAt) {
       return {
         ok: false,
-        message: "It would publish after its own deadline. Move one of them.",
+        message: setsEnd
+          ? "It has to end after it goes live. Move the end later."
+          : "It would publish after its own deadline. Move one of them.",
       };
     }
 
     const { error } = await supabase
       .from("campaigns")
-      .update({ publish_at: publishAt.toISOString() })
+      .update({
+        publish_at: publishAt.toISOString(),
+        ...(setsEnd ? { ends_at: newEndsAt?.toISOString() ?? null } : {}),
+      })
       .eq("id", campaignId)
       // Re-checked in the write, not just above: two admins in the same
       // minute, one pressing Publish and one scheduling, must not leave a
@@ -1936,6 +1969,7 @@ export async function scheduleCampaignPublish(
 
     await audit(actorId, "campaign.schedule", "campaign", campaignId, {
       publish_at: publishAt.toISOString(),
+      ...(setsEnd ? { ends_at: newEndsAt?.toISOString() ?? null } : {}),
       title: campaign.title,
     });
 
@@ -1943,15 +1977,19 @@ export async function scheduleCampaignPublish(
     revalidatePath("/admin/campaigns");
     revalidatePath(`/admin/campaigns/${campaignId}`);
 
-    return {
-      ok: true,
-      message: `"${campaign.title}" goes live ${publishAt.toLocaleString("en-IN", {
+    const inIndia = (when: Date) =>
+      when.toLocaleString("en-IN", {
         day: "numeric",
         month: "short",
         hour: "numeric",
         minute: "2-digit",
         timeZone: "Asia/Kolkata",
-      })}.`,
+      });
+    return {
+      ok: true,
+      message: `"${campaign.title}" goes live ${inIndia(publishAt)}${
+        endsAt ? ` and ends ${inIndia(endsAt)}` : ""
+      }.`,
     };
   } catch (err) {
     return fail(err);

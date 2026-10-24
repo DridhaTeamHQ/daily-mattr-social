@@ -6,6 +6,7 @@ import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isTempPasswordExpired } from "@/lib/temp-password";
 
 export type WelcomeState = { error: string | null };
 
@@ -37,6 +38,18 @@ export async function setOwnPassword(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // The form can be submitted from a tab left open past the 5 days. Choosing
+  // a password is what the expiry exists to stop, so it is checked here too.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("must_change_password, temp_password_expires_at")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile && isTempPasswordExpired(profile)) {
+    await supabase.auth.signOut();
+    redirect("/link-expired");
+  }
+
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
     // Supabase rejects a password identical to the current one, which is
@@ -50,7 +63,11 @@ export async function setOwnPassword(
 
   const { error: profileError } = await createAdminClient()
     .from("profiles")
-    .update({ must_change_password: false, status: "active" })
+    .update({
+      must_change_password: false,
+      temp_password_expires_at: null,
+      status: "active",
+    })
     .eq("id", user.id);
   if (profileError) {
     return { error: "Password changed, but activating the account failed. Tell your admin." };

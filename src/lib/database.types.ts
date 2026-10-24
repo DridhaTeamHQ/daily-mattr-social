@@ -40,6 +40,7 @@ export type Database = {
           referral_code: string;
           /** True while an admin-issued temporary password is still in use. */
           must_change_password: boolean;
+          temp_password_expires_at: string | null;
           created_at: string;
           updated_at: string;
           /** When they accepted the invite; null while it is unopened. */
@@ -61,6 +62,7 @@ export type Database = {
           status?: Enums<"user_status">;
           referral_code?: string;
           must_change_password?: boolean;
+          temp_password_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
           activated_at?: string | null;
@@ -81,6 +83,7 @@ export type Database = {
           status?: Enums<"user_status">;
           referral_code?: string;
           must_change_password?: boolean;
+          temp_password_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
           activated_at?: string | null;

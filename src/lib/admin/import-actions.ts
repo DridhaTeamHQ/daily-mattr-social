@@ -7,6 +7,7 @@ import { assertAdmin, fail, type ActionResult } from "@/lib/admin/guards";
 import { readAmbassadorCsv, tempPassword } from "@/lib/admin/csv";
 import { xlsxToCsv } from "@/lib/admin/xlsx";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { tempPasswordExpiry } from "@/lib/temp-password";
 import { nextReferralCode } from "@/lib/referral-code";
 import { canonicalBatch, canonicalCity } from "@/lib/batches";
 
@@ -159,6 +160,7 @@ export async function importAmbassadors(
         .update({
           status: "invited",
           must_change_password: true,
+          temp_password_expires_at: tempPasswordExpiry(),
           full_name: row.full_name,
           phone: row.phone || null,
           college: row.college || null,

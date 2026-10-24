@@ -10,6 +10,7 @@ import {
 } from "@/lib/ambassador-email";
 import { invalidateAdminCache } from "@/lib/cache/admin-generation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { tempPasswordExpiry } from "@/lib/temp-password";
 
 /**
  * How many people one call will mail.
@@ -106,7 +107,11 @@ export async function sendWelcomeEmails(
       if (!passwordError) {
         await db
           .from("profiles")
-          .update({ must_change_password: true })
+          // A fresh 5 days with every email: the password in it is new.
+          .update({
+            must_change_password: true,
+            temp_password_expires_at: tempPasswordExpiry(),
+          })
           .eq("id", profile.id);
 
         const delivery = await sendAmbassadorWelcomeEmail({

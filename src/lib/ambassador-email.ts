@@ -2,6 +2,7 @@ import "server-only";
 
 import { publicEnv, serverEnv } from "@/lib/env";
 import { getSiteUrl } from "@/lib/site-url";
+import { TEMP_PASSWORD_DAYS } from "@/lib/temp-password";
 
 type WelcomeEmailInput = {
   email: string;
@@ -122,7 +123,7 @@ function welcomeEmailHtml(input: {
             </div>
           </div>
           <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155;">
-            Sign in on the website first. You will be asked to change this temporary password right away.
+            Sign in on the website first. You will be asked to change this temporary password right away. <strong>It works for ${TEMP_PASSWORD_DAYS} days</strong> — after that the link expires and you will need to ask us for a new one.
           </p>
           <div style="margin:24px 0 28px;">
             <a href="${escapeHtml(input.loginUrl)}" style="display:inline-block;margin-right:12px;margin-bottom:12px;border-radius:999px;background:#2563eb;padding:14px 22px;font-size:14px;font-weight:800;color:#ffffff;text-decoration:none;">
@@ -157,6 +158,7 @@ function welcomeEmailText(input: {
     `App download: ${input.appDownloadUrl}`,
     "",
     "Sign in with the temporary password and you will be asked to change it immediately.",
+    `It works for ${TEMP_PASSWORD_DAYS} days. After that the link expires and you will need to ask us for a new one.`,
   ].join("\n");
 }
 
