@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Gift, TrendingUp, Users } from "lucide-react";
+import { Download, Gift, TrendingUp, Users } from "lucide-react";
 
 import Link from "next/link";
 
@@ -7,14 +7,20 @@ import { DownloadsCell } from "@/components/downloads-cell";
 import { ParamSelect } from "@/components/param-select";
 import { FeatureLock } from "@/components/feature-lock";
 import { SearchBox } from "@/components/search-box";
-import { matches } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Note } from "@/components/ui/feedback";
 import { Stat } from "@/components/ui/stat";
 import { setReferralLinkUnlock, setStipendUnlock } from "@/lib/admin/actions";
 import { getReferralSummary } from "@/lib/admin/queries";
-import { UNASSIGNED, cohortLabel } from "@/lib/admin/scope";
+import {
+  applyReferralFilters,
+  batchOf,
+  compareBatch,
+  readReferralFilters,
+  referralPlaces,
+} from "@/lib/admin/referral-rows";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { cn, formatDate, initials } from "@/lib/utils";
 
@@ -52,16 +58,14 @@ export default async function AdminInstallsPage({
   // moved both would eventually move the wrong one.
   const stipendUnlockAt = await getUnlockAt("stipend_unlock_at");
 
-  // Batches are canonicalised the same way the analytics filters do it, so
-  // "batch a", "Batch A" and "A" on three profiles are one choice here and
-  // the value in the URL matches what the dropdown offers.
-  const rawBatchValue = Array.isArray(rawBatch) ? rawBatch[0] : rawBatch;
-  const batch =
-    typeof rawBatchValue === "string" && rawBatchValue.trim()
-      ? cohortLabel("batch", rawBatchValue)
-      : null;
-  const batchOf = (row: { batch: string | null }) =>
-    cohortLabel("batch", row.batch ?? "");
+  // Shared with the Export button's route, so the file is the table.
+  const filters = readReferralFilters({
+    q,
+    batch: rawBatch,
+    status: rawStatus,
+    sort: rawSort,
+  });
+  const { query, batch, status, sort } = filters;
 
   // Counted over everyone rather than the search results: the dropdown is
   // for switching batch, and a batch that the current search happens to miss
@@ -72,23 +76,12 @@ export default async function AdminInstallsPage({
     batchCounts.set(label, (batchCounts.get(label) ?? 0) + 1);
   }
   if (batch !== null && !batchCounts.has(batch)) batchCounts.set(batch, 0);
-  // Batch A, Batch B, Batch 10 after Batch 9 — and the people with no batch
-  // set at the end, where a gap in the data belongs. One comparator for the
-  // dropdown and the table, so the order offered is the order shown.
-  const compareBatch = (a: string, b: string) =>
-    Number(a === UNASSIGNED) - Number(b === UNASSIGNED) ||
-    a.localeCompare(b, undefined, { numeric: true });
+  // One comparator for the dropdown and the table, so the order offered is
+  // the order shown.
   const batchOptions = [...batchCounts.entries()]
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => compareBatch(a.value, b.value));
 
-  // Only the three statuses the badge knows; anything else in the URL is
-  // ignored rather than filtering the table down to nobody.
-  const rawStatusValue = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
-  const status =
-    rawStatusValue && rawStatusValue in STATUS_TONE
-      ? (rawStatusValue as keyof typeof STATUS_TONE)
-      : null;
   // Counted over everyone, like the batch counts, so the dropdown says how
   // many are invited before anyone picks it.
   const statusOptions = (
@@ -99,37 +92,7 @@ export default async function AdminInstallsPage({
     count: summary.rows.filter((r) => r.status === value).length,
   }));
 
-  // Anything but "batch" is the ranking the page exists for. The default is
-  // not written to the URL, so a plain /admin/referrals link keeps meaning
-  // the leaderboard.
-  const sort =
-    (Array.isArray(rawSort) ? rawSort[0] : rawSort) === "batch"
-      ? "batch"
-      : "downloads";
-
-  const query = q ?? "";
-  const rows = summary.rows.filter(
-    (r) =>
-      (batch === null || batchOf(r) === batch) &&
-      (status === null || r.status === status) &&
-      matches(query, r.full_name, r.email, r.college, r.referral_code),
-  );
-  // Grouped by batch when asked, and by code inside each group: the codes
-  // are issued in batch order (DMA07, DMA13, DMA18 ...), so this is the order
-  // the roster was handed out in, and the one a printed list is checked
-  // against. Numeric-aware, so DMA10 follows DMA09 rather than DMA1. The
-  // summary already comes ranked by downloads, so the other order needs no
-  // sort at all.
-  if (sort === "batch") {
-    rows.sort(
-      (a, b) =>
-        compareBatch(batchOf(a), batchOf(b)) ||
-        a.referral_code.localeCompare(b.referral_code, undefined, {
-          numeric: true,
-        }) ||
-        a.full_name.localeCompare(b.full_name),
-    );
-  }
+  const rows = applyReferralFilters(summary.rows, filters);
   // How many of the rows on show are in each batch, for the group headings.
   const groupSizes = new Map<string, number>();
   for (const row of rows) {
@@ -137,27 +100,16 @@ export default async function AdminInstallsPage({
   }
   const narrowed = Boolean(query) || batch !== null || status !== null;
 
-  /**
-   * Where each ambassador places, by download count rather than by row.
-   *
-   * Dense ranking, the same as the ambassadors' own podium: everybody on seven
-   * downloads is 2nd and the next count down is 3rd, not 5th. Ranking by row
-   * number instead would tell four people level on seven that one of them is
-   * second and another fourth, which is a difference the numbers do not have.
-   *
-   * Computed over the whole board and read by id, so filtering the table with
-   * the search box narrows what is shown without renumbering anybody.
-   */
-  const places = new Map<string, number>();
-  let place = 0;
-  let previous: number | null = null;
-  for (const row of summary.rows) {
-    if (row.confirmed !== previous) {
-      place += 1;
-      previous = row.confirmed;
-    }
-    places.set(row.id, place);
-  }
+  // Dense ranking over the whole board — see referralPlaces.
+  const places = referralPlaces(summary.rows);
+
+  // The Export button carries the same filters, so the file is this table.
+  const exportParams = new URLSearchParams();
+  if (query) exportParams.set("q", query);
+  if (batch !== null) exportParams.set("batch", batch);
+  if (status !== null) exportParams.set("status", status);
+  if (sort === "batch") exportParams.set("sort", "batch");
+  const exportHref = `/admin/referrals/export${exportParams.size ? `?${exportParams}` : ""}`;
 
   return (
     <div className="stagger space-y-5">
@@ -169,6 +121,14 @@ export default async function AdminInstallsPage({
           brought in.
         </p>
         </div>
+        {/* A plain <a>, not <Link>: the response is a file download, and
+            client-side navigation to one never finishes. */}
+        <Button variant="secondary" asChild>
+          <a href={exportHref} download>
+            <Download aria-hidden />
+            Export
+          </a>
+        </Button>
       </div>
 
       {/* Above the numbers on purpose: it governs what ambassadors can see, so

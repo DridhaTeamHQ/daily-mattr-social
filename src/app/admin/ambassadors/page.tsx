@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { MailCheck, Upload, UserCheck, UserMinus, Users } from "lucide-react";
+import {
+  Download,
+  MailCheck,
+  Upload,
+  UserCheck,
+  UserMinus,
+  Users,
+} from "lucide-react";
 
 import { AmbassadorNav } from "@/components/ambassador-nav";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
@@ -215,6 +222,16 @@ export default async function AmbassadorsPage({
               label: g.label,
             }))}
           />
+          {/* The same workbook as Download ambassadors on Analytics — one
+              roster export, not two that drift apart. Unfiltered on purpose:
+              every ambassador, every status. A plain <a>, not <Link>: it is a
+              file download, and client navigation to one never finishes. */}
+          <Button variant="secondary" asChild>
+            <a href="/admin/analytics/export" download>
+              <Download aria-hidden />
+              Export
+            </a>
+          </Button>
           <Button variant="secondary" asChild>
             <Link href="/admin/ambassadors/import">
               <Upload aria-hidden />
