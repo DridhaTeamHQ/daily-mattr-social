@@ -4,6 +4,7 @@ import * as React from "react";
 import { UserCheck, UserMinus } from "lucide-react";
 
 import { ActionButton } from "@/components/action-button";
+import { DeleteAmbassadorsDialog } from "@/components/delete-ambassador-dialog";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { SendMailButton } from "@/components/send-mail-button";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export function AmbassadorSelection({
       {ids.length > 0 && (
         <SelectionBar
           count={ids.length}
+          ids={ids}
           toSuspend={toSuspend}
           toReinstate={toReinstate}
           toMail={toMail}
@@ -154,12 +156,14 @@ export function SelectAllAmbassadors() {
 
 function SelectionBar({
   count,
+  ids,
   toSuspend,
   toReinstate,
   toMail,
   onClear,
 }: {
   count: number;
+  ids: string[];
   toSuspend: string[];
   toReinstate: string[];
   toMail: string[];
@@ -186,7 +190,7 @@ function SelectionBar({
             action={setAmbassadorsStatus.bind(null, toSuspend, "suspended")}
             onSuccess={onClear}
             title={`Suspend ${suspendCount} ${suspendCount === 1 ? "ambassador" : "ambassadors"}`}
-            description={`They keep their login and history but stop earning. All ${suspendCount} are sent this same reason, and it stays on each of their records.`}
+            description={`Their history is kept for 30 days and their referral codes are offered to the next people you add. Reinstated within 30 days, they carry on on new codes — otherwise everything is permanently deleted. All ${suspendCount} are sent this same reason.`}
             label="Reason"
             placeholder="Screenshots did not match the campaign"
             confirmLabel={`Suspend ${suspendCount}`}
@@ -212,6 +216,10 @@ function SelectionBar({
             Reinstate {reinstateCount}
           </ActionButton>
         )}
+
+        {/* Everybody ticked, whatever their status: deleting is final for
+            invited, active and suspended alike. */}
+        <DeleteAmbassadorsDialog ids={ids} onDone={onClear} />
 
         <Button size="sm" variant="ghost" onClick={onClear}>
           Clear

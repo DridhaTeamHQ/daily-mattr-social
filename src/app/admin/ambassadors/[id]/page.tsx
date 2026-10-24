@@ -5,6 +5,7 @@ import { ArrowLeft, Clapperboard, ClipboardList, Flame, Gift, Trophy } from "luc
 import { AchievementForm } from "@/components/achievement-form";
 import { MilestoneProgress } from "@/components/milestone-runner";
 import { AmbassadorDetailsDialog } from "@/components/ambassador-details-dialog";
+import { DeleteAmbassadorDialog } from "@/components/delete-ambassador-dialog";
 import { ActionButton } from "@/components/action-button";
 import { ReasonDialog } from "@/components/reason-dialog";
 import { ResetPasswordDialog } from "@/components/ambassador-actions";
@@ -59,15 +60,22 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
    * detail query was also paging through the whole programme's ledger for a
    * points rank this page never shows — `withRank: false` skips that.
    */
-  const [data, { data: completion }, { data: board }, zones] = await Promise.all([
-    getAmbassadorDetail(id, 30, { withRank: false }),
-    supabase.rpc("ambassador_completion", { target: id, p_version: version }),
-    supabase.rpc("completion_leaderboard", {
-      limit_count: 1000,
-      p_version: version,
-    }),
-    getZones(),
-  ]);
+  const [data, { data: completion }, { data: board }, zones, { data: suspension }] =
+    await Promise.all([
+      getAmbassadorDetail(id, 30, { withRank: false }),
+      supabase.rpc("ambassador_completion", { target: id, p_version: version }),
+      supabase.rpc("completion_leaderboard", {
+        limit_count: 1000,
+        p_version: version,
+      }),
+      getZones(),
+      // The 30-day clock and the code they had, if they are suspended (0057).
+      supabase
+        .from("suspended_ambassadors")
+        .select("purge_after, referral_code, code_reassigned_at")
+        .eq("ambassador_id", id)
+        .maybeSingle(),
+    ]);
   if (!data) notFound();
 
   const { profile, streak, referrals } = data;
@@ -152,6 +160,15 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
               Code <span className="font-extrabold text-white">{profile.referral_code}</span>
               {" · "}joined {formatDate(profile.created_at)}
             </p>
+            {suspension && (
+              <p className="mt-1 text-[12.5px] font-extrabold text-white">
+                Permanently deleted on {formatDate(suspension.purge_after)}{" "}
+                unless reinstated
+                {suspension.code_reassigned_at
+                  ? ` · ${suspension.referral_code} now belongs to someone new`
+                  : ` · ${suspension.referral_code} is free for the next person added`}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -177,7 +194,7 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
             ) : (
               <ReasonDialog
                 title={`Suspend ${name}`}
-                description="They keep their login and history but cannot participate. The reason is sent to them and stays on their record."
+                description="Their history is kept for 30 days and their referral code is offered to the next person you add. Reinstate them within 30 days and they carry on, on a new code — otherwise everything is permanently deleted. The reason is sent to them."
                 label="Reason"
                 placeholder="Screenshots did not match the campaign"
                 confirmLabel="Suspend"
@@ -189,6 +206,12 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
                 }
               />
             )}
+            <DeleteAmbassadorDialog
+              profileId={profile.id}
+              name={name}
+              referralCode={profile.referral_code}
+              redirectTo="/admin/ambassadors"
+            />
           </div>
         </CardBody>
       </Card>

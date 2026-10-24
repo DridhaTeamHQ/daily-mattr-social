@@ -14,6 +14,15 @@ import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { awardReferralBonus, awardStreakBonus } from "@/lib/rewards-engine";
 import { evaluateBadges } from "@/lib/badges";
 import { nextReferralCode } from "@/lib/referral-code";
+import {
+  checkReusableCode,
+  claimReusableCode,
+  issueCodeOnReinstate,
+  markCodeReassigned,
+  ownCodeOf,
+  recordReleasedCode,
+  type ClaimedCode,
+} from "@/lib/admin/suspensions";
 import { codeProblem, normalizeCode } from "@/lib/referral-code-shape";
 import { canonicalBatch, canonicalCity } from "@/lib/batches";
 import { choiceOptions, normalizeRatingLabels } from "@/lib/question-types";
@@ -720,7 +729,18 @@ export async function setAmbassadorStatus(
       return { ok: false, message: "Give a reason for the suspension." };
     }
 
+    const { data: before } = await supabase
+      .from("profiles")
+      .select("status, batch")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (!before) {
+      return { ok: false, message: "That ambassador no longer exists." };
+    }
+
     // Admins can write profiles under RLS, so no service-role needed here.
+    // Suspending also starts their 30 days in suspended_ambassadors — that is
+    // the trigger from 0057, not this update.
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -732,9 +752,18 @@ export async function setAmbassadorStatus(
       .eq("id", profileId);
     if (error) throw error;
 
+    // Back from a suspension: their old code may be somebody else's by now,
+    // so they always come back on a new one. Their points and downloads were
+    // never moved, so they carry on from where they were.
+    const reinstated = before.status === "suspended" && status !== "suspended";
+    const newCode = reinstated
+      ? await issueCodeOnReinstate(createAdminClient(), profileId, before.batch)
+      : null;
+
     await audit(actorId, "ambassador.status", "profile", profileId, {
       status,
       reason: note || null,
+      ...(newCode ? { referral_code: newCode } : {}),
     });
 
     if (status === "suspended") {
@@ -749,7 +778,15 @@ export async function setAmbassadorStatus(
 
     await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
-    return { ok: true, message: `Marked ${status}` };
+    revalidatePath(`/admin/ambassadors/${profileId}`);
+    return {
+      ok: true,
+      message: newCode
+        ? `Reinstated with new code ${newCode}`
+        : status === "suspended"
+          ? "Suspended — deleted for good in 30 days unless reinstated"
+          : `Marked ${status}`,
+    };
   } catch (err) {
     return fail(err);
   }
@@ -800,10 +837,19 @@ export async function setAmbassadorsStatus(
     const { data, error } = await (status === "active"
       ? update.eq("status", "suspended")
       : update.neq("status", status)
-    ).select("id");
+    ).select("id, batch");
     if (error) throw error;
 
     const changed = (data ?? []).map((row) => row.id);
+
+    // Same as one at a time: back from a suspension means a new code. One by
+    // one, because each takes the next serial in its batch.
+    if (status === "active") {
+      const db = createAdminClient();
+      for (const row of data ?? []) {
+        await issueCodeOnReinstate(db, row.id, row.batch);
+      }
+    }
     const skipped = requested.length - changed.length;
 
     if (changed.length === 0) {
@@ -844,10 +890,153 @@ export async function setAmbassadorsStatus(
     const tail = skipped
       ? ` · ${skipped} ${status === "suspended" ? "already suspended" : "not suspended"}`
       : "";
-    return { ok: true, message: `${verb} ${changed.length}${tail}` };
+    const what =
+      status === "suspended"
+        ? " · deleted in 30 days unless reinstated"
+        : " · each on a new code";
+    return { ok: true, message: `${verb} ${changed.length}${what}${tail}` };
   } catch (err) {
     return fail(err);
   }
+}
+
+/**
+ * Permanently deletes an ambassador, straight away.
+ *
+ * The same thing the 30-day purge does to a suspension nobody reversed:
+ * deleting the login cascades to the profile and everything hanging off it —
+ * points, downloads, submissions, payouts. There is no undo, which is why the
+ * dialog makes the admin type the person's code first.
+ *
+ * Ambassadors only, and never the admin pressing the button: an admin account
+ * deleted from this list would take the console's access with it.
+ */
+export async function deleteAmbassador(profileId: string): Promise<ActionResult> {
+  try {
+    const actorId = await assertAdminWrite();
+
+    const result = await deleteOne(createAdminClient(), actorId, profileId);
+    if (!result.ok) return result;
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/ambassadors");
+    revalidatePath("/admin/analytics");
+    return { ok: true, message: `${result.name} deleted for good` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** How many one call deletes; the dialog sends a long selection in chunks. */
+const MAX_DELETE_PER_CALL = 25;
+
+/**
+ * Permanently deletes a hand-picked set of ambassadors.
+ *
+ * One at a time through the same path as the single delete, so the checks,
+ * the freed code and the audit row are identical whether it is one person or
+ * forty. Capped per call because each is a request to the auth server, and a
+ * server action that times out halfway leaves nobody knowing who went.
+ */
+export async function deleteAmbassadors(
+  profileIds: string[],
+): Promise<ActionResult & { deleted: number; failed: number }> {
+  const none = { deleted: 0, failed: 0 };
+  try {
+    const actorId = await assertAdminWrite();
+
+    const requested = [...new Set(profileIds)];
+    if (requested.length === 0) {
+      return { ...none, ok: false, message: "Nobody selected." };
+    }
+    if (requested.length > MAX_DELETE_PER_CALL) {
+      return {
+        ...none,
+        ok: false,
+        message: `Delete at most ${MAX_DELETE_PER_CALL} at a time.`,
+      };
+    }
+
+    const db = createAdminClient();
+    let deleted = 0;
+    let failed = 0;
+    for (const id of requested) {
+      const result = await deleteOne(db, actorId, id).catch(() => ({
+        ok: false as const,
+      }));
+      if (result.ok) deleted++;
+      else failed++;
+    }
+
+    await invalidateAdminCache();
+    revalidatePath("/admin/ambassadors");
+    revalidatePath("/admin/analytics");
+
+    return {
+      ok: deleted > 0,
+      message: failed
+        ? `Deleted ${deleted} · ${failed} couldn't be deleted`
+        : `Deleted ${deleted} for good`,
+      deleted,
+      failed,
+    };
+  } catch (err) {
+    return { ...none, ...fail(err) };
+  }
+}
+
+/**
+ * One permanent delete. Ambassadors only, never the admin pressing the
+ * button. Their code is kept so it can be offered to the next person added.
+ */
+async function deleteOne(
+  db: ReturnType<typeof createAdminClient>,
+  actorId: string,
+  profileId: string,
+): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
+  if (profileId === actorId) {
+    return { ok: false, message: "You can't delete your own account." };
+  }
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("full_name, email, referral_code, batch, role, status")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (!profile) {
+    return { ok: false, message: "That ambassador no longer exists." };
+  }
+  if (profile.role !== "ambassador") {
+    return { ok: false, message: "Only ambassadors can be deleted from here." };
+  }
+
+  // Read before the delete: the suspension archive that says whether the
+  // code is really theirs goes with them.
+  const ownCode = await ownCodeOf(db, profileId, profile.referral_code);
+
+  const { error } = await db.auth.admin.deleteUser(profileId);
+  if (error) throw error;
+
+  const name = profile.full_name || profile.email;
+  if (ownCode) {
+    await recordReleasedCode(db, {
+      code: ownCode,
+      fromName: name,
+      batch: profile.batch,
+      reason: "deleted",
+    });
+  }
+
+  // Written after the delete so it never claims one that failed. The name
+  // and code are all that is left of them, which is the point.
+  await audit(actorId, "ambassador.delete", "profile", profileId, {
+    full_name: profile.full_name,
+    email: profile.email,
+    referral_code: profile.referral_code,
+    status: profile.status,
+  });
+
+  return { ok: true, name };
 }
 
 export async function adjustPoints(
@@ -937,6 +1126,9 @@ export async function createAmbassador(
     const city = canonicalCity(formData.get("city")?.toString()) ?? "";
     const batch = canonicalBatch(formData.get("batch")?.toString()) ?? "";
     const password = String(formData.get("password") ?? "");
+    // A suspended or deleted ambassador's code to take over, or blank for a
+    // new one.
+    const reuseCode = normalizeCode(String(formData.get("reuse_code") ?? ""));
 
     if (!email || !fullName) {
       return { ok: false, message: "Name and email are both required." };
@@ -946,6 +1138,13 @@ export async function createAmbassador(
     }
 
     const db = createAdminClient();
+
+    // Checked before the account exists, so a code that just went to somebody
+    // else fails the form rather than leaving a half-made login behind.
+    if (reuseCode) {
+      const free = await checkReusableCode(db, reuseCode);
+      if (!free.ok) return free;
+    }
 
     const makeUser = () =>
       db.auth.admin.createUser({
@@ -1004,6 +1203,19 @@ export async function createAmbassador(
       return { ok: false, message: "The account could not be created. Try again." };
     }
 
+    // Taking over a suspended or deleted ambassador's code. A suspended
+    // person's comes off them first, because the code is unique. Downloads and
+    // points stay with whoever earned them, so this person starts from zero.
+    let claim: ClaimedCode | null = null;
+    if (reuseCode) {
+      const claimed = await claimReusableCode(db, reuseCode);
+      if (!claimed.ok) {
+        await db.auth.admin.deleteUser(created.user.id).catch(() => {});
+        return { ok: false, message: claimed.message };
+      }
+      claim = claimed.claim;
+    }
+
     // The trigger marks anyone created with a password as active. Walk that
     // back: they haven't chosen their own password yet.
     const { error: profileError } = await db
@@ -1016,18 +1228,30 @@ export async function createAmbassador(
         batch: batch || null,
         // The signup trigger issues a random code before anyone knows the
         // batch, so the structured one is assigned here, where we do.
-        referral_code: await nextReferralCode(db, batch),
+        referral_code: reuseCode || (await nextReferralCode(db, batch)),
       })
       .eq("id", created.user.id);
 
     if (profileError) {
       // Otherwise the address is taken by an account nobody can finish setting
-      // up, and re-adding them just fails with "already registered".
+      // up, and re-adding them just fails with "already registered". A
+      // released code is not marked as taken, so it is still offered next time.
       await db.auth.admin.deleteUser(created.user.id).catch(() => {});
       throw profileError;
     }
 
-    await audit(actorId, "ambassador.create", "profile", created.user.id, { email });
+    if (claim) await markCodeReassigned(db, claim, created.user.id);
+
+    await audit(actorId, "ambassador.create", "profile", created.user.id, {
+      email,
+      ...(claim
+        ? {
+            referral_code: claim.code,
+            referral_code_source: claim.source,
+            referral_code_from: claim.fromId,
+          }
+        : {}),
+    });
 
     // No email here, the same as an import: the welcome email goes out when
     // an admin presses Send mail on the ambassadors page.
@@ -1035,7 +1259,9 @@ export async function createAmbassador(
     revalidatePath("/admin/ambassadors");
     return {
       ok: true,
-      message: `${fullName} added as invited`,
+      message: claim
+        ? `${fullName} added as invited on ${claim.code}`
+        : `${fullName} added as invited`,
       credentials: { email, password, fullName },
       emailDelivery: {
         status: "skipped",

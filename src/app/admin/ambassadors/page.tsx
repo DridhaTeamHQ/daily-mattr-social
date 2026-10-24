@@ -28,6 +28,8 @@ import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
 import { getZones } from "@/lib/admin/zones";
 import { getWelcomeMails } from "@/lib/admin/welcome-emails";
+import { reusableReferralCodes } from "@/lib/admin/suspensions";
+import { createClient } from "@/lib/supabase/server";
 import { SendMailButton } from "@/components/send-mail-button";
 import { cn, formatDate, initials } from "@/lib/utils";
 
@@ -71,12 +73,17 @@ export default async function AmbassadorsPage({
     zone?: string;
   }>;
 }) {
-  const [{ q, group, batch, city, status, zone }, all, zones, mails] =
+  const [{ q, group, batch, city, status, zone }, all, zones, mails, freeCodes] =
     await Promise.all([
       searchParams,
       getAmbassadors(),
       getZones(),
       getWelcomeMails(),
+      // Session client: RLS (0057) limits the archive to admins. Empty rather
+      // than a broken page if the read fails — adding people still works.
+      createClient()
+        .then((supabase) => reusableReferralCodes(supabase))
+        .catch(() => []),
     ]);
 
   const zoneFor = (row: { id: string }) => zoneOf(row.id, zones);
@@ -214,7 +221,7 @@ export default async function AmbassadorsPage({
               Import CSV
             </Link>
           </Button>
-          <AddAmbassadorDialog />
+          <AddAmbassadorDialog reusableCodes={freeCodes} />
         </div>
       </div>
 
@@ -565,7 +572,7 @@ export default async function AmbassadorsPage({
                           ) : (
                             <ReasonDialog
                               title={`Suspend ${row.full_name || row.email}`}
-                              description="They keep their login and history but stop earning. The reason is sent to them and stays on their record."
+                              description="Their history is kept for 30 days and their referral code is offered to the next person you add. Reinstate them within 30 days and they carry on, on a new code — otherwise everything is permanently deleted. The reason is sent to them."
                               label="Reason"
                               placeholder="Screenshots did not match the campaign"
                               confirmLabel="Suspend"

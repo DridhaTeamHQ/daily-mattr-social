@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/publish-scheduled",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/purge-suspended",
+      "schedule": "30 0 * * *"
     }
   ]
 }

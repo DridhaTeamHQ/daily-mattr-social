@@ -27,16 +27,30 @@ export async function nextReferralCode(
 ): Promise<string> {
   const prefix = codePrefix(batch);
 
-  const { data } = await db
-    .from("profiles")
-    .select("referral_code")
-    .like("referral_code", `${prefix}%`);
+  // Deleted ambassadors' codes count too. Their profile is gone, but the code
+  // is still printed somewhere, so it should only come back when an admin
+  // picks it on purpose — never as somebody's "new" code (0058).
+  const [{ data }, { data: released }] = await Promise.all([
+    db
+      .from("profiles")
+      .select("referral_code")
+      .like("referral_code", `${prefix}%`),
+    db
+      .from("released_referral_codes")
+      .select("code")
+      .like("code", `${prefix}%`),
+  ]);
+
+  const codes = [
+    ...(data ?? []).map((row) => row.referral_code),
+    ...(released ?? []).map((row) => row.code),
+  ];
 
   let highest = 0;
-  for (const row of data ?? []) {
+  for (const code of codes) {
     // Only the trailing digits — a legacy code that happens to start DMSA
     // must not be read as a serial.
-    const tail = row.referral_code.slice(prefix.length);
+    const tail = code.slice(prefix.length);
     if (!/^\d+$/.test(tail)) continue;
     highest = Math.max(highest, Number(tail));
   }

@@ -17,6 +17,7 @@ import {
 import { publicEnv } from "@/lib/env";
 import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
 import { codePrefix } from "@/lib/referral-code-shape";
+import type { ReusableCode } from "@/lib/admin/suspensions";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -137,9 +138,15 @@ function CredentialsPanel({
 }
 
 /** Create an ambassador with a temporary password and send the welcome email. */
-export function AddAmbassadorDialog() {
+export function AddAmbassadorDialog({
+  reusableCodes = [],
+}: {
+  /** Codes freed by suspended or deleted ambassadors, offered before a new one is made. */
+  reusableCodes?: ReusableCode[];
+}) {
   const [open, setOpen] = React.useState(false);
   const [batch, setBatch] = React.useState("");
+  const [reuseCode, setReuseCode] = React.useState("");
   const [password, setPassword] = React.useState(suggestPassword);
   const [issued, setIssued] = React.useState<
     CreatedAmbassador["credentials"] | null
@@ -154,8 +161,15 @@ export function AddAmbassadorDialog() {
     setIssued(null);
     setEmailDelivery(null);
     setBatch("");
+    setReuseCode("");
     setPassword(suggestPassword());
   }
+
+  // Codes from the batch being filled first — the letter in the code is the
+  // batch, so a match keeps the code honest about who it belongs to.
+  const suggestions = [...reusableCodes].sort(
+    (a, b) => Number(b.batch === batch) - Number(a.batch === batch),
+  );
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -245,9 +259,11 @@ export function AddAmbassadorDialog() {
                     label="Batch"
                     htmlFor="batch"
                     hint={
-                      batch
-                        ? `Their code will start ${codePrefix(batch)}`
-                        : "Sets the digit in their referral code"
+                      reuseCode
+                        ? `Their code will be ${reuseCode}`
+                        : batch
+                          ? `Their code will start ${codePrefix(batch)}`
+                          : "Sets the digit in their referral code"
                     }
                   >
                     <select
@@ -266,6 +282,52 @@ export function AddAmbassadorDialog() {
                     </select>
                   </Field>
                 </div>
+
+                {/* Only there when a suspended or deleted ambassador has
+                    freed a code. The code moves; their downloads and points
+                    don't. */}
+                {suggestions.length > 0 && (
+                  <Field
+                    label="Referral code"
+                    htmlFor="reuse_code"
+                    hint={
+                      reuseCode
+                        ? "Links already shared with this code will credit them. They still start at zero."
+                        : `${suggestions.length} code${suggestions.length === 1 ? "" : "s"} free from deleted or suspended ambassadors.`
+                    }
+                  >
+                    <select
+                      id="reuse_code"
+                      name="reuse_code"
+                      value={reuseCode}
+                      onChange={(e) => setReuseCode(e.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 font-mono text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
+                    >
+                      <option value="">Generate a new code</option>
+                      {(
+                        [
+                          ["deleted", "From deleted ambassadors"],
+                          ["suspended", "From suspended ambassadors"],
+                        ] as const
+                      ).map(([source, heading]) => {
+                        const group = suggestions.filter(
+                          (s) => s.source === source,
+                        );
+                        if (group.length === 0) return null;
+                        return (
+                          <optgroup key={source} label={heading}>
+                            {group.map((s) => (
+                              <option key={s.code} value={s.code}>
+                                {s.code} · was {s.fromName}
+                                {s.batch ? ` (${s.batch})` : ""}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
+                  </Field>
+                )}
 
                 <Field
                   label="Temporary password"

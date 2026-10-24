@@ -129,6 +129,99 @@ export type Database = {
         };
         Relationships: [];
       };
+      released_referral_codes: {
+        Row: {
+          code: string;
+          from_name: string;
+          batch: string | null;
+          reason: string;
+          released_at: string;
+          reassigned_to: string | null;
+          reassigned_at: string | null;
+        };
+        Insert: {
+          code: string;
+          from_name: string;
+          batch?: string | null;
+          reason: string;
+          released_at?: string;
+          reassigned_to?: string | null;
+          reassigned_at?: string | null;
+        };
+        Update: {
+          code?: string;
+          from_name?: string;
+          batch?: string | null;
+          reason?: string;
+          released_at?: string;
+          reassigned_to?: string | null;
+          reassigned_at?: string | null;
+        };
+        Relationships: [];
+      };
+      suspended_ambassadors: {
+        Row: {
+          ambassador_id: string;
+          email: string;
+          full_name: string;
+          phone: string | null;
+          college: string | null;
+          city: string | null;
+          batch: string | null;
+          referral_code: string;
+          points: number;
+          downloads: number;
+          approved_submissions: number;
+          profile: Json;
+          reason: string | null;
+          suspended_at: string;
+          suspended_by: string | null;
+          purge_after: string;
+          code_reassigned_to: string | null;
+          code_reassigned_at: string | null;
+        };
+        Insert: {
+          ambassador_id: string;
+          email: string;
+          full_name: string;
+          phone?: string | null;
+          college?: string | null;
+          city?: string | null;
+          batch?: string | null;
+          referral_code: string;
+          points?: number;
+          downloads?: number;
+          approved_submissions?: number;
+          profile: Json;
+          reason?: string | null;
+          suspended_at?: string;
+          suspended_by?: string | null;
+          purge_after?: string;
+          code_reassigned_to?: string | null;
+          code_reassigned_at?: string | null;
+        };
+        Update: {
+          ambassador_id?: string;
+          email?: string;
+          full_name?: string;
+          phone?: string | null;
+          college?: string | null;
+          city?: string | null;
+          batch?: string | null;
+          referral_code?: string;
+          points?: number;
+          downloads?: number;
+          approved_submissions?: number;
+          profile?: Json;
+          reason?: string | null;
+          suspended_at?: string;
+          suspended_by?: string | null;
+          purge_after?: string;
+          code_reassigned_to?: string | null;
+          code_reassigned_at?: string | null;
+        };
+        Relationships: [];
+      };
       ambassador_zones: {
         Row: {
           ambassador_id: string;
