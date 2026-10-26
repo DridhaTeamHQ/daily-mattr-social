@@ -194,7 +194,7 @@ export default async function AmbassadorDetailPage({ params }: { params: Promise
             ) : (
               <ReasonDialog
                 title={`Suspend ${name}`}
-                description="Use Replace on their row in Ambassadors to put somebody new on their referral code — they start at zero, and this person's history is kept until you reinstate them. Not replaced or reinstated within 30 days, everything is permanently deleted. The reason is sent to them."
+                description="Their history is kept for 30 days and their referral code is offered to the next person you add. Reinstate them within 30 days and they carry on, on a new code — otherwise everything is permanently deleted. The reason is sent to them."
                 label="Reason"
                 placeholder="Screenshots did not match the campaign"
                 confirmLabel="Suspend"

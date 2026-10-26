@@ -22,9 +22,6 @@ const VIEWS: NavOption[] = [
   { value: "/admin/ambassadors", label: "Dashboard" },
   { value: "/admin/ambassadors/campaigns", label: "Campaigns" },
   { value: "/admin/ambassadors/surveys", label: "Surveys" },
-  // Suspended people whose code went to somebody new: off the dashboard and
-  // its counts, kept here until they are reinstated.
-  { value: "/admin/ambassadors/replaced", label: "Replaced" },
 ];
 
 export function AmbassadorNav() {
