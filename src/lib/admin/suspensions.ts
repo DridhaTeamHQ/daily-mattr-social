@@ -39,7 +39,7 @@ export async function reusableReferralCodes(
     db
       .from("suspended_ambassadors")
       .select("ambassador_id, referral_code, full_name, batch, suspended_at")
-      .is("code_reassigned_to", null)
+      .is("code_reassigned_at", null)
       .order("suspended_at", { ascending: true }),
     // Not fatal when it fails: until 0058 is applied there are only suspended
     // codes to offer, and that is still worth showing.
@@ -154,7 +154,7 @@ export async function claimReusableCode(
     .from("suspended_ambassadors")
     .select("ambassador_id")
     .eq("referral_code", code)
-    .is("code_reassigned_to", null)
+    .is("code_reassigned_at", null)
     .maybeSingle();
   if (!archived) {
     return { ok: false, message: `${code} isn't free to reuse any more.` };
@@ -237,11 +237,11 @@ export async function ownCodeOf(
 ): Promise<string | null> {
   const { data: archived } = await db
     .from("suspended_ambassadors")
-    .select("referral_code, code_reassigned_to")
+    .select("referral_code, code_reassigned_at")
     .eq("ambassador_id", profileId)
     .maybeSingle();
   if (!archived) return currentCode;
-  if (archived.code_reassigned_to) return null;
+  if (archived.code_reassigned_at) return null;
   return archived.referral_code === currentCode ? currentCode : null;
 }
 
@@ -270,8 +270,102 @@ export async function issueCodeOnReinstate(
   throw new Error("Couldn't issue a new referral code. Try again.");
 }
 
+// ─── Replaced ───────────────────────────────────────────────────────────────
+//
+// A suspended ambassador is "replaced" once their code has been handed to
+// somebody new. `code_reassigned_at` is the marker rather than
+// `code_reassigned_to`: the latter goes back to null if the new person is
+// ever deleted, and the old one must not quietly turn back into a plain
+// suspension that the purge then deletes.
+//
+// Replaced people leave the programme's numbers and the main list, are never
+// purged, and can't sign in. Their points, downloads and submissions stay on
+// their own account, so reinstating them carries on from there, on a new code.
+
+/** Everyone whose code has gone to somebody new. */
+export async function replacedAmbassadorIds(db: Db): Promise<Set<string>> {
+  const { data, error } = await db
+    .from("suspended_ambassadors")
+    .select("ambassador_id")
+    .not("code_reassigned_at", "is", null);
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => r.ambassador_id));
+}
+
 /**
- * Permanently deletes everyone whose 30 days are up.
+ * Whether this person has been replaced. Service role, because the archive
+ * is admin-only under RLS and this is asked on the ambassador's own sign-in.
+ */
+export async function isReplacedAmbassador(profileId: string): Promise<boolean> {
+  const { data } = await createAdminClient()
+    .from("suspended_ambassadors")
+    .select("code_reassigned_at")
+    .eq("ambassador_id", profileId)
+    .maybeSingle();
+  return Boolean(data?.code_reassigned_at);
+}
+
+export type ReplacedAmbassador = {
+  id: string;
+  fullName: string;
+  email: string;
+  batch: string | null;
+  city: string | null;
+  /** The code they gave up, now the new person's. */
+  code: string;
+  points: number;
+  downloads: number;
+  reason: string | null;
+  suspendedAt: string;
+  replacedAt: string;
+  replacement: { id: string; fullName: string; email: string } | null;
+};
+
+/** Everyone replaced, most recent first, with who took their code. */
+export async function getReplacedAmbassadors(db: Db): Promise<ReplacedAmbassador[]> {
+  const { data, error } = await db
+    .from("suspended_ambassadors")
+    .select(
+      "ambassador_id, full_name, email, batch, city, referral_code, points, downloads, reason, suspended_at, code_reassigned_to, code_reassigned_at",
+    )
+    .not("code_reassigned_at", "is", null)
+    .order("code_reassigned_at", { ascending: false });
+  if (error) throw error;
+
+  const newIds = [
+    ...new Set(
+      (data ?? []).flatMap((r) => (r.code_reassigned_to ? [r.code_reassigned_to] : [])),
+    ),
+  ];
+  const { data: people } = newIds.length
+    ? await db.from("profiles").select("id, full_name, email").in("id", newIds)
+    : { data: [] as { id: string; full_name: string; email: string }[] };
+  const byId = new Map((people ?? []).map((p) => [p.id, p]));
+
+  return (data ?? []).map((r) => {
+    const next = r.code_reassigned_to ? byId.get(r.code_reassigned_to) : undefined;
+    return {
+      id: r.ambassador_id,
+      fullName: r.full_name,
+      email: r.email,
+      batch: r.batch,
+      city: r.city,
+      code: r.referral_code,
+      points: r.points,
+      downloads: r.downloads,
+      reason: r.reason,
+      suspendedAt: r.suspended_at,
+      replacedAt: r.code_reassigned_at ?? r.suspended_at,
+      replacement: next
+        ? { id: next.id, fullName: next.full_name, email: next.email }
+        : null,
+    };
+  });
+}
+
+/**
+ * Permanently deletes everyone whose 30 days are up, unless their code went
+ * to somebody new — see "Replaced" above.
  *
  * Deleting the login is enough: the profile cascades from auth.users, and
  * every table that hangs off a profile — points, downloads, submissions, this
@@ -290,6 +384,8 @@ export async function purgeExpiredSuspensions(): Promise<{
     .select(
       "ambassador_id, full_name, referral_code, batch, suspended_at, purge_after, code_reassigned_to",
     )
+    // Replaced people are kept until somebody reinstates them.
+    .is("code_reassigned_at", null)
     .lte("purge_after", new Date().toISOString());
   if (error) throw error;
 

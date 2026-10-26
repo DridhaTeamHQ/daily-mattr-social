@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { BottomNav, TopNav } from "@/components/app-nav";
 import { mustChangePassword } from "@/lib/queries";
+import { isReplacedAmbassador } from "@/lib/admin/suspensions";
 import { CelebrationProvider } from "@/components/celebrate";
 import { Note } from "@/components/ui/feedback";
 import { ViewAsBar } from "@/components/view-as-bar";
@@ -32,6 +33,17 @@ export default async function DashboardLayout({
   // password — which would also make exactly those students impossible to
   // preview.
   const viewer = await getViewer();
+
+  // A session that outlived their replacement — signed in before it, or
+  // through a password reset — still gets nowhere.
+  if (
+    !viewer?.isPreview &&
+    data.profile.status === "suspended" &&
+    (await isReplacedAmbassador(data.profile.id))
+  ) {
+    redirect("/no-longer-member");
+  }
+
   if (!viewer?.isPreview && (await mustChangePassword())) redirect("/welcome");
 
   // Read literally so Next can inline it. Null when push isn't configured,

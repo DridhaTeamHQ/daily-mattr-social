@@ -779,13 +779,14 @@ export async function setAmbassadorStatus(
 
     await invalidateAdminCache();
     revalidatePath("/admin/ambassadors");
+    revalidatePath("/admin/ambassadors/replaced");
     revalidatePath(`/admin/ambassadors/${profileId}`);
     return {
       ok: true,
       message: newCode
         ? `Reinstated with new code ${newCode}`
         : status === "suspended"
-          ? "Suspended — deleted for good in 30 days unless reinstated"
+          ? "Suspended — replace them, or they're deleted in 30 days unless reinstated"
           : `Marked ${status}`,
     };
   } catch (err) {
@@ -1122,6 +1123,11 @@ export async function createAmbassador(
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const fullName = String(formData.get("full_name") ?? "").trim();
     const college = String(formData.get("college") ?? "").trim();
+    // Optional. Spaces and dashes are how people type it; only the digits
+    // (and a leading +) are kept.
+    const phone = String(formData.get("phone") ?? "")
+      .trim()
+      .replace(/[^\d+]/g, "");
     // Stored in canonical form so "2", "batch 2" and "Batch 2" are one batch
     // rather than three, in the grouping and in the code prefix alike.
     const city = canonicalCity(formData.get("city")?.toString()) ?? "";
@@ -1136,6 +1142,9 @@ export async function createAmbassador(
     }
     if (password.length < 8) {
       return { ok: false, message: "Temporary password must be at least 8 characters." };
+    }
+    if (phone && !/^\+?\d{10,15}$/.test(phone)) {
+      return { ok: false, message: "Enter a valid phone number, or leave it blank." };
     }
 
     const db = createAdminClient();
@@ -1226,6 +1235,7 @@ export async function createAmbassador(
         must_change_password: true,
         temp_password_expires_at: tempPasswordExpiry(),
         full_name: fullName,
+        phone: phone || null,
         city: city || null,
         batch: batch || null,
         // The signup trigger issues a random code before anyone knows the
@@ -1239,6 +1249,15 @@ export async function createAmbassador(
       // up, and re-adding them just fails with "already registered". A
       // released code is not marked as taken, so it is still offered next time.
       await db.auth.admin.deleteUser(created.user.id).catch(() => {});
+      // A suspended person's code was taken off them by the claim; give it
+      // back, or they are left on a placeholder for nothing.
+      if (claim?.source === "suspended" && claim.fromId) {
+        await db
+          .from("profiles")
+          .update({ referral_code: claim.code })
+          .eq("id", claim.fromId)
+          .then(undefined, () => {});
+      }
       throw profileError;
     }
 
@@ -1270,6 +1289,73 @@ export async function createAmbassador(
         message:
           "No email sent yet. Press Send mail on their row when they should get it — that issues a new password — or pass this one on yourself.",
       },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Puts somebody new in a suspended ambassador's place, on their code.
+ *
+ * The new person is a brand-new account made exactly like Add ambassador,
+ * so they start at zero: downloads, points and submissions belong to the
+ * account that earned them, never to the code. The suspended person keeps
+ * all of theirs, can no longer sign in, drops out of the programme's numbers
+ * and is never purged — reinstating them later brings it all back on a new
+ * code.
+ */
+export async function replaceSuspendedAmbassador(
+  suspendedId: string,
+  formData: FormData,
+): Promise<CreatedAmbassador> {
+  try {
+    await assertAdminWrite();
+    const db = createAdminClient();
+
+    const [{ data: profile }, { data: archived }] = await Promise.all([
+      db
+        .from("profiles")
+        .select("full_name, email, status")
+        .eq("id", suspendedId)
+        .maybeSingle(),
+      db
+        .from("suspended_ambassadors")
+        .select("referral_code, code_reassigned_at")
+        .eq("ambassador_id", suspendedId)
+        .maybeSingle(),
+    ]);
+    if (!profile) {
+      return { ok: false, message: "That ambassador no longer exists." };
+    }
+    if (profile.status !== "suspended" || !archived) {
+      return { ok: false, message: "Only a suspended ambassador can be replaced." };
+    }
+    // The archive holds the code they were suspended on, which is the one to
+    // hand on. Their profile can be on a placeholder already — an earlier
+    // claim that failed halfway — so what matters is that nobody else holds
+    // the archived code now.
+    const { data: holder } = await db
+      .from("profiles")
+      .select("id")
+      .eq("referral_code", archived.referral_code)
+      .neq("id", suspendedId)
+      .maybeSingle();
+    if (archived.code_reassigned_at || holder) {
+      return { ok: false, message: "Their code has already gone to somebody else." };
+    }
+
+    formData.set("reuse_code", archived.referral_code);
+    const result = await createAmbassador(formData);
+    if (!result.ok) return result;
+
+    revalidatePath("/admin/ambassadors/replaced");
+    revalidatePath(`/admin/ambassadors/${suspendedId}`);
+    return {
+      ...result,
+      message: `${result.credentials?.fullName ?? "New ambassador"} replaces ${
+        profile.full_name || profile.email
+      } on ${archived.referral_code}`,
     };
   } catch (err) {
     return fail(err);

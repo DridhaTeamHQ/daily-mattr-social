@@ -11,13 +11,13 @@ import { Field, Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/feedback";
 import {
   createAmbassador,
+  replaceSuspendedAmbassador,
   resetAmbassadorPassword,
   type CreatedAmbassador,
 } from "@/lib/admin/actions";
 import { publicEnv } from "@/lib/env";
 import { BATCH_OPTIONS, CITY_OPTIONS } from "@/lib/batches";
 import { codePrefix } from "@/lib/referral-code-shape";
-import type { ReusableCode } from "@/lib/admin/suspensions";
 
 const PANEL = [
   "animate-rise fixed z-50 bg-surface shadow-pop",
@@ -137,16 +137,29 @@ function CredentialsPanel({
   );
 }
 
-/** Create an ambassador with a temporary password and send the welcome email. */
+/** The suspended ambassador a new person is taking the place of. */
+export type Replacing = {
+  id: string;
+  name: string;
+  code: string;
+  batch: string | null;
+};
+
+/**
+ * Create an ambassador with a temporary password.
+ *
+ * With `replacing`, the same form puts the new person in a suspended
+ * ambassador's place: they take that code and start at zero, and the
+ * suspended person keeps their history for if they ever come back.
+ */
 export function AddAmbassadorDialog({
-  reusableCodes = [],
+  replacing,
 }: {
-  /** Codes freed by suspended or deleted ambassadors, offered before a new one is made. */
-  reusableCodes?: ReusableCode[];
+  replacing?: Replacing;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [batch, setBatch] = React.useState("");
-  const [reuseCode, setReuseCode] = React.useState("");
+  const [batch, setBatch] = React.useState(replacing?.batch ?? "");
+  const reuseCode = replacing?.code ?? "";
   const [password, setPassword] = React.useState(suggestPassword);
   const [issued, setIssued] = React.useState<
     CreatedAmbassador["credentials"] | null
@@ -160,23 +173,18 @@ export function AddAmbassadorDialog({
     setOpen(false);
     setIssued(null);
     setEmailDelivery(null);
-    setBatch("");
-    setReuseCode("");
+    setBatch(replacing?.batch ?? "");
     setPassword(suggestPassword());
   }
-
-  // Codes from the batch being filled first — the letter in the code is the
-  // batch, so a match keeps the code honest about who it belongs to.
-  const suggestions = [...reusableCodes].sort(
-    (a, b) => Number(b.batch === batch) - Number(a.batch === batch),
-  );
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
     startTransition(async () => {
-      const result = await createAmbassador(formData);
+      const result = replacing
+        ? await replaceSuspendedAmbassador(replacing.id, formData)
+        : await createAmbassador(formData);
       if (result.ok && result.credentials) {
         setIssued(result.credentials);
         setEmailDelivery(result.emailDelivery ?? null);
@@ -193,7 +201,18 @@ export function AddAmbassadorDialog({
       onOpenChange={(next) => (next ? setOpen(true) : reset())}
     >
       <Dialog.Trigger asChild>
-        <Button>Add ambassador</Button>
+        {replacing ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-brand-strong"
+            title={`Put somebody new on ${replacing.code}`}
+          >
+            Replace
+          </Button>
+        ) : (
+          <Button>Add ambassador</Button>
+        )}
       </Dialog.Trigger>
 
       <Dialog.Portal>
@@ -212,13 +231,23 @@ export function AddAmbassadorDialog({
           ) : (
             <>
               <Dialog.Title className="text-[16px] font-bold text-ink pr-8">
-                Add an ambassador
+                {replacing ? `Replace ${replacing.name}` : "Add an ambassador"}
               </Dialog.Title>
-              <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                A welcome email goes out automatically with their website login
-                link, temporary password, and app download link. You&apos;ll still
-                see the credentials here as backup.
-              </Dialog.Description>
+              {replacing ? (
+                <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
+                  The new ambassador takes over{" "}
+                  <code className="font-mono font-bold text-ink">{replacing.code}</code>{" "}
+                  and starts from zero. {replacing.name} can no longer sign in,
+                  but their history is kept — reinstate them from Replaced and
+                  they carry on, on a new code.
+                </Dialog.Description>
+              ) : (
+                <Dialog.Description className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
+                  A welcome email goes out automatically with their website login
+                  link, temporary password, and app download link. You&apos;ll still
+                  see the credentials here as backup.
+                </Dialog.Description>
+              )}
 
               <form onSubmit={submit} className="mt-4 space-y-4">
                 <Field label="Full name" htmlFor="full_name" required>
@@ -227,6 +256,17 @@ export function AddAmbassadorDialog({
 
                 <Field label="Email" htmlFor="email" required>
                   <Input id="email" name="email" type="email" required />
+                </Field>
+
+                <Field label="Phone number" htmlFor="phone">
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="Optional"
+                  />
                 </Field>
 
                 <Field label="College/Office" htmlFor="college">
@@ -283,52 +323,6 @@ export function AddAmbassadorDialog({
                   </Field>
                 </div>
 
-                {/* Only there when a suspended or deleted ambassador has
-                    freed a code. The code moves; their downloads and points
-                    don't. */}
-                {suggestions.length > 0 && (
-                  <Field
-                    label="Referral code"
-                    htmlFor="reuse_code"
-                    hint={
-                      reuseCode
-                        ? "Links already shared with this code will credit them. They still start at zero."
-                        : `${suggestions.length} code${suggestions.length === 1 ? "" : "s"} free from deleted or suspended ambassadors.`
-                    }
-                  >
-                    <select
-                      id="reuse_code"
-                      name="reuse_code"
-                      value={reuseCode}
-                      onChange={(e) => setReuseCode(e.target.value)}
-                      className="h-11 w-full rounded-lg border border-gray-200 bg-surface px-3 font-mono text-[14px] font-semibold text-ink focus:border-brand focus:outline-none"
-                    >
-                      <option value="">Generate a new code</option>
-                      {(
-                        [
-                          ["deleted", "From deleted ambassadors"],
-                          ["suspended", "From suspended ambassadors"],
-                        ] as const
-                      ).map(([source, heading]) => {
-                        const group = suggestions.filter(
-                          (s) => s.source === source,
-                        );
-                        if (group.length === 0) return null;
-                        return (
-                          <optgroup key={source} label={heading}>
-                            {group.map((s) => (
-                              <option key={s.code} value={s.code}>
-                                {s.code} · was {s.fromName}
-                                {s.batch ? ` (${s.batch})` : ""}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                    </select>
-                  </Field>
-                )}
-
                 <Field
                   label="Temporary password"
                   htmlFor="password"
@@ -364,7 +358,7 @@ export function AddAmbassadorDialog({
                     </Button>
                   </Dialog.Close>
                   <Button type="submit" loading={pending}>
-                    Create account
+                    {replacing ? "Replace" : "Create account"}
                   </Button>
                 </div>
               </form>

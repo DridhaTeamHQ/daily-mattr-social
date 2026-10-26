@@ -35,7 +35,6 @@ import { setAmbassadorStatus } from "@/lib/admin/actions";
 import { getAmbassadors } from "@/lib/admin/queries";
 import { getZones } from "@/lib/admin/zones";
 import { getWelcomeMails } from "@/lib/admin/welcome-emails";
-import { reusableReferralCodes } from "@/lib/admin/suspensions";
 import { createClient } from "@/lib/supabase/server";
 import { SendMailButton } from "@/components/send-mail-button";
 import { cn, formatDate, initials } from "@/lib/utils";
@@ -80,17 +79,24 @@ export default async function AmbassadorsPage({
     zone?: string;
   }>;
 }) {
-  const [{ q, group, batch, city, status, zone }, all, zones, mails, freeCodes] =
+  const [{ q, group, batch, city, status, zone }, all, zones, mails, suspendedCodes] =
     await Promise.all([
       searchParams,
+      // Leaves out suspended people somebody new has replaced — they are on
+      // /admin/ambassadors/replaced, and out of every count below.
       getAmbassadors(),
       getZones(),
       getWelcomeMails(),
-      // Session client: RLS (0057) limits the archive to admins. Empty rather
-      // than a broken page if the read fails — adding people still works.
-      createClient()
-        .then((supabase) => reusableReferralCodes(supabase))
-        .catch(() => []),
+      // The code each suspended person was suspended on — what Replace hands
+      // on, which their profile no longer shows if an earlier claim failed
+      // halfway. Session client: RLS (0057) limits the archive to admins.
+      createClient().then(async (supabase) => {
+        const { data } = await supabase
+          .from("suspended_ambassadors")
+          .select("ambassador_id, referral_code")
+          .is("code_reassigned_at", null);
+        return new Map((data ?? []).map((r) => [r.ambassador_id, r.referral_code]));
+      }),
     ]);
 
   const zoneFor = (row: { id: string }) => zoneOf(row.id, zones);
@@ -238,7 +244,7 @@ export default async function AmbassadorsPage({
               Import CSV
             </Link>
           </Button>
-          <AddAmbassadorDialog reusableCodes={freeCodes} />
+          <AddAmbassadorDialog />
         </div>
       </div>
 
@@ -578,18 +584,30 @@ export default async function AmbassadorsPage({
                           />
 
                           {row.status === "suspended" ? (
-                            <ActionButton
-                              variant="ghost"
-                              size="sm"
-                              className="text-emerald-700 hover:bg-emerald-50"
-                              action={setAmbassadorStatus.bind(null, row.id, "active")}
-                            >
-                              Reinstate
-                            </ActionButton>
+                            <>
+                              {/* Somebody new on their code. They leave this
+                                  list for Replaced, with their history kept. */}
+                              <AddAmbassadorDialog
+                                replacing={{
+                                  id: row.id,
+                                  name: row.full_name || row.email,
+                                  code: suspendedCodes.get(row.id) ?? row.referral_code,
+                                  batch: row.batch,
+                                }}
+                              />
+                              <ActionButton
+                                variant="ghost"
+                                size="sm"
+                                className="text-emerald-700 hover:bg-emerald-50"
+                                action={setAmbassadorStatus.bind(null, row.id, "active")}
+                              >
+                                Reinstate
+                              </ActionButton>
+                            </>
                           ) : (
                             <ReasonDialog
                               title={`Suspend ${row.full_name || row.email}`}
-                              description="Their history is kept for 30 days and their referral code is offered to the next person you add. Reinstate them within 30 days and they carry on, on a new code — otherwise everything is permanently deleted. The reason is sent to them."
+                              description="Use Replace on their row to put somebody new on their referral code — they start at zero, and this person's history is kept until you reinstate them. Not replaced or reinstated within 30 days, everything is permanently deleted. The reason is sent to them."
                               label="Reason"
                               placeholder="Screenshots did not match the campaign"
                               confirmLabel="Suspend"

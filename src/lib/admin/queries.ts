@@ -10,6 +10,7 @@ import { closeExpiredCampaigns } from "@/lib/campaigns/auto-end";
 import { publishScheduledCampaigns } from "@/lib/campaigns/auto-publish";
 import { publishScheduledSurveys } from "@/lib/surveys/auto-publish";
 import { getViewingVersion } from "@/lib/programme-version";
+import { replacedAmbassadorIds } from "@/lib/admin/suspensions";
 import type { CohortIds } from "@/lib/admin/scope";
 import type { Enums, Tables } from "@/lib/database.types";
 
@@ -69,13 +70,13 @@ export async function getOverview(): Promise<AdminOverview> {
   // Ambassadors are the one count here that is not versioned: the same
   // students carry across a restart, keeping their logins and their codes.
   // Everything else on this page is a result, and results begin again.
-  const [profiles, submissions, campaigns, surveys, ledger, responses, refs] =
+  const [profiles, submissions, campaigns, surveys, ledger, responses, refs, replaced] =
     await Promise.all([
-      readAll<{ role: string; status: string }>(
+      readAll<{ id: string; role: string; status: string }>(
         (from, to) =>
           supabase
             .from("profiles")
-            .select("role, status")
+            .select("id, role, status")
             .order("id")
             .range(from, to),
         "overview.profiles",
@@ -112,9 +113,13 @@ export async function getOverview(): Promise<AdminOverview> {
         .select("id", { count: "exact", head: true })
         .eq("status", "counted")
         .eq("version", version),
+      replacedAmbassadorIds(supabase),
     ]);
 
-  const amb = profiles.filter((p) => p.role === "ambassador");
+  // Replaced ambassadors have handed their slot on; see getAmbassadors.
+  const amb = profiles.filter(
+    (p) => p.role === "ambassador" && !replaced.has(p.id),
+  );
   const subs = submissions;
   const camps = campaigns.data ?? [];
   const survs = surveys.data ?? [];
@@ -166,11 +171,16 @@ export type AmbassadorRow = {
   created_at: string;
 };
 
+/**
+ * Everyone on the programme. Suspended ambassadors whose code went to
+ * somebody new are left out — they have their own page, and counting them
+ * here would count one slot twice.
+ */
 export async function getAmbassadors(): Promise<AmbassadorRow[]> {
   const supabase = await createClient();
   const version = await getViewingVersion();
 
-  const [profiles, ledger, conversions] = await Promise.all([
+  const [profiles, ledger, conversions, replaced] = await Promise.all([
     readAll<Omit<AmbassadorRow, "points" | "downloads">>(
       (from, to) =>
         supabase
@@ -210,6 +220,7 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
           .range(from, to),
       "ambassadors.conversions",
     ),
+    replacedAmbassadorIds(supabase),
   ]);
 
   const totals = new Map<string, number>();
@@ -222,11 +233,13 @@ export async function getAmbassadors(): Promise<AmbassadorRow[]> {
     downloads.set(row.ambassador_id, (downloads.get(row.ambassador_id) ?? 0) + 1);
   }
 
-  return (profiles ?? []).map((p) => ({
-    ...p,
-    points: totals.get(p.id) ?? 0,
-    downloads: downloads.get(p.id) ?? 0,
-  }));
+  return (profiles ?? [])
+    .filter((p) => !replaced.has(p.id))
+    .map((p) => ({
+      ...p,
+      points: totals.get(p.id) ?? 0,
+      downloads: downloads.get(p.id) ?? 0,
+    }));
 }
 
 /**
