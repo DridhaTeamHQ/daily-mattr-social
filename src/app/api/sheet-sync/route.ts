@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { applyReferralCount } from "@/lib/admin/referral-count";
+import { readAll } from "@/lib/admin/read-all";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActiveVersion } from "@/lib/programme-version";
 import { normalizeCode } from "@/lib/referral-code-shape";
@@ -53,12 +54,18 @@ export async function POST(request: Request) {
     const byCode = new Map(profiles.map((p) => [normalizeCode(p.referral_code), p]));
 
     // This run's counted installs, so unchanged rows can be skipped up front.
-    const { data: counted, error: countError } = await db
-      .from("referral_conversions")
-      .select("ambassador_id")
-      .eq("status", "counted")
-      .eq("version", version);
-    if (countError) throw countError;
+    // Paged, because a plain select stops at 1000 rows.
+    const counted = await readAll(
+      (from, to) =>
+        db
+          .from("referral_conversions")
+          .select("id, ambassador_id")
+          .eq("status", "counted")
+          .eq("version", version)
+          .order("id")
+          .range(from, to),
+      "sheet-sync",
+    );
     const current = new Map<string, number>();
     for (const c of counted) current.set(c.ambassador_id, (current.get(c.ambassador_id) ?? 0) + 1);
 
