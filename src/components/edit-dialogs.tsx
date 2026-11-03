@@ -68,6 +68,7 @@ export function CampaignEditDialog({
     ends_at: string | null;
     status: string;
     platform: string;
+    instagram_url: string;
   };
   /**
    * The campaign's tasks, editable in the same save. Omit to get the
@@ -165,6 +166,20 @@ export function CampaignEditDialog({
                 defaultValue={campaign.title}
                 required
                 autoFocus
+              />
+            </Field>
+
+            {/* The link behind "Open reel" on every ambassador's card. Without
+                it here a campaign was stuck with whatever was pasted at
+                creation, and a wrong reel could only be fixed by starting over. */}
+            <Field label="Post URL" htmlFor="c-instagram-url" required>
+              <Input
+                id="c-instagram-url"
+                name="instagram_url"
+                type="url"
+                defaultValue={campaign.instagram_url}
+                placeholder="https://www.instagram.com/reel/…"
+                required
               />
             </Field>
 
