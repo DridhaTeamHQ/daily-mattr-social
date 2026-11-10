@@ -36,7 +36,15 @@ function onInstallsEdit(e) {
   SpreadsheetApp.flush(); // let the Total formula catch up before reading it
   const first = Math.max(2, e.range.getRow());
   const count = e.range.getLastRow() - first + 1;
-  push_(readRows_(sheet, cols, first, count));
+  // A cleared "Installs now" cell is someone mid-edit, not a count of zero —
+  // sending it would void every install and re-add them a second later.
+  const rows = readRows_(sheet, cols, first, count).filter((r) => r.now !== "");
+  const result = push_(rows);
+  Logger.log(JSON.stringify(result));
+  // Throwing marks the run Failed in Executions, so a skipped row is visible.
+  if (result && (result.failed.length || result.unknown.length)) {
+    throw new Error("Not synced: " + JSON.stringify({ failed: result.failed, unknown: result.unknown }));
+  }
 }
 
 function syncAll() {
@@ -48,15 +56,28 @@ function syncAll() {
 
 function readRows_(sheet, cols, first, count) {
   const codeCol = cols[norm_(CODE_HEADER)];
+  const nowCol = cols[norm_(NOW_HEADER)];
   const totalCol = cols[norm_(TOTAL_HEADER)];
-  if (!codeCol || !totalCol) throw new Error("Can't find the Referral code or Total column.");
+  if (!codeCol || !nowCol || !totalCol) {
+    throw new Error("Can't find the Referral code, Installs now or Total column.");
+  }
   if (count < 1) return [];
 
   const codes = sheet.getRange(first, codeCol, count, 1).getValues();
+  const nows = sheet.getRange(first, nowCol, count, 1).getValues();
   const totals = sheet.getRange(first, totalCol, count, 1).getValues();
-  return codes
-    .map((c, i) => ({ code: String(c[0]).trim(), total: totals[i][0] }))
-    .filter((r) => r.code && r.total !== "");
+  const rows = codes.map((c, i) => ({ code: String(c[0]).trim(), now: nows[i][0], total: totals[i][0] }));
+
+  // Installs typed in but no Total: the row is missing its formula (new rows
+  // usually are). Say so rather than skip it without a word.
+  const noFormula = rows.filter((r) => r.code && r.now !== "" && r.total === "");
+  if (noFormula.length) {
+    throw new Error(
+      "Total is empty for " + noFormula.map((r) => r.code).join(", ") +
+        " — copy the Total formula down to these rows.",
+    );
+  }
+  return rows.filter((r) => r.code && r.total !== "");
 }
 
 function push_(rows) {
