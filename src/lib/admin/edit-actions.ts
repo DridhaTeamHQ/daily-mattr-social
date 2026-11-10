@@ -27,6 +27,7 @@ export async function updateCampaign(
     await assertAdminWrite();
 
     const title = String(formData.get("title") ?? "").trim();
+    const instagramUrl = String(formData.get("instagram_url") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
     const captionHint = String(formData.get("caption_hint") ?? "").trim();
     // A date and a time, from the two fields that replaced the combined
@@ -44,6 +45,9 @@ export async function updateCampaign(
 
     if (title.length < 3) {
       return { ok: false, message: "Give the campaign a title." };
+    }
+    if (!instagramUrl) {
+      return { ok: false, message: "The post URL is required." };
     }
 
     const db = createAdminClient();
@@ -78,6 +82,7 @@ export async function updateCampaign(
       .from("campaigns")
       .update({
         title,
+        instagram_url: instagramUrl,
         description: description || null,
         caption_hint: captionHint || null,
         platform: platform || "Instagram",
