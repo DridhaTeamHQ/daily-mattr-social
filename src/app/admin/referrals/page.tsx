@@ -22,7 +22,7 @@ import {
   referralPlaces,
 } from "@/lib/admin/referral-rows";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
-import { cn, formatDate, initials } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 
 export const metadata = { title: "Installs" };
 
@@ -238,7 +238,6 @@ export default async function AdminInstallsPage({
                   <th className="px-4 py-3">Ambassador</th>
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3 text-right">Downloads (editable)</th>
-                  <th className="px-4 py-3">Last one</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -254,7 +253,7 @@ export default async function AdminInstallsPage({
                       (index === 0 || batchOf(rows[index - 1]) !== batchOf(row)) && (
                         <tr className="bg-canvas-sunk">
                           <td
-                            colSpan={5}
+                            colSpan={4}
                             className="px-4 py-2 text-[11.5px] font-extrabold tracking-wide text-ink-soft uppercase"
                           >
                             {batchOf(row)}
@@ -326,11 +325,6 @@ export default async function AdminInstallsPage({
                         name={row.full_name || row.email}
                         value={row.confirmed}
                       />
-                    </td>
-
-
-                    <td className="px-4 py-3 text-[12.5px] text-ink-soft">
-                      {row.lastConversion ? formatDate(row.lastConversion) : "—"}
                     </td>
 
                     <td className="px-4 py-3">

@@ -11,7 +11,6 @@ import { getDashboard, isDemoMode } from "@/lib/queries";
 import { getNewSeasonNotice } from "@/lib/programme-version";
 import { getUnlockAt, isUnlocked } from "@/lib/settings";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Home" };
 
@@ -175,11 +174,6 @@ export default async function DashboardPage() {
           <Stat
             label="Installs"
             value={referrals.total_confirmed}
-            sub={
-              referrals.last_conversion
-                ? `Last ${formatDate(referrals.last_conversion)}`
-                : "None yet"
-            }
             badge={
               monthOpen && installRank
                 ? INSTALL_RANK_BADGE[installRank]

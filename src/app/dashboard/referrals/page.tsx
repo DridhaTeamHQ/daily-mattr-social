@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calendar, Download, Gift, Lock } from "lucide-react";
+import { Download, Gift, Lock } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ReferralLinkCard } from "@/components/referral-link-card";
@@ -151,11 +151,6 @@ export default async function ReferralsPage() {
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 gap-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xs relative">
-          {referrals.last_conversion && (
-            <div className="absolute top-4 right-4 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-400">
-              <Calendar className="size-4" />
-            </div>
-          )}
 
           <div className="flex items-center gap-5">
             <div className="size-12 rounded-xl bg-brand-tint border border-brand/20 flex items-center justify-center text-brand-strong shrink-0">
@@ -168,11 +163,6 @@ export default async function ReferralsPage() {
               <h3 className="text-3xl font-black text-black tracking-tight mt-0.5">
                 {referrals.total_confirmed}
               </h3>
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                {referrals.last_conversion
-                  ? `Last on ${formatDate(referrals.last_conversion)}`
-                  : "No downloads yet"}
-              </p>
             </div>
           </div>
 
