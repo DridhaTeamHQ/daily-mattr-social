@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Clock3,
   Download,
+  FileSpreadsheet,
   LayoutGrid,
   Layers,
   ListChecks,
@@ -32,8 +33,10 @@ import {
 } from "@/lib/admin/scope";
 import { createCachedClient as createClient } from "@/lib/admin/cached-client";
 import {
+  STIPEND_DOWNLOADS_ONLY,
   STIPEND_MIN_COMPLETION_PCT,
   STIPEND_MIN_DOWNLOADS,
+  STIPEND_TASKS_ROUTE_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
 import { cn, formatNumber } from "@/lib/utils";
@@ -94,7 +97,12 @@ export default async function AnalyticsPage({
     approvalPct,
     approvedSubmissions,
     pendingReview,
+    currentRule,
   } = completion;
+  // The download count that clears the tasks route in the run on screen.
+  const stipendDownloads = currentRule
+    ? STIPEND_TASKS_ROUTE_DOWNLOADS
+    : STIPEND_MIN_DOWNLOADS;
   // Every task in the window, not the top eight the bar chart used to show.
   const allTasks = completion.campaignBreakdown(null);
 
@@ -207,6 +215,17 @@ export default async function AnalyticsPage({
             </Link>
           );
         })}
+
+        {/* Every run, every batch, every task — built fresh on each click,
+            so it is always the latest data. Ignores the filters below. */}
+        <a
+          href="/admin/analytics/export-all"
+          download
+          className="mb-1 ml-auto inline-flex shrink-0 items-center gap-2 self-center rounded-lg border border-gray-300 bg-surface px-3.5 py-2 text-[13px] font-extrabold text-ink hover:bg-canvas-sunk"
+        >
+          <FileSpreadsheet className="size-4" aria-hidden />
+          Export all data
+        </a>
       </nav>
 
       {/* The page's one control bar. Given its own surface so it reads as
@@ -358,14 +377,24 @@ export default async function AnalyticsPage({
                       Stipend
                       <InfoDot label="How stipend eligibility is decided">
                         <p className="font-extrabold">Stipend eligibility</p>
-                        <p className="mt-1 font-semibold">
-                          An ambassador qualifies with{" "}
-                          {STIPEND_MIN_COMPLETION_PCT}% of the tasks they could
-                          reach since joining approved, and{" "}
-                          {STIPEND_MIN_DOWNLOADS} counted downloads against
-                          their code. Both are needed — one without the other
-                          is not a qualifying month.
-                        </p>
+                        {currentRule ? (
+                          <p className="mt-1 font-semibold">
+                            An ambassador qualifies either with{" "}
+                            {STIPEND_MIN_COMPLETION_PCT}% of the tasks they
+                            could reach since joining approved and{" "}
+                            {STIPEND_TASKS_ROUTE_DOWNLOADS} counted downloads,
+                            or with {STIPEND_DOWNLOADS_ONLY} counted downloads
+                            on their own, whatever their completion.
+                          </p>
+                        ) : (
+                          <p className="mt-1 font-semibold">
+                            An ambassador qualifies with{" "}
+                            {STIPEND_MIN_COMPLETION_PCT}% of the tasks they
+                            could reach since joining approved, and{" "}
+                            {STIPEND_MIN_DOWNLOADS} counted downloads against
+                            their code. Both are needed.
+                          </p>
+                        )}
                       </InfoDot>
                     </span>
                   </th>
@@ -431,7 +460,7 @@ export default async function AnalyticsPage({
                       <td
                         className={cn(
                           "tabular px-3 py-1.5 text-right text-[13px]",
-                          ambassador.downloads >= STIPEND_MIN_DOWNLOADS
+                          ambassador.downloads >= stipendDownloads
                             ? "font-bold text-ink"
                             : "text-ink-soft",
                         )}
@@ -446,7 +475,9 @@ export default async function AnalyticsPage({
                       <td className="px-3 py-1.5 text-[12px]">
                         {ambassador.eligible ? (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-extrabold text-emerald-700">
-                            Eligible
+                            {ambassador.eligibleBy === "downloads"
+                              ? `Eligible · ${STIPEND_DOWNLOADS_ONLY}+ downloads`
+                              : "Eligible"}
                           </span>
                         ) : (
                           <span className="font-semibold text-ink-faint">
@@ -461,6 +492,12 @@ export default async function AnalyticsPage({
                             ]
                               .filter(Boolean)
                               .join(" and ")}
+                            {/* The other way in, when there is one and they
+                                are short on completion. */}
+                            {ambassador.downloadsShortAlone !== null &&
+                            ambassador.completion < STIPEND_MIN_COMPLETION_PCT
+                              ? `, or ${formatNumber(ambassador.downloadsShortAlone)} more ${ambassador.downloadsShortAlone === 1 ? "download" : "downloads"}`
+                              : null}
                           </span>
                         )}
                       </td>

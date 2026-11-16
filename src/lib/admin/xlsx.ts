@@ -166,3 +166,60 @@ export async function xlsxResponse(
     },
   });
 }
+
+export type WorkbookSheet = {
+  name: string;
+  header: string[];
+  rows: (string | number | boolean | null)[][];
+};
+
+/**
+ * Several sheets in one .xlsx download, each laid out the way
+ * `xlsxResponse` lays out its one: bold frozen header, filters, sized columns.
+ */
+export async function xlsxWorkbookResponse(
+  filename: string,
+  sheets: WorkbookSheet[],
+): Promise<Response> {
+  const ExcelJS = (await import("exceljs")).default;
+
+  const workbook = new ExcelJS.Workbook();
+
+  for (const { name, header, rows } of sheets) {
+    const sheet = workbook.addWorksheet(name.slice(0, 31), {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+
+    sheet.addRow(header);
+    for (const row of rows) sheet.addRow(row.map((cell) => cell ?? ""));
+
+    const top = sheet.getRow(1);
+    top.font = { bold: true };
+    top.alignment = { vertical: "middle", wrapText: true };
+    top.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFEFEF" } };
+
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: header.length },
+    };
+
+    header.forEach((title, i) => {
+      const longest = rows.reduce(
+        (n, row) => Math.max(n, String(row[i] ?? "").length),
+        Math.min(title.length, 24),
+      );
+      sheet.getColumn(i + 1).width = Math.min(48, Math.max(10, longest + 2));
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return new Response(buffer as ArrayBuffer, {
+    headers: {
+      "content-type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "content-disposition": `attachment; filename="${filename}"`,
+      "cache-control": "no-store",
+    },
+  });
+}

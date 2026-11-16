@@ -1,7 +1,9 @@
 import { xlsxResponse } from "@/lib/admin/xlsx";
 import {
+  STIPEND_DOWNLOADS_ONLY,
   STIPEND_MIN_COMPLETION_PCT,
   STIPEND_MIN_DOWNLOADS,
+  STIPEND_TASKS_ROUTE_DOWNLOADS,
   getCompletionByAmbassador,
 } from "@/lib/admin/completion";
 import { readPeriod, resolvePeriod } from "@/lib/admin/period";
@@ -100,11 +102,22 @@ export async function GET(request: Request) {
   // can find its own. Cohort-scoped in there, which is why the roster filter
   // further down has to agree with it — both go through `cohortLabel`.
   const cohort = await getCohort(filters.city, filters.college, filters.batch);
-  const { ranked } = await getCompletionByAmbassador(supabase, {
+  const { ranked, currentRule: downloadsRoute } = await getCompletionByAmbassador(supabase, {
     cohort,
     period,
   });
   const measured = new Map(ranked.map((row) => [row.id, row]));
+
+  // Eligibility comes from the shared model, which applies the current run's
+  // two routes (see STIPEND_DOWNLOADS_ONLY) — the same answer the table gives.
+  const stipendWord = (id: string): string => {
+    const row = measured.get(id);
+    if (!row) return "";
+    if (row.eligibleBy === "downloads") {
+      return `Eligible (${STIPEND_DOWNLOADS_ONLY}+ downloads)`;
+    }
+    return row.eligible ? "Eligible" : "Not met";
+  };
 
   const [profiles, conversions, submissions, responses, versions] =
     await Promise.all([
@@ -241,7 +254,9 @@ export async function GET(request: Request) {
     "Approved tasks (since joining)",
     "Rejections (since joining)",
     "Completion % (since joining)",
-    `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_DOWNLOADS} downloads)`,
+    downloadsRoute
+      ? `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_TASKS_ROUTE_DOWNLOADS} downloads, or ${STIPEND_DOWNLOADS_ONLY}+ downloads)`
+      : `Stipend (${STIPEND_MIN_COMPLETION_PCT}% + ${STIPEND_MIN_DOWNLOADS} downloads)`,
     "Approved tasks (lifetime)",
     ...versions.map((v) => `${v.label} downloads`),
     "Confirmed downloads (all runs)",
@@ -275,11 +290,7 @@ export async function GET(request: Request) {
     measured.get(profile.id)?.completion ?? "",
     // The word, not a boolean: a column of TRUE/FALSE in a spreadsheet needs
     // the header read to know which way round it is.
-    measured.has(profile.id)
-      ? measured.get(profile.id)!.eligible
-        ? "Eligible"
-        : "Not met"
-      : "",
+    stipendWord(profile.id),
     approvedTasks.get(profile.id)?.size ?? 0,
     ...versions.map((v) => confirmedByRun.get(v.id)?.get(profile.id) ?? 0),
     confirmed.get(profile.id) ?? 0,

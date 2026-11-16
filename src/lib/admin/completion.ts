@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readAll } from "@/lib/admin/read-all";
-import { getViewingVersion } from "@/lib/programme-version";
+import { getActiveVersion, getViewingVersion } from "@/lib/programme-version";
 import type { Period } from "@/lib/admin/period";
 import type { Cohort } from "@/lib/admin/scope";
 
@@ -49,6 +49,21 @@ const APPROVED = new Set(["approved", "auto_approved"]);
  */
 export const STIPEND_MIN_DOWNLOADS = 30;
 export const STIPEND_MIN_COMPLETION_PCT = 80;
+/**
+ * The current run's stipend rule (admin decision, from V3). Two routes:
+ *
+ *   tasks route      STIPEND_MIN_COMPLETION_PCT completion and
+ *                    STIPEND_TASKS_ROUTE_DOWNLOADS downloads
+ *   downloads route  STIPEND_DOWNLOADS_ONLY downloads, whatever the completion
+ *
+ * Applied by `getCompletionByAmbassador` whenever it measures the run that is
+ * open, so the Analytics table, the Batches tab and both spreadsheet exports
+ * all say the same thing. An earlier run keeps the rule it was run under
+ * (80% and STIPEND_MIN_DOWNLOADS). /admin/stipend pays on the SQL rule in
+ * `stipend_eligibility()`, which this does not change.
+ */
+export const STIPEND_DOWNLOADS_ONLY = 30;
+export const STIPEND_TASKS_ROUTE_DOWNLOADS = 20;
 const DECIDED = new Set(["approved", "auto_approved", "rejected", "revoked"]);
 const REJECTED = new Set(["rejected", "revoked"]);
 
@@ -122,16 +137,30 @@ type Conversion = {
 export type CompletionScope = {
   cohort: Cohort;
   period: Period;
+  /**
+   * A specific run, for the all-runs workbook only. Every page leaves this
+   * out and gets the run the admin is viewing, for the reason given below.
+   */
+  version?: number;
+  /**
+   * With `version`: count a campaign or survey in this run by WHEN it started
+   * rather than by its `version` column. Opening a run moves every campaign,
+   * survey and submission into it (migration 0053), so by the column an
+   * earlier run owns no tasks at all. Installs stay put, so downloads are
+   * still read by the column.
+   */
+  window?: { start: Date; end: Date | null };
 };
 
 export async function getCompletionByAmbassador(
   supabase: SupabaseClient,
-  { cohort, period }: CompletionScope,
+  { cohort, period, version: requestedVersion, window }: CompletionScope,
 ) {
   // The run this page is about. Resolved here and not handed in, so the
   // table on /admin/analytics and the CSV behind Download ambassadors cannot
   // end up reading different runs of the programme.
-  const version = await getViewingVersion();
+  const version = requestedVersion ?? (await getViewingVersion());
+  const currentRule = version === (await getActiveVersion());
 
   const [allProfiles, campaigns] = await Promise.all([
     readAll<{
@@ -152,12 +181,27 @@ export async function getCompletionByAmbassador(
           .range(from, to),
       "analytics.profiles",
     ),
-    supabase
-      .from("campaigns")
-      .select("id, title, status, starts_at, ends_at, ended_at")
-      .neq("status", "draft")
-      .eq("version", version),
+    window
+      ? supabase
+          .from("campaigns")
+          .select("id, title, status, starts_at, ends_at, ended_at")
+          .neq("status", "draft")
+      : supabase
+          .from("campaigns")
+          .select("id, title, status, starts_at, ends_at, ended_at")
+          .neq("status", "draft")
+          .eq("version", version),
   ]);
+
+  /** Inside the run's time window, when one was asked for. */
+  const inWindow = (at: string) => {
+    if (!window) return true;
+    const time = new Date(at).getTime();
+    return (
+      time >= window.start.getTime() &&
+      (window.end === null || time < window.end.getTime())
+    );
+  };
 
   // Every figure below divides by the number of ambassadors, so the cohort has
   // to be applied here rather than to the finished numbers: a completion rate
@@ -180,7 +224,8 @@ export async function getCompletionByAmbassador(
   // dropped for everybody, because its deadline lands one minute before the
   // IST month boundary.
   const activeCampaigns = ((campaigns.data ?? []) as Campaign[]).filter(
-    (campaign) => new Date(campaign.starts_at) < period.end,
+    (campaign) =>
+      new Date(campaign.starts_at) < period.end && inWindow(campaign.starts_at),
   );
   const campaignIds = activeCampaigns.map((campaign) => campaign.id);
   const { data: tasks } = campaignIds.length
@@ -227,11 +272,16 @@ export async function getCompletionByAmbassador(
   // campaigns here made the admin's total disagree with the page the student
   // is looking at.
   const [{ data: surveyRows }, surveyLinks, surveyResponses] = await Promise.all([
-    supabase
-      .from("surveys")
-      .select("id, status, audience, response_cap, created_at, closed_at")
-      .neq("status", "draft")
-      .eq("version", version),
+    window
+      ? supabase
+          .from("surveys")
+          .select("id, status, audience, response_cap, created_at, closed_at")
+          .neq("status", "draft")
+      : supabase
+          .from("surveys")
+          .select("id, status, audience, response_cap, created_at, closed_at")
+          .neq("status", "draft")
+          .eq("version", version),
     // Links need no filter of their own: every one is dropped below unless
     // its survey is in `periodSurveys`, which is already this run's only.
     readAll<{ ambassador_id: string; survey_id: string }>(
@@ -245,24 +295,36 @@ export async function getCompletionByAmbassador(
     ),
     readAll<{ ambassador_id: string; survey_id: string; status: string }>(
       (from, to) =>
-        supabase
-          .from("survey_responses")
-          .select("ambassador_id, survey_id, status")
-          .eq("version", version)
-          .order("id")
-          .range(from, to),
+        window
+          ? supabase
+              .from("survey_responses")
+              .select("ambassador_id, survey_id, status")
+              .order("id")
+              .range(from, to)
+          : supabase
+              .from("survey_responses")
+              .select("ambassador_id, survey_id, status")
+              .eq("version", version)
+              .order("id")
+              .range(from, to),
       "completion.surveyResponses",
     ),
   ]);
 
   const submissions = await readAll<Submission>(
     (from, to) =>
-      supabase
-        .from("submissions")
-        .select("ambassador_id, campaign_task_id, status, uploaded_at")
-        .eq("version", version)
-        .order("id")
-        .range(from, to),
+      window
+        ? supabase
+            .from("submissions")
+            .select("ambassador_id, campaign_task_id, status, uploaded_at")
+            .order("id")
+            .range(from, to)
+        : supabase
+            .from("submissions")
+            .select("ambassador_id, campaign_task_id, status, uploaded_at")
+            .eq("version", version)
+            .order("id")
+            .range(from, to),
     "analytics.submissions",
   );
   // Uploads on a task in the pool, by somebody in the cohort. The cohort test
@@ -333,6 +395,7 @@ export async function getCompletionByAmbassador(
   const periodSurveys = new Map<string, { closed: number; target: number }>();
   for (const survey of (surveyRows ?? []) as Survey[]) {
     if (new Date(survey.created_at) >= period.end) continue;
+    if (!inWindow(survey.created_at)) continue;
     periodSurveys.set(survey.id, {
       closed:
         survey.status === "live" || !survey.closed_at
@@ -542,7 +605,25 @@ export async function getCompletionByAmbassador(
         approvedAll + sentBack + pending,
       );
       const downloads = downloadsByAmbassador.get(profile.id) ?? 0;
-      const downloadsShort = STIPEND_MIN_DOWNLOADS - downloads;
+      const completionMet = completion >= STIPEND_MIN_COMPLETION_PCT;
+      // Which route qualified them, if any. See STIPEND_DOWNLOADS_ONLY.
+      const eligibleBy: "tasks" | "downloads" | null = currentRule
+        ? completionMet && downloads >= STIPEND_TASKS_ROUTE_DOWNLOADS
+          ? "tasks"
+          : downloads >= STIPEND_DOWNLOADS_ONLY
+            ? "downloads"
+            : null
+        : completionMet && downloads >= STIPEND_MIN_DOWNLOADS
+          ? "tasks"
+          : null;
+      // Downloads still needed on the tasks route, and on the downloads-only
+      // route (null where that route does not exist).
+      const downloadsShort =
+        (currentRule ? STIPEND_TASKS_ROUTE_DOWNLOADS : STIPEND_MIN_DOWNLOADS) -
+        downloads;
+      const downloadsShortAlone = currentRule
+        ? STIPEND_DOWNLOADS_ONLY - downloads
+        : null;
       return {
         ...profile,
         total,
@@ -551,13 +632,12 @@ export async function getCompletionByAmbassador(
         surveysDone: surveys.done,
         downloads,
         downloadsShort,
-        // Both bars, not either: the rule is an and. Completion is the share
-        // of their own reachable pool, so a late joiner is asked for 80% of
-        // what was open to them rather than 80% of a month they missed half
-        // of.
-        eligible:
-          downloads >= STIPEND_MIN_DOWNLOADS &&
-          completion >= STIPEND_MIN_COMPLETION_PCT,
+        downloadsShortAlone,
+        // Completion is the share of their own reachable pool, so a late
+        // joiner is asked for 80% of what was open to them rather than 80% of
+        // a month they missed half of.
+        eligible: eligibleBy !== null,
+        eligibleBy,
         rejected: rejectedByAmbassador.get(profile.id) ?? 0,
         sentBack,
         pending,
@@ -625,6 +705,7 @@ export async function getCompletionByAmbassador(
   const campaignPerformance = campaignBreakdown(null).slice(0, 8);
   return {
     profiles,
+    currentRule,
     ranked,
     campaignPerformance,
     campaignBreakdown,
